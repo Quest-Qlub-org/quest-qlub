@@ -186,7 +186,7 @@ export const MfaEnrollModal = ({
 
   const handleDownloadCodes = () => {
     const content = [
-      "SHARE Quest - 2段階認証バックアップコード",
+      "Quest Qlub - 2段階認証バックアップコード",
       "=========================================",
       "これらのコードは、認証アプリにアクセスできなくなった際に",
       "ログインするために一度だけ使用できます。",

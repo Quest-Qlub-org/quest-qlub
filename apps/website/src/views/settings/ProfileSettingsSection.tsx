@@ -224,6 +224,15 @@ function DisplayNameEdit({
   );
 }
 
+function normalizeHandle(raw: string): string {
+  return raw
+    .trim()
+    .replace(/^https?:\/\/(www\.)?(x|twitter)\.com\//i, "")
+    .split(/[/?#]/)[0]
+    .replace(/^@/, "")
+    .trim();
+}
+
 function UsernameEdit({
   profile,
   setProfile,
@@ -242,7 +251,8 @@ function UsernameEdit({
 
   const handleSave = async () => {
     if (!profile) return;
-    if (!/^[a-zA-Z0-9_]{3,20}$/.test(uname)) {
+    const cleanUname = normalizeHandle(uname);
+    if (!/^[a-zA-Z0-9_]{3,20}$/.test(cleanUname)) {
       setErr("半角英数字・アンダースコアのみ。3〜20文字で入力してください");
       return;
     }
@@ -250,14 +260,18 @@ function UsernameEdit({
     setErr("");
     const { error } = await supabase
       .from("profiles")
-      .update({ username: uname })
+      .update({ username: cleanUname })
       .eq("id", profile.id);
     if (error) {
       setErr("このユーザー名はすでに使われています");
     } else {
-      setProfile((p) => (p ? { ...p, username: uname } : p));
+      setProfile((p) => (p ? { ...p, username: cleanUname, x_account: cleanUname } : p));
       if (setWriters) {
-        setWriters((ws) => ws.map((w) => (w.id === profile.id ? { ...w, username: uname } : w)));
+        setWriters((ws) =>
+          ws.map((w) =>
+            w.id === profile.id ? { ...w, username: cleanUname, x_account: cleanUname } : w,
+          ),
+        );
       }
       setEditing(false);
       showToast("ユーザー名を更新しました");
@@ -310,11 +324,11 @@ function UsernameEdit({
       ) : (
         <div className="flex items-center justify-between">
           <p className="font-bold text-gray-800">
-            {profile?.username ? `@${profile.username}` : "（未設定）"}
+            {profile?.username ? `@${profile.username.replace(/^@/, "")}` : "（未設定）"}
           </p>
           <button
             onClick={() => {
-              setUname(profile?.username ?? "");
+              setUname((profile?.username ?? "").replace(/^@/, ""));
               setEditing(true);
             }}
             className="text-xs text-blue-500 font-bold underline"
@@ -423,28 +437,52 @@ function XAccountEdit({
   setWriters?: React.Dispatch<React.SetStateAction<Profile[]>>;
   showToast: (msg: string) => void;
 }) {
+  const currentXHandle = (profile?.x_account || profile?.username || "").replace(/^@/, "");
   const [editing, setEditing] = useState(false);
-  const [handle, setHandle] = useState(profile?.x_account ?? "");
+  const [handle, setHandle] = useState(currentXHandle);
   const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
 
   const handleSave = async () => {
     if (!profile) return;
+    const cleanHandle = normalizeHandle(handle);
+    if (cleanHandle && !/^[a-zA-Z0-9_]{3,20}$/.test(cleanHandle)) {
+      setErr("半角英数字・アンダースコアのみ。3〜20文字で入力してください");
+      return;
+    }
     setSaving(true);
-    const cleanHandle = handle.replace(/^@/, "").trim();
+    setErr("");
     const { error } = await supabase
       .from("profiles")
-      .update({ x_account: cleanHandle || null })
+      .update({ username: cleanHandle || null })
       .eq("id", profile.id);
     if (!error) {
-      setProfile((p) => (p ? { ...p, x_account: cleanHandle || undefined } : p));
+      setProfile((p) =>
+        p
+          ? {
+              ...p,
+              username: cleanHandle || null,
+              x_account: cleanHandle || undefined,
+            }
+          : p,
+      );
       if (setWriters) {
         setWriters((ws) =>
-          ws.map((w) => (w.id === profile.id ? { ...w, x_account: cleanHandle || undefined } : w)),
+          ws.map((w) =>
+            w.id === profile.id
+              ? {
+                  ...w,
+                  username: cleanHandle || null,
+                  x_account: cleanHandle || undefined,
+                }
+              : w,
+          ),
         );
       }
       setEditing(false);
       showToast("Xアカウントを更新しました");
     } else {
+      setErr("このユーザー名はすでに使われているか、保存できませんでした");
       showToast("更新に失敗しました");
     }
     setSaving(false);
@@ -454,38 +492,51 @@ function XAccountEdit({
     <div className="p-4">
       <p className="text-xs text-gray-500 mb-1 font-bold">X（旧Twitter）連携</p>
       {editing ? (
-        <div className="flex gap-2">
-          <div className="flex-1 flex items-center border border-gray-300 rounded-lg px-3 py-1.5 focus-within:ring-2 focus-within:ring-blue-400">
-            <span className="text-gray-400 text-sm mr-1">@</span>
-            <input
-              className="flex-1 text-sm focus:outline-none"
-              value={handle}
-              onChange={(e) => setHandle(e.target.value)}
-              placeholder="username"
-            />
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <div className="flex-1 flex items-center border border-gray-300 rounded-lg px-3 py-1.5 focus-within:ring-2 focus-within:ring-blue-400">
+              <span className="text-gray-400 text-sm mr-1">@</span>
+              <input
+                className="flex-1 text-sm focus:outline-none"
+                value={handle}
+                onChange={(e) => {
+                  setHandle(e.target.value);
+                  setErr("");
+                }}
+                placeholder="username"
+              />
+            </div>
+            <button
+              onClick={() => void handleSave()}
+              disabled={saving}
+              className="px-3 py-1.5 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            >
+              {saving ? "…" : "保存"}
+            </button>
+            <button
+              onClick={() => {
+                setEditing(false);
+                setErr("");
+              }}
+              className="px-3 py-1.5 bg-gray-100 text-gray-600 text-sm font-bold rounded-lg"
+            >
+              取消
+            </button>
           </div>
-          <button
-            onClick={() => void handleSave()}
-            disabled={saving}
-            className="px-3 py-1.5 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50"
-          >
-            {saving ? "…" : "保存"}
-          </button>
-          <button
-            onClick={() => setEditing(false)}
-            className="px-3 py-1.5 bg-gray-100 text-gray-600 text-sm font-bold rounded-lg"
-          >
-            取消
-          </button>
+          {err && <p className="text-xs text-red-500">{err}</p>}
+          <p className="text-xs text-gray-400">
+            Xのユーザー名（@なし、またはURL）を入力するとプロフィールにXリンクが表示されます。
+          </p>
         </div>
       ) : (
         <div className="flex items-center justify-between">
           <p className="font-bold text-gray-800">
-            {profile?.x_account ? `@${profile.x_account}` : "（未設定）"}
+            {currentXHandle ? `@${currentXHandle}` : "（未設定）"}
           </p>
           <button
             onClick={() => {
-              setHandle(profile?.x_account ?? "");
+              setHandle(currentXHandle);
+              setErr("");
               setEditing(true);
             }}
             className="text-xs text-blue-500 font-bold underline"

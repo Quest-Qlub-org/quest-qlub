@@ -38,11 +38,11 @@ export function AppLayout() {
             <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-8 mb-6">
               <div className="flex flex-col gap-2">
                 <div
-                  className="flex items-center gap-2 cursor-pointer"
+                  className="flex items-center gap-2.5 cursor-pointer"
                   onClick={() => navigate("/")}
                 >
                   <LogoIcon className="w-8 h-8" />
-                  <img src={imgTitle} className="h-10 object-contain" alt="SHARE Quest" />
+                  <img src={imgTitle} className="h-7 object-contain" alt="Quest Qlub" />
                 </div>
                 <p className="text-xs text-gray-400 max-w-xs leading-relaxed">
                   学びをシェアする、知識のクエスト。実践的なノウハウ・知見が集まるメディアプラットフォーム。
@@ -84,7 +84,7 @@ export function AppLayout() {
                     onClick={() => navigate("/about")}
                     className="text-left hover:text-blue-600 transition-colors"
                   >
-                    SHARE Questとは
+                    Quest Qlubとは
                   </button>
                   <button
                     onClick={() => navigate("/contact")}
@@ -127,7 +127,7 @@ export function AppLayout() {
             </div>
 
             <div className="border-t border-gray-200 pt-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-              <p className="text-xs text-gray-400">© 2026 SHARE Quest. All rights reserved.</p>
+              <p className="text-xs text-gray-400">© 2026 Quest Qlub. All rights reserved.</p>
             </div>
           </div>
         </footer>

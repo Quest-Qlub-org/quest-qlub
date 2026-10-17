@@ -52,8 +52,8 @@ export function PrivacyView() {
         </div>
         <div className="space-y-5 text-sm text-gray-600 leading-relaxed">
           <p>
-            SHARE
-            Quest（以下「当サービス」）は、ユーザーの個人情報を適切に管理・保護することを最優先に考えています。
+            Quest
+            Qlub（以下「当サービス」）は、ユーザーの個人情報を適切に管理・保護することを最優先に考えています。
           </p>
           {sections.map((s) => (
             <div key={s.title} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">

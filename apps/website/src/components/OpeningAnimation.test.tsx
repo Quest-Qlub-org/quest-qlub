@@ -37,7 +37,7 @@ describe("OpeningAnimation", () => {
       vi.advanceTimersByTime(1200);
     });
 
-    expect(container.textContent).toContain("SHARE QUEST");
+    expect(container.textContent).toContain("QUEST QLUB");
     expect(container.textContent).toContain("学びの「楽しい！」をつなげる");
   });
 

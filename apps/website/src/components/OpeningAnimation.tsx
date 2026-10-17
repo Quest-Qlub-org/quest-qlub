@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { LogoIcon } from "./icons/NavIcons";
 
 const STORAGE_KEY = "share_quest_has_seen_opening";
-const TITLE_TEXT = "SHARE QUEST";
+const TITLE_TEXT = "QUEST QLUB";
 
 export function OpeningAnimation({ onFinished }: { onFinished?: () => void }) {
   const [visible, setVisible] = useState(() => {

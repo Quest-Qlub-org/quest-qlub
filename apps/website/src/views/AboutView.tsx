@@ -1,4 +1,4 @@
-import imgTitle from "../assets/brand_title.png";
+import imgTitleDetail from "../assets/brand_title_detail.png";
 
 import { useApp } from "../context/AppContext";
 import { LogoIcon } from "../components/icons/NavIcons";
@@ -9,13 +9,16 @@ export const AboutView = () => {
     <div className="p-6 space-y-6 animate-in slide-in-from-bottom-4 duration-300 bg-white min-h-screen">
       <div className="text-center py-8">
         <LogoIcon className="w-20 h-20 mx-auto mb-4" />
-        <img src={imgTitle} className="h-[72px] object-contain mx-auto mb-2" alt="SHARE Quest" />
-        <p className="text-blue-600 font-bold">ー 学びの『楽しい！』をつなげる ー</p>
+        <img
+          src={imgTitleDetail}
+          className="h-24 md:h-28 object-contain mx-auto mb-2"
+          alt="Quest Qlub - 学びの『楽しい！』をつなげる -"
+        />
       </div>
       <div className="space-y-6">
         <div className="bg-gray-50 p-5 rounded-xl border border-gray-100">
           <h3 className="font-bold text-gray-800 border-b-2 border-blue-200 pb-2 mb-3 inline-block">
-            SHARE Quest とは
+            Quest Qlub とは
           </h3>
           <p className="text-sm text-gray-600 leading-loose">
             　「学びの『楽しい！』をつなげる」をモットーに、ライターによって書かれる記事から、「学ぶこと」の楽しさや面白さを届けるコンテンツです。
@@ -29,8 +32,8 @@ export const AboutView = () => {
             主な活動
           </h3>
           <p className="text-sm text-gray-600 leading-loose">
-            　SHARE
-            Questのライターが、「楽しい」「おもしろい」と感じたことを記事にすることで、その輪を広げています。
+            　Quest
+            Qlubのライターが、「楽しい」「おもしろい」と感じたことを記事にすることで、その輪を広げています。
           </p>
           <p className="text-sm text-gray-600 leading-loose mt-2">
             　一人でも多くの方に学びの楽しさを伝えられるよう活動しています。
@@ -44,7 +47,7 @@ export const AboutView = () => {
             <span className="inline-block text-xs font-bold text-white bg-blue-500 px-2 py-0.5 rounded-full mb-2">
               編集長
             </span>
-            <p className="text-sm text-gray-700 font-bold pl-1">三上 類衣　-MIKAMI Rui-</p>
+            <p className="text-sm text-gray-700 font-bold pl-1">東雲　-Shinonome-</p>
           </div>
           <div>
             <span className="inline-block text-xs font-bold text-white bg-gray-400 px-2 py-0.5 rounded-full mb-2">

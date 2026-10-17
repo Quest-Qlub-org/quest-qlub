@@ -39,7 +39,7 @@ export const isConnectedToProductionDb = supabaseUrl.includes("uksgnlfnxytqljrct
 // ローカル開発時に本番DBへ直結している場合はコンソール警告を出力
 if (isDev && isConnectedToProductionDb) {
   console.warn(
-    "%c⚠️ [SHARE Quest 開発環境警告] 本番用Supabaseデータベースに直接接続しています！\n" +
+    "%c⚠️ [Quest Qlub 開発環境警告] 本番用Supabaseデータベースに直接接続しています！\n" +
       "開発・テスト時のデータ変更が本番環境に反映される危険があります。\n" +
       "安全のため、開発用プロジェクトまたはブランチを作成し、.env.development.local に設定することを推奨します。",
     "background: #fff3cd; color: #856404; font-size: 14px; font-weight: bold; padding: 4px;",

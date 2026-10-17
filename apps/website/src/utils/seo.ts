@@ -15,9 +15,9 @@ export interface MetaTagsOptions {
 }
 
 export const DEFAULT_META = {
-  title: "SHARE Quest | 学びの「楽しい！」をつなげる",
+  title: "Quest Qlub | 学びの「楽しい！」をつなげる",
   description:
-    "SHARE Questは、学びの「楽しい！」をつなげる記事プラットフォームです。ライターと読者をつなぎ、知識と好奇心を共有します。",
+    "Quest Qlubは、学びの「楽しい！」をつなげる記事プラットフォームです。ライターと読者をつなぎ、知識と好奇心を共有します。",
   url: "https://share-quest.vercel.app/",
   image: "https://share-quest.vercel.app/ogp.png",
   type: "website" as const,
@@ -50,7 +50,7 @@ function setOrCreateLink(rel: string, href: string): void {
 export function updateMetaTags(options: MetaTagsOptions): void {
   if (typeof document === "undefined") return;
 
-  const fullTitle = options.title ? `${options.title} | SHARE Quest` : DEFAULT_META.title;
+  const fullTitle = options.title ? `${options.title} | Quest Qlub` : DEFAULT_META.title;
   const description = options.description ?? DEFAULT_META.description;
   const url =
     options.url ?? (typeof window !== "undefined" ? window.location.href : DEFAULT_META.url);
@@ -71,7 +71,7 @@ export function updateMetaTags(options: MetaTagsOptions): void {
   setOrCreateMeta("property", "og:url", url);
   setOrCreateMeta("property", "og:image", image);
   setOrCreateMeta("property", "og:type", type);
-  setOrCreateMeta("property", "og:site_name", "SHARE Quest");
+  setOrCreateMeta("property", "og:site_name", "Quest Qlub");
 
   // Twitter Cards
   setOrCreateMeta("name", "twitter:card", twitterCard);
@@ -129,11 +129,11 @@ export function generateArticleJsonLd({
     datePublished: datePublished || new Date().toISOString(),
     author: {
       "@type": "Person",
-      name: authorName || "SHARE Quest Writer",
+      name: authorName || "Quest Qlub Writer",
     },
     publisher: {
       "@type": "Organization",
-      name: "SHARE Quest",
+      name: "Quest Qlub",
       logo: {
         "@type": "ImageObject",
         url: "https://share-quest.vercel.app/brand_logo.jpg",

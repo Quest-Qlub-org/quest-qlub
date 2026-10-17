@@ -55,8 +55,8 @@ export function TermsView() {
         </div>
         <div className="space-y-4 text-sm text-gray-600 leading-relaxed">
           <p>
-            SHARE
-            Quest（以下「当サービス」）をご利用いただく前に、以下の利用規約をお読みください。サービスをご利用いただくことで、本規約に同意したものとみなします。
+            Quest
+            Qlub（以下「当サービス」）をご利用いただく前に、以下の利用規約をお読みください。サービスをご利用いただくことで、本規約に同意したものとみなします。
           </p>
           {sections.map((s) => (
             <div key={s.title} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">

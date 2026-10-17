@@ -88,7 +88,7 @@ export const SetupProfileView = () => {
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 w-full max-w-sm">
         <h1 className="text-2xl font-bold text-center mb-2">プロフィールの初期設定</h1>
         <p className="text-xs text-gray-500 text-center mb-6">
-          SHARE Questを利用するためにプロフィールを設定してください
+          Quest Qlubを利用するためにプロフィールを設定してください
         </p>
         {error && <p className="text-red-500 text-sm mb-4 text-center">{error}</p>}
         <form onSubmit={handleSave} className="space-y-4">

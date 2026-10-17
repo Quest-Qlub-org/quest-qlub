@@ -101,7 +101,13 @@ export const SearchView = () => {
                 .filter((w) => w.role === "writer" || w.role === "editor")
                 .sort((a, b) => {
                   const rank = (w: typeof a) => {
-                    if ((w.display_name ?? "").includes("SHARE Quest編集部")) return 0;
+                    const dName = w.display_name ?? "";
+                    if (
+                      dName.includes("Quest Qlub編集部") ||
+                      dName.includes("SHARE Quest編集部") ||
+                      dName.includes("編集部")
+                    )
+                      return 0;
                     if (w.role === "editor") return 1;
                     return 2;
                   };

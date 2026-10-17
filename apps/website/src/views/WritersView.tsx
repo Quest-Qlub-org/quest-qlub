@@ -94,7 +94,7 @@ export const WritersView = () => {
       <div className="border-b border-gray-200 pb-3">
         <h1 className="text-2xl font-bold text-gray-900">ライター一覧</h1>
         <p className="text-xs text-gray-500 mt-1">
-          SHARE Quest で知識を発信するライター・編集長の一覧です
+          Quest Qlub で知識を発信するライター・編集長の一覧です
         </p>
       </div>
 

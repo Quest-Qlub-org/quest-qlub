@@ -117,7 +117,7 @@ export const ProfileView = () => {
     };
   }, [targetIdentifier, cleanTarget, cachedWriter]);
 
-  const cleanUsername = writer?.username ? writer.username.replace(/^@/, "") : "";
+  const cleanUsername = (writer?.x_account || writer?.username || "").replace(/^@/, "");
   const following = writer ? isFollowing(writer.id) : false;
 
   useEffect(() => {

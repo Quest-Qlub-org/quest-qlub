@@ -1,4 +1,6 @@
 import imgRecommend from "../assets/recommend_icon.png";
+import imgPopular from "../assets/popular_icon.png";
+import imgTitleDetail from "../assets/brand_title_detail.png";
 import { useApp } from "../context/AppContext";
 import { LogoIcon } from "../components/icons/NavIcons";
 import { ArticleCard } from "../components/ArticleCard";
@@ -24,11 +26,13 @@ export const HomeView = () => {
 
   return (
     <div className="p-4 md:p-8 space-y-8 animate-in fade-in duration-300">
-      <div className="text-center py-6 bg-blue-50 rounded-2xl border border-blue-100 relative overflow-hidden shadow-sm">
+      <div className="text-center py-6 px-4 bg-blue-50 rounded-2xl border border-blue-100 relative overflow-hidden shadow-sm">
         <LogoIcon className="absolute -right-4 -bottom-4 w-28 h-28 opacity-10" />
-        <p className="text-blue-700 font-bold tracking-wider text-base md:text-lg">
-          ー 学びの『楽しい！』をつなげる ー
-        </p>
+        <img
+          src={imgTitleDetail}
+          alt="Quest Qlub - 学びの『楽しい！』をつなげる -"
+          className="h-20 md:h-24 object-contain mx-auto mb-1"
+        />
         <p className="text-xs text-blue-500 mt-1">
           実践的なナレッジや知見が集まるナレッジシェアプラットフォーム
         </p>
@@ -36,7 +40,7 @@ export const HomeView = () => {
           onClick={() => navigate("/about")}
           className="text-xs text-blue-600 font-bold underline mt-3 hover:text-blue-800 transition-colors inline-block"
         >
-          SHARE Questとは？
+          Quest Qlubとは？
         </button>
       </div>
 
@@ -68,7 +72,7 @@ export const HomeView = () => {
       {/* 人気記事セクション */}
       <section>
         <h2 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
-          <span className="text-red-500 font-bold text-xl">🔥</span>
+          <img src={imgPopular} className="w-5 h-5 object-contain" alt="人気" />
           <span>人気の記事</span>
         </h2>
         {articlesLoading ? (

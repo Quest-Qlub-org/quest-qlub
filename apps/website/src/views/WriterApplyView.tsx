@@ -139,7 +139,7 @@ export const WriterApplyView = () => {
           <h1 className="text-2xl font-bold text-gray-900">ライター応募フォーム</h1>
         </div>
         <p className="text-xs text-gray-500 leading-relaxed">
-          SHARE Quest
+          Quest Qlub
           であなたの知識や経験を記事として発信しませんか？以下の項目をご記入の上ご応募ください。
         </p>
       </div>
@@ -224,7 +224,7 @@ export const WriterApplyView = () => {
           <textarea
             required
             rows={4}
-            placeholder="得意な技術領域や、SHARE Questで発信したい内容について自由にご記入ください。"
+            placeholder="得意な技術領域や、Quest Qlubで発信したい内容について自由にご記入ください。"
             value={motivation}
             onChange={(e) => setMotivation(e.target.value)}
             className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"

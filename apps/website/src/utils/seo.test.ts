@@ -17,13 +17,13 @@ describe("seo utility", () => {
       type: "article",
     });
 
-    expect(document.title).toBe("記事タイトル | SHARE Quest");
+    expect(document.title).toBe("記事タイトル | Quest Qlub");
 
     const descMeta = document.querySelector('meta[name="description"]')?.getAttribute("content");
     expect(descMeta).toBe("記事の説明文です");
 
     const ogTitle = document.querySelector('meta[property="og:title"]')?.getAttribute("content");
-    expect(ogTitle).toBe("記事タイトル | SHARE Quest");
+    expect(ogTitle).toBe("記事タイトル | Quest Qlub");
 
     const ogImage = document.querySelector('meta[property="og:image"]')?.getAttribute("content");
     expect(ogImage).toBe("https://example.com/thumbnail.png");
@@ -36,7 +36,7 @@ describe("seo utility", () => {
 
   it("resets meta tags to default", () => {
     updateMetaTags({ title: "個別記事" });
-    expect(document.title).toBe("個別記事 | SHARE Quest");
+    expect(document.title).toBe("個別記事 | Quest Qlub");
 
     resetMetaTags();
     expect(document.title).toBe(DEFAULT_META.title);

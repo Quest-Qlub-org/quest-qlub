@@ -9,7 +9,30 @@ import FontFamily from "@tiptap/extension-font-family";
 import Placeholder from "@tiptap/extension-placeholder";
 import TextAlign from "@tiptap/extension-text-align";
 import { Extension, Node as TipTapNode, mergeAttributes } from "@tiptap/core";
-import { useEffect, useCallback, useRef, useState } from "react";
+import { useEffect, useCallback, useRef, useState, useMemo } from "react";
+import {
+  Bold,
+  Italic,
+  Underline as UnderlineIcon,
+  Strikethrough,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  List,
+  ListOrdered,
+  Quote,
+  Code2,
+  Link2,
+  ImagePlus,
+  Minus,
+  Undo2,
+  Redo2,
+  Eraser,
+  CornerDownLeft,
+  Upload,
+  Loader2,
+  X,
+} from "lucide-react";
 
 const FontSize = Extension.create({
   name: "fontSize",
@@ -47,7 +70,7 @@ const FontSize = Extension.create({
   },
 });
 
-const CustomFrame = TipTapNode.create({
+export const CustomFrame = TipTapNode.create({
   name: "customFrame",
   group: "block",
   content: "block+",
@@ -56,13 +79,21 @@ const CustomFrame = TipTapNode.create({
     return {
       type: {
         default: "theme",
-        parseHTML: (element) => element.getAttribute("data-type"),
+        parseHTML: (element) => element.getAttribute("data-type") || "theme",
         renderHTML: (attributes) => ({ "data-type": attributes.type }),
       },
     };
   },
   parseHTML() {
-    return [{ tag: "div[data-type]" }];
+    return [
+      {
+        tag: "div[data-type]",
+        contentElement: (node) => {
+          const el = node as HTMLElement;
+          return (el.querySelector(".custom-frame-body") as HTMLElement) || el;
+        },
+      },
+    ];
   },
   renderHTML({ node, HTMLAttributes }) {
     const type = node.attrs.type;
@@ -77,6 +108,9 @@ const CustomFrame = TipTapNode.create({
     } else if (type === "summary") {
       className += "custom-frame-summary";
       title = "💡 まとめ";
+    } else if (type === "note") {
+      className += "custom-frame-note";
+      title = "📝 補足・注意";
     }
     return [
       "div",
@@ -89,7 +123,10 @@ const CustomFrame = TipTapNode.create({
     return {
       setCustomFrame:
         (type: string) =>
-        ({ commands }: any) => {
+        ({ editor, commands }: any) => {
+          if (editor.isActive(this.name)) {
+            return commands.updateAttributes(this.name, { type });
+          }
           return commands.wrapIn(this.name, { type });
         },
       unsetCustomFrame:
@@ -99,10 +136,24 @@ const CustomFrame = TipTapNode.create({
         },
       toggleCustomFrame:
         (type: string) =>
-        ({ commands }: any) => {
-          return commands.toggleWrap(this.name, { type });
+        ({ editor, commands }: any) => {
+          if (editor.isActive(this.name, { type })) {
+            return commands.lift(this.name);
+          }
+          if (editor.isActive(this.name)) {
+            return commands.updateAttributes(this.name, { type });
+          }
+          return commands.wrapIn(this.name, { type });
         },
     } as any;
+  },
+  addKeyboardShortcuts() {
+    return {
+      "Mod-Enter": () => {
+        if (!this.editor.isActive(this.name)) return false;
+        return this.editor.chain().focus().exitCode().lift(this.name).run();
+      },
+    };
   },
 });
 
@@ -110,11 +161,12 @@ interface Props {
   content: string;
   onChange: (html: string) => void;
   placeholder?: string;
+  onUploadImage?: (file: File) => Promise<string | null>;
 }
 
 const FONT_SIZES = ["12", "14", "16", "18", "20", "24", "28", "32", "36", "48"];
 const FONT_FAMILIES = [
-  { label: "デフォルト", value: "" },
+  { label: "標準フォント", value: "" },
   { label: "ゴシック体", value: "sans-serif" },
   { label: "明朝体", value: "serif" },
   { label: "等幅", value: "monospace" },
@@ -123,29 +175,24 @@ const COLORS = [
   "#000000",
   "#374151",
   "#6B7280",
+  "#bf783a",
   "#EF4444",
   "#F97316",
   "#EAB308",
   "#22C55E",
+  "#0EA5E9",
   "#3B82F6",
   "#8B5CF6",
   "#EC4899",
-  "#FFFFFF",
-  "#FEF2F2",
-  "#FFF7ED",
-  "#FEFCE8",
-  "#F0FDF4",
-  "#EFF6FF",
-  "#F5F3FF",
-  "#FDF2F8",
 ];
 
-export default function RichTextEditor({ content, onChange, placeholder }: Props) {
+export default function RichTextEditor({ content, onChange, placeholder, onUploadImage }: Props) {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
   const [showImageInput, setShowImageInput] = useState(false);
   const [imageUrl, setImageUrl] = useState("");
+  const [imageUploading, setImageUploading] = useState(false);
   const colorRef = useRef<HTMLDivElement>(null);
 
   const editor = useEditor({
@@ -156,7 +203,7 @@ export default function RichTextEditor({ content, onChange, placeholder }: Props
         openOnClick: false,
         HTMLAttributes: { class: "text-blue-600 underline cursor-pointer" },
       }),
-      Image.configure({ HTMLAttributes: { class: "max-w-full rounded-lg my-2" } }),
+      Image.configure({ HTMLAttributes: { class: "max-w-full rounded-lg my-3 mx-auto" } }),
       TextStyle,
       Color,
       FontFamily,
@@ -168,13 +215,14 @@ export default function RichTextEditor({ content, onChange, placeholder }: Props
     content,
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
     editorProps: {
-      attributes: { class: "article-content min-h-[500px] p-4 focus:outline-none" },
+      attributes: {
+        class: "article-content min-h-[480px] p-4 md:p-6 focus:outline-none",
+      },
     },
   });
 
   useEffect(() => {
     if (!editor) return;
-    // ユーザーが編集中（フォーカス中）は外部からの再セットによるカーソル飛びを防止
     if (editor.isFocused) return;
 
     const isCurrentEmpty = editor.isEmpty;
@@ -195,22 +243,100 @@ export default function RichTextEditor({ content, onChange, placeholder }: Props
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
+  const openLinkModal = useCallback(() => {
+    if (!editor) return;
+    const existingHref = editor.getAttributes("link").href ?? "";
+    setLinkUrl(existingHref);
+    setShowLinkInput(true);
+  }, [editor]);
+
   const applyLink = useCallback(() => {
     if (!editor) return;
-    if (linkUrl) editor.chain().focus().extendMarkRange("link").setLink({ href: linkUrl }).run();
-    else editor.chain().focus().unsetLink().run();
+    const trimmed = linkUrl.trim();
+    if (trimmed) {
+      editor.chain().focus().extendMarkRange("link").setLink({ href: trimmed }).run();
+    } else {
+      editor.chain().focus().unsetLink().run();
+    }
     setShowLinkInput(false);
     setLinkUrl("");
   }, [editor, linkUrl]);
 
   const insertImage = useCallback(() => {
-    if (!editor || !imageUrl) return;
-    editor.chain().focus().setImage({ src: imageUrl }).run();
+    if (!editor || !imageUrl.trim()) return;
+    editor.chain().focus().setImage({ src: imageUrl.trim() }).run();
     setShowImageInput(false);
     setImageUrl("");
   }, [editor, imageUrl]);
 
+  const handleImageFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !editor || !onUploadImage) return;
+    setImageUploading(true);
+    try {
+      const uploadedUrl = await onUploadImage(file);
+      if (uploadedUrl) {
+        editor.chain().focus().setImage({ src: uploadedUrl }).run();
+        setShowImageInput(false);
+        setImageUrl("");
+      }
+    } finally {
+      setImageUploading(false);
+    }
+  };
+
+  const exitCustomFrame = useCallback(() => {
+    if (!editor) return;
+    const { state } = editor;
+    const { $from } = state.selection;
+    for (let d = $from.depth; d > 0; d--) {
+      if ($from.node(d).type.name === "customFrame") {
+        const afterPos = $from.after(d);
+        editor
+          .chain()
+          .focus()
+          .insertContentAt(afterPos, { type: "paragraph" })
+          .setTextSelection(afterPos + 1)
+          .run();
+        return;
+      }
+    }
+  }, [editor]);
+
+  const plainTextStats = useMemo(() => {
+    const text = content
+      .replace(/<[^>]+>/g, "")
+      .replace(/&nbsp;/g, " ")
+      .trim();
+    const charCount = text.replace(/\s+/g, "").length;
+    const readingMinutes = Math.max(1, Math.ceil(charCount / 500));
+    return { charCount, readingMinutes };
+  }, [content]);
+
   if (!editor) return null;
+
+  const activeHeading = editor.isActive("heading", { level: 1 })
+    ? "h1"
+    : editor.isActive("heading", { level: 2 })
+      ? "h2"
+      : editor.isActive("heading", { level: 3 })
+        ? "h3"
+        : "paragraph";
+
+  const activeFrame = editor.isActive("customFrame", { type: "theme" })
+    ? "theme"
+    : editor.isActive("customFrame", { type: "verification" })
+      ? "verification"
+      : editor.isActive("customFrame", { type: "summary" })
+        ? "summary"
+        : editor.isActive("customFrame", { type: "note" })
+          ? "note"
+          : "";
+
+  const activeFontFamily = (editor.getAttributes("textStyle").fontFamily as string) || "";
+  const activeFontSize =
+    ((editor.getAttributes("textStyle").fontSize as string) || "").replace("px", "") || "";
+  const activeColor = (editor.getAttributes("textStyle").color as string) || "#000000";
 
   const TB = ({
     onClick,
@@ -227,27 +353,28 @@ export default function RichTextEditor({ content, onChange, placeholder }: Props
       type="button"
       onClick={onClick}
       title={title}
-      className={`flex items-center justify-center min-w-[44px] min-h-[44px] px-2 py-1.5 rounded text-sm transition-colors ${active ? "bg-blue-100 text-blue-700 font-bold" : "text-gray-600 hover:bg-gray-100"}`}
+      aria-label={title}
+      className={`flex items-center justify-center w-8 h-8 rounded-lg text-sm transition-colors ${
+        active
+          ? "bg-blue-100 text-blue-700 font-bold shadow-xs"
+          : "text-gray-600 hover:bg-gray-200/70 hover:text-gray-900"
+      }`}
     >
       {children}
     </button>
   );
-  const Div = () => <div className="w-px h-5 bg-gray-200 mx-1 self-center" />;
+
+  const Div = () => <div className="w-px h-5 bg-gray-200 mx-1 self-center shrink-0" />;
 
   return (
-    <div className="border border-gray-300 rounded-xl bg-white shadow-sm">
-      <div className="border-b border-gray-200 bg-gray-50 p-2 flex flex-wrap items-center gap-0.5 rounded-t-xl sticky top-[52px] z-10">
+    <div className="border border-gray-200 rounded-2xl bg-white shadow-sm overflow-visible">
+      {/* ツールバー */}
+      <div className="border-b border-gray-200 bg-gray-50/95 backdrop-blur px-2.5 py-2 flex flex-wrap items-center gap-1 rounded-t-2xl sticky top-[104px] z-20">
+        {/* 段落・見出し */}
         <select
-          className="text-sm border border-gray-200 rounded px-2 py-1 bg-white text-gray-700 mr-1"
-          value={
-            editor.isActive("heading", { level: 1 })
-              ? "h1"
-              : editor.isActive("heading", { level: 2 })
-                ? "h2"
-                : editor.isActive("heading", { level: 3 })
-                  ? "h3"
-                  : "paragraph"
-          }
+          aria-label="見出しスタイル"
+          className="text-xs font-medium border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-700 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          value={activeHeading}
           onChange={(e) => {
             const v = e.target.value;
             if (v === "paragraph") editor.chain().focus().setParagraph().run();
@@ -255,63 +382,27 @@ export default function RichTextEditor({ content, onChange, placeholder }: Props
               editor
                 .chain()
                 .focus()
-                .toggleHeading({ level: parseInt(v[1]) as 1 | 2 | 3 })
+                .toggleHeading({ level: parseInt(v[1], 10) as 1 | 2 | 3 })
                 .run();
           }}
         >
           <option value="paragraph">本文</option>
-          <option value="h1">見出し1</option>
-          <option value="h2">見出し2</option>
-          <option value="h3">見出し3</option>
+          <option value="h1">見出し 1 (大)</option>
+          <option value="h2">見出し 2 (中)</option>
+          <option value="h3">見出し 3 (小)</option>
         </select>
+
+        {/* コールアウト枠 */}
         <select
-          className="text-sm border border-gray-200 rounded px-2 py-1 bg-white text-gray-700 mr-1"
-          onChange={(e) => {
-            const v = e.target.value;
-            if (!v) editor.chain().focus().unsetFontFamily().run();
-            else editor.chain().focus().setFontFamily(v).run();
-          }}
-          defaultValue=""
-        >
-          {FONT_FAMILIES.map((f) => (
-            <option key={f.value} value={f.value}>
-              {f.label}
-            </option>
-          ))}
-        </select>
-        <select
-          className="text-sm border border-gray-200 rounded px-2 py-1 bg-white text-gray-700 mr-1"
-          onChange={(e) => {
-            const v = e.target.value;
-            if (!v) (editor.chain().focus() as any).unsetFontSize().run();
-            else (editor.chain().focus() as any).setFontSize(`${v}px`).run();
-          }}
-          defaultValue=""
-        >
-          <option value="">サイズ</option>
-          {FONT_SIZES.map((s) => (
-            <option key={s} value={s}>
-              {s}px
-            </option>
-          ))}
-        </select>
-        <select
-          className="text-sm border border-gray-200 rounded px-2 py-1 bg-white text-gray-700 mr-1"
-          value={
-            editor.isActive("customFrame", { type: "theme" })
-              ? "theme"
-              : editor.isActive("customFrame", { type: "verification" })
-                ? "verification"
-                : editor.isActive("customFrame", { type: "summary" })
-                  ? "summary"
-                  : ""
-          }
+          aria-label="コールアウト枠"
+          className="text-xs font-medium border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-700 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          value={activeFrame}
           onChange={(e) => {
             const v = e.target.value;
             if (!v) {
               (editor.chain().focus() as any).unsetCustomFrame().run();
             } else {
-              (editor.chain().focus() as any).toggleCustomFrame(v).run();
+              (editor.chain().focus() as any).setCustomFrame(v).run();
             }
           }}
         >
@@ -319,52 +410,108 @@ export default function RichTextEditor({ content, onChange, placeholder }: Props
           <option value="theme">📌 テーマ枠</option>
           <option value="verification">🔍 検証枠</option>
           <option value="summary">💡 まとめ枠</option>
+          <option value="note">📝 補足・注意枠</option>
         </select>
+
+        {activeFrame && (
+          <button
+            type="button"
+            onClick={exitCustomFrame}
+            title="枠の外に新しい段落を追加"
+            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+          >
+            <CornerDownLeft className="w-3.5 h-3.5" />
+            <span>枠外へ改行</span>
+          </button>
+        )}
+
+        {/* フォント種類 */}
+        <select
+          aria-label="フォント"
+          className="text-xs font-medium border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-700 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          value={activeFontFamily}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (!v) editor.chain().focus().unsetFontFamily().run();
+            else editor.chain().focus().setFontFamily(v).run();
+          }}
+        >
+          {FONT_FAMILIES.map((f) => (
+            <option key={f.value} value={f.value}>
+              {f.label}
+            </option>
+          ))}
+        </select>
+
+        {/* 文字サイズ */}
+        <select
+          aria-label="文字サイズ"
+          className="text-xs font-medium border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-700 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          value={activeFontSize}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (!v) (editor.chain().focus() as any).unsetFontSize().run();
+            else (editor.chain().focus() as any).setFontSize(`${v}px`).run();
+          }}
+        >
+          <option value="">標準サイズ</option>
+          {FONT_SIZES.map((s) => (
+            <option key={s} value={s}>
+              {s}px
+            </option>
+          ))}
+        </select>
+
         <Div />
+
+        {/* 文字装飾 */}
         <TB
           onClick={() => editor.chain().focus().toggleBold().run()}
           active={editor.isActive("bold")}
-          title="太字"
+          title="太字 (Ctrl+B)"
         >
-          <strong>B</strong>
+          <Bold className="w-4 h-4" />
         </TB>
         <TB
           onClick={() => editor.chain().focus().toggleItalic().run()}
           active={editor.isActive("italic")}
-          title="イタリック"
+          title="斜体 (Ctrl+I)"
         >
-          <em>I</em>
+          <Italic className="w-4 h-4" />
         </TB>
         <TB
           onClick={() => editor.chain().focus().toggleUnderline().run()}
           active={editor.isActive("underline")}
-          title="下線"
+          title="下線 (Ctrl+U)"
         >
-          <span className="underline">U</span>
+          <UnderlineIcon className="w-4 h-4" />
         </TB>
         <TB
           onClick={() => editor.chain().focus().toggleStrike().run()}
           active={editor.isActive("strike")}
           title="取り消し線"
         >
-          <span className="line-through">S</span>
+          <Strikethrough className="w-4 h-4" />
         </TB>
-        <Div />
+
+        {/* 文字色 */}
         <div className="relative" ref={colorRef}>
           <button
             type="button"
             title="文字色"
+            aria-label="文字色"
             onClick={() => setShowColorPicker((v) => !v)}
-            className="flex flex-col items-center px-2 py-1 rounded hover:bg-gray-100"
+            className="flex flex-col items-center justify-center w-8 h-8 rounded-lg hover:bg-gray-200/70 transition-colors"
           >
-            <span className="text-sm font-bold text-gray-700">A</span>
+            <span className="text-xs font-extrabold text-gray-700 leading-none">A</span>
             <span
-              className="h-1 w-5 rounded-sm mt-0.5"
-              style={{ backgroundColor: editor.getAttributes("textStyle").color ?? "#000000" }}
+              className="h-1 w-4 rounded-full mt-0.5 border border-black/10"
+              style={{ backgroundColor: activeColor }}
             />
           </button>
           {showColorPicker && (
-            <div className="absolute top-9 left-0 z-50 bg-white border border-gray-200 rounded-xl shadow-lg p-3 w-48">
+            <div className="absolute top-10 left-0 z-50 bg-white border border-gray-200 rounded-xl shadow-xl p-3 w-48">
+              <p className="text-[11px] font-bold text-gray-500 mb-2">文字色を選択</p>
               <div className="grid grid-cols-6 gap-1.5">
                 {COLORS.map((c) => (
                   <button
@@ -374,7 +521,11 @@ export default function RichTextEditor({ content, onChange, placeholder }: Props
                       editor.chain().focus().setColor(c).run();
                       setShowColorPicker(false);
                     }}
-                    className="w-6 h-6 rounded border border-gray-200 hover:scale-110 transition-transform"
+                    className={`w-6 h-6 rounded-md border transition-transform hover:scale-110 ${
+                      activeColor.toLowerCase() === c.toLowerCase()
+                        ? "border-gray-900 ring-2 ring-blue-400"
+                        : "border-gray-200"
+                    }`}
                     style={{ backgroundColor: c }}
                     title={c}
                   />
@@ -386,171 +537,277 @@ export default function RichTextEditor({ content, onChange, placeholder }: Props
                   editor.chain().focus().unsetColor().run();
                   setShowColorPicker(false);
                 }}
-                className="mt-2 text-xs text-gray-500 hover:text-gray-700 w-full text-center"
+                className="mt-2.5 py-1 text-xs font-bold text-gray-600 hover:text-gray-900 bg-gray-50 hover:bg-gray-100 rounded-lg w-full text-center transition-colors"
               >
-                色をリセット
+                標準色に戻す
               </button>
             </div>
           )}
         </div>
+
+        {/* 書式クリア */}
+        <TB
+          onClick={() => editor.chain().focus().unsetAllMarks().clearNodes().run()}
+          active={false}
+          title="書式をクリア"
+        >
+          <Eraser className="w-4 h-4" />
+        </TB>
+
         <Div />
+
+        {/* テキスト配置 */}
         <TB
           onClick={() => editor.chain().focus().setTextAlign("left").run()}
           active={editor.isActive({ textAlign: "left" })}
           title="左揃え"
         >
-          左
+          <AlignLeft className="w-4 h-4" />
         </TB>
         <TB
           onClick={() => editor.chain().focus().setTextAlign("center").run()}
           active={editor.isActive({ textAlign: "center" })}
           title="中央揃え"
         >
-          中
+          <AlignCenter className="w-4 h-4" />
         </TB>
         <TB
           onClick={() => editor.chain().focus().setTextAlign("right").run()}
           active={editor.isActive({ textAlign: "right" })}
           title="右揃え"
         >
-          右
+          <AlignRight className="w-4 h-4" />
         </TB>
+
         <Div />
+
+        {/* リスト・引用・コード */}
         <TB
           onClick={() => editor.chain().focus().toggleBulletList().run()}
           active={editor.isActive("bulletList")}
-          title="箇条書き"
+          title="箇条書きリスト"
         >
-          • ≡
+          <List className="w-4 h-4" />
         </TB>
         <TB
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
           active={editor.isActive("orderedList")}
           title="番号付きリスト"
         >
-          1.≡
+          <ListOrdered className="w-4 h-4" />
         </TB>
-        <Div />
         <TB
           onClick={() => editor.chain().focus().toggleBlockquote().run()}
           active={editor.isActive("blockquote")}
           title="引用"
         >
-          ❝
+          <Quote className="w-4 h-4" />
         </TB>
         <TB
           onClick={() => editor.chain().focus().toggleCodeBlock().run()}
           active={editor.isActive("codeBlock")}
-          title="コード"
+          title="コードブロック"
         >
-          {"</>"}
+          <Code2 className="w-4 h-4" />
         </TB>
-        <Div />
-        <div className="relative">
-          <TB
-            onClick={() => setShowLinkInput((v) => !v)}
-            active={editor.isActive("link")}
-            title="リンク"
-          >
-            🔗
-          </TB>
-          {showLinkInput && (
-            <div
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/30"
-              onClick={() => setShowLinkInput(false)}
-            >
-              <div
-                className="bg-white border border-gray-200 rounded-xl shadow-xl p-4 w-80"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <p className="text-sm font-bold text-gray-700 mb-3">リンクURLを入力</p>
-                <input
-                  type="url"
-                  value={linkUrl}
-                  onChange={(e) => setLinkUrl(e.target.value)}
-                  placeholder="https://..."
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-400 mb-3"
-                  onKeyDown={(e) => e.key === "Enter" && applyLink()}
-                  autoFocus
-                />
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={applyLink}
-                    className="flex-1 bg-blue-500 text-white text-sm rounded-lg py-2 font-bold hover:bg-blue-600"
-                  >
-                    適用
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      editor.chain().focus().unsetLink().run();
-                      setShowLinkInput(false);
-                    }}
-                    className="flex-1 border border-gray-200 text-sm rounded-lg py-2 text-gray-600 hover:bg-gray-50"
-                  >
-                    解除
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-        <div className="relative">
-          <TB onClick={() => setShowImageInput((v) => !v)} active={false} title="画像">
-            🖼️
-          </TB>
-          {showImageInput && (
-            <div
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/30"
-              onClick={() => setShowImageInput(false)}
-            >
-              <div
-                className="bg-white border border-gray-200 rounded-xl shadow-xl p-4 w-80"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <p className="text-sm font-bold text-gray-700 mb-3">画像URLを入力</p>
-                <input
-                  type="url"
-                  value={imageUrl}
-                  onChange={(e) => setImageUrl(e.target.value)}
-                  placeholder="https://..."
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-400 mb-3"
-                  onKeyDown={(e) => e.key === "Enter" && insertImage()}
-                  autoFocus
-                />
-                <button
-                  type="button"
-                  onClick={insertImage}
-                  className="w-full bg-blue-500 text-white text-sm rounded-lg py-2 font-bold hover:bg-blue-600"
-                >
-                  挿入
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-        <Div />
         <TB
           onClick={() => editor.chain().focus().setHorizontalRule().run()}
           active={false}
           title="区切り線"
         >
-          —
+          <Minus className="w-4 h-4" />
         </TB>
-        <div className="ml-auto flex gap-0.5">
+
+        <Div />
+
+        {/* リンク・画像 */}
+        <TB onClick={openLinkModal} active={editor.isActive("link")} title="リンクを挿入・編集">
+          <Link2 className="w-4 h-4" />
+        </TB>
+        <TB onClick={() => setShowImageInput((v) => !v)} active={false} title="画像を挿入">
+          <ImagePlus className="w-4 h-4" />
+        </TB>
+
+        {/* 元に戻す・やり直し */}
+        <div className="ml-auto flex items-center gap-0.5">
           <TB onClick={() => editor.chain().focus().undo().run()} active={false} title="元に戻す">
-            ↩
+            <Undo2 className="w-4 h-4" />
           </TB>
           <TB onClick={() => editor.chain().focus().redo().run()} active={false} title="やり直し">
-            ↪
+            <Redo2 className="w-4 h-4" />
           </TB>
         </div>
       </div>
+
+      {/* リンク設定モーダル */}
+      {showLinkInput && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setShowLinkInput(false)}
+        >
+          <div
+            className="bg-white border border-gray-200 rounded-2xl shadow-xl p-5 w-full max-w-sm"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-bold text-gray-800">リンクURLを設定</p>
+              <button
+                type="button"
+                onClick={() => setShowLinkInput(false)}
+                className="p-1 text-gray-400 hover:text-gray-600 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <input
+              type="url"
+              value={linkUrl}
+              onChange={(e) => setLinkUrl(e.target.value)}
+              placeholder="https://example.com"
+              className="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400 mb-4"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  applyLink();
+                } else if (e.key === "Escape") {
+                  setShowLinkInput(false);
+                }
+              }}
+              autoFocus
+            />
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={applyLink}
+                className="flex-1 bg-blue-600 text-white text-sm rounded-xl py-2.5 font-bold hover:bg-blue-700 transition-colors"
+              >
+                適用する
+              </button>
+              {editor.isActive("link") && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    editor.chain().focus().unsetLink().run();
+                    setShowLinkInput(false);
+                  }}
+                  className="px-4 border border-red-200 text-red-600 text-sm font-bold rounded-xl py-2.5 hover:bg-red-50 transition-colors"
+                >
+                  リンク解除
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 画像挿入モーダル */}
+      {showImageInput && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setShowImageInput(false)}
+        >
+          <div
+            className="bg-white border border-gray-200 rounded-2xl shadow-xl p-5 w-full max-w-sm space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-bold text-gray-800">本文に画像を挿入</p>
+              <button
+                type="button"
+                onClick={() => setShowImageInput(false)}
+                className="p-1 text-gray-400 hover:text-gray-600 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {onUploadImage && (
+              <div>
+                <label className="w-full py-3 px-4 border-2 border-dashed border-blue-300 bg-blue-50/50 hover:bg-blue-50 text-blue-700 rounded-xl font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-colors">
+                  {imageUploading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>アップロード中...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4" />
+                      <span>端末から画像をアップロード (JPG/PNG/WebP/GIF)</span>
+                    </>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    className="hidden"
+                    onChange={(e) => void handleImageFileSelect(e)}
+                    disabled={imageUploading}
+                  />
+                </label>
+                <div className="relative flex py-2 items-center">
+                  <div className="flex-grow border-t border-gray-200" />
+                  <span className="flex-shrink mx-3 text-[11px] text-gray-400">
+                    またはURLを指定
+                  </span>
+                  <div className="flex-grow border-t border-gray-200" />
+                </div>
+              </div>
+            )}
+
+            <div>
+              <input
+                type="url"
+                value={imageUrl}
+                onChange={(e) => setImageUrl(e.target.value)}
+                placeholder="https://example.com/image.png"
+                className="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400 mb-3"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    insertImage();
+                  } else if (e.key === "Escape") {
+                    setShowImageInput(false);
+                  }
+                }}
+              />
+              <button
+                type="button"
+                onClick={insertImage}
+                disabled={!imageUrl.trim()}
+                className="w-full bg-blue-600 text-white text-sm rounded-xl py-2.5 font-bold hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              >
+                URLから挿入
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
-        .ProseMirror p.is-editor-empty:first-child::before { content: attr(data-placeholder); float: left; color: #adb5bd; pointer-events: none; height: 0; }
+        .ProseMirror p.is-editor-empty:first-child::before {
+          content: attr(data-placeholder);
+          float: left;
+          color: #9ca3af;
+          pointer-events: none;
+          height: 0;
+        }
       `}</style>
+
+      {/* エディタ本文 */}
       <EditorContent editor={editor} />
+
+      {/* ステータスフッター（文字数・読了目安） */}
+      <div className="border-t border-gray-100 bg-gray-50/70 px-4 py-2 rounded-b-2xl flex items-center justify-between text-xs text-gray-500">
+        <span>
+          {activeFrame ? "💡 枠内編集中（Ctrl+Enter または「枠外へ改行」で枠を出られます）" : ""}
+        </span>
+        <div className="flex items-center gap-4 font-medium">
+          <span>文字数: {plainTextStats.charCount.toLocaleString()} 文字</span>
+          <span>
+            読了目安: {plainTextStats.charCount === 0 ? "0" : `約${plainTextStats.readingMinutes}`}
+            分
+          </span>
+        </div>
+      </div>
     </div>
   );
 }

@@ -10,9 +10,9 @@ export function Header() {
   return (
     <header className="sticky top-0 z-50 bg-white border-b shadow-sm w-full">
       <div className="flex items-center justify-center sm:justify-between px-4 md:px-8 py-1.5 max-w-6xl mx-auto w-full">
-        <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate("/")}>
+        <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => navigate("/")}>
           <LogoIcon className="w-8 h-8" />
-          <img src={imgTitle} className="h-10 object-contain inline-block" alt="SHARE Quest" />
+          <img src={imgTitle} className="h-7 sm:h-8 object-contain inline-block" alt="Quest Qlub" />
         </div>
         <div className="hidden sm:flex items-center gap-2">
           {NAV_ITEMS.map((item) => {

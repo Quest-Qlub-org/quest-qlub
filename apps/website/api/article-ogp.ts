@@ -43,8 +43,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.redirect(302, `${SITE_URL}/articles/${articleId}`);
   }
 
-  let title = "SHARE Quest | 学びの「楽しい！」をつなげる";
-  let description = "SHARE Questは、学びの「楽しい！」をつなげる記事プラットフォームです。";
+  let title = "Quest Qlub | 学びの「楽しい！」をつなげる";
+  let description = "Quest Qlubは、学びの「楽しい！」をつなげる記事プラットフォームです。";
   let imageUrl = `${SITE_URL}/ogp.png`;
 
   try {
@@ -62,7 +62,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const data = await response.json();
       if (Array.isArray(data) && data.length > 0) {
         const article = data[0];
-        if (article.title) title = `${article.title} | SHARE Quest`;
+        if (article.title) title = `${article.title} | Quest Qlub`;
         if (article.summary) description = article.summary;
         if (article.thumbnail_url) imageUrl = article.thumbnail_url;
       }
@@ -87,7 +87,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   <meta property="og:description" content="${escapeHtml(description)}">
   <meta property="og:url" content="${escapeHtml(articleUrl)}">
   <meta property="og:image" content="${escapeHtml(imageUrl)}">
-  <meta property="og:site_name" content="SHARE Quest">
+  <meta property="og:site_name" content="Quest Qlub">
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">

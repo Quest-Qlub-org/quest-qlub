@@ -139,12 +139,12 @@ export const ArticleView = () => {
     const writerObj = writers.find((w) => w.id === article.writerId) || writerFallback;
     const authorName =
       writerObj?.display_name ||
-      (writerObj?.username ? `@${writerObj.username}` : "SHARE Quest Writer");
+      (writerObj?.username ? `@${writerObj.username}` : "Quest Qlub Writer");
     const description =
       article.summary ||
       (article.content
         ? article.content.replace(/<[^>]+>/g, "").slice(0, 120)
-        : "SHARE Questの記事です");
+        : "Quest Qlubの記事です");
     const currentUrl = `${window.location.origin}/articles/${article.id}`;
 
     const jsonLd = generateArticleJsonLd({
@@ -360,7 +360,7 @@ export const ArticleView = () => {
               onClick={() =>
                 window.open(
                   `https://twitter.com/intent/tweet?text=${encodeURIComponent(
-                    `${article.title} | ${writer?.display_name ?? "SHARE Quest"} From SHARE Quest`,
+                    `${article.title} | ${writer?.display_name ?? "Quest Qlub"} From Quest Qlub`,
                   )}&url=${encodeURIComponent(articleUrl)}&via=SHARE_Quest_Off`,
                   "_blank",
                 )
@@ -373,7 +373,7 @@ export const ArticleView = () => {
               onClick={() =>
                 window.open(
                   `https://line.me/R/msg/text/?${encodeURIComponent(
-                    `${article.title} | ${writer?.display_name ?? "SHARE Quest"} From SHARE Quest\n${articleUrl}`,
+                    `${article.title} | ${writer?.display_name ?? "Quest Qlub"} From Quest Qlub\n${articleUrl}`,
                   )}`,
                   "_blank",
                 )
