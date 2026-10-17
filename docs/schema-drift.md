@@ -54,6 +54,11 @@ DB の `supabase_migrations.schema_migrations` に記録済みのバージョン
     - **注意**: 許可リスト方式ではなく**補助的な**多層防御。主防御は表示時の
       `sanitizeHtml()`（DOMPurify 許可リスト）であり、本トリガー単独では完全では
       ない。既存4記事が抵触しないことは確認済み。
+  - **修正**: `20261017090141_fix_article_content_validation.sql` で `validate_article_content()`
+    の正規表現を是正。適用時に `\s` が二重化して保存された点、および Postgres ARE では
+    `\b` が後退(backspace)を意味し機能しなかった点を修正（タグ終端を `[\s>/]` または
+    末尾に変更）。実DBで `<script>` / イベントハンドラ / `javascript:` / `srcdoc` を
+    検知し、通常の本文では誤検知しないことを確認済み。
 
 ## セキュリティ強化（コード・Edge Function）
 

@@ -54,7 +54,7 @@ AS $function$
 DECLARE
   c text := coalesce(NEW.content, '');
 BEGIN
-  IF c ~* '<\s*(script|iframe|object|embed|applet|base|meta|link|style|form|svg)\b'
+  IF c ~* '<\s*(script|iframe|object|embed|applet|base|meta|link|style|form|svg)([\s>/]|$)'
      OR c ~* '<[^>]+\son[a-z]+\s*='
      OR c ~* '(href|src|xlink:href)\s*=\s*["'']?\s*(javascript|vbscript|data:text/html)'
      OR c ~* '\ssrcdoc\s*=' THEN
