@@ -9,6 +9,7 @@
     "prepare": "vp config"
   },
   "devDependencies": {
+    "vite": "^8.0.16",
     "vite-plus": "catalog:"
   },
   "engines": {

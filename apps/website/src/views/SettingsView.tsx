@@ -35,7 +35,7 @@ export const SettingsView = () => {
     if (window.confirm("ログアウトしますか？")) {
       await supabase.auth.signOut();
       showToast("ログアウトしました");
-      navigate("/");
+      void navigate("/");
     }
   };
 

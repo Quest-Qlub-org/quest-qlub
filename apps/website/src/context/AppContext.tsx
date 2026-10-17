@@ -102,14 +102,14 @@ export function useApp(): AppContextType {
 
   const navigate = (view: string, param?: string | null) => {
     if (view.startsWith("/")) {
-      routerNavigate(view);
+      void routerNavigate(view);
       return;
     }
     const mapper = VIEW_TO_PATH_MAP[view];
     if (mapper) {
-      routerNavigate(mapper(param));
+      void routerNavigate(mapper(param));
     } else {
-      routerNavigate(`/${view}`);
+      void routerNavigate(`/${view}`);
     }
   };
 
