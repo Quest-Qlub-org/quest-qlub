@@ -43,8 +43,37 @@ DB の `supabase_migrations.schema_migrations` に記録済みのバージョン
   - 以降 `authenticated` は `role` を直接更新できない。ロール変更は
     `admin_change_user_role()`（SECURITY DEFINER）経由のみ。
 
-## デプロイが必要なため未対応の項目
+- `20261017085124_harden_contact_and_article_content.sql`（適用済み）
+  - **S3**: `contact_messages` のレート制限を DB トリガーで強制
+    （同一メールアドレスにつき10分あたり3件）。Edge Function のインメモリ
+    制限はコールドスタート・インスタンス毎で信頼できないため、DB 側を主防御とした。
+    インデックス `contact_messages_email_created_at_idx` を追加。
+  - **S2**: `articles.content` に代表的な XSS ベクタが含まれる場合、保存を拒否
+    （`<script>`/`<iframe>` 等のタグ、タグ内イベントハンドラ、`javascript:` 等の
+    URL スキーム、`srcdoc`）。
+    - **注意**: 許可リスト方式ではなく**補助的な**多層防御。主防御は表示時の
+      `sanitizeHtml()`（DOMPurify 許可リスト）であり、本トリガー単独では完全では
+      ない。既存4記事が抵触しないことは確認済み。
 
-- 記事HTMLの保存時サニタイズ（サーバ側）
-- お問い合わせフォームの Edge Function 側レート制限・CORS 許可リストの厳格化
-- OGP エンドポイント修正の実効反映（Vercel デプロイ済み。`share-quest.vercel.app`）
+## セキュリティ強化（コード・Edge Function）
+
+- **S4**: `send-contact-email` の CORS 許可リストを厳格化。任意の `*.vercel.app`
+  のうち `share-quest` を含むものを許可する条件を廃止し、明示的な許可オリジン
+  （`share-quest.vercel.app` / `quest-qlub.vercel.app` / localhost）＋このプロジェクト
+  自身の Vercel プレビュー（`quest-qlub*` に一致）のみ許可。`Vary: Origin` を付与。
+  Edge Function へデプロイ済み（version 7）。
+- **S6**: OGP エンドポイントの入力検証・フォールバック修正（デプロイ済み）。
+
+## 依存関係の脆弱性（Dependabot）
+
+- `vite-plus` / `vite-plus-core` / `vite-plus-test` を `0.1.24`、`dompurify` を
+  `3.4.17`、`react-router-dom` を `7.18.4`、間接依存の `vite` を `^8.0.16` へ更新。
+  `tinypool` / `source-map-js` は overrides で修正版へ固定。
+- 残: `braces <= 3.0.3`（上流に修正版が存在しない開発用の間接依存）。
+
+## 未対応・許容済み
+
+- **S5** `increment_views`: セッション識別が無く重複カウントを排除できないため、
+  閲覧数インフレは許容（低リスク。機密性・完全性には影響しない）。
+- マイグレーション履歴の不一致（上記）: `schema_migrations` の調整が必要なため
+  別タスクで対応する。

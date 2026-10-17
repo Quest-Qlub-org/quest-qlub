@@ -1,25 +1,36 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
+// 明示的に許可するオリジン（本番・ローカル）
 const ALLOWED_ORIGINS = [
   "https://share-quest.vercel.app",
+  "https://quest-qlub.vercel.app",
   "http://localhost:5173",
   "http://localhost:3000",
 ];
 
+// このプロジェクト自身の Vercel プレビューのみ許可（任意の *.vercel.app は許可しない）
+// 例: https://quest-qlub-15t83eki3-quest-qlub.vercel.app
+//     https://quest-qlub-git-main-quest-qlub.vercel.app
+const ALLOWED_PREVIEW_ORIGIN = /^https:\/\/quest-qlub[a-z0-9-]*\.vercel\.app$/;
+
+function isAllowedOrigin(origin: string): boolean {
+  if (!origin) return false;
+  if (ALLOWED_ORIGINS.includes(origin)) return true;
+  if (ALLOWED_PREVIEW_ORIGIN.test(origin)) return true;
+  const allowedOriginEnv = Deno.env.get("ALLOWED_ORIGIN");
+  return !!allowedOriginEnv && origin === allowedOriginEnv;
+}
+
 function getCorsHeaders(req: Request) {
   const origin = req.headers.get("origin") || "";
   const allowedOriginEnv = Deno.env.get("ALLOWED_ORIGIN");
-  const isAllowed =
-    ALLOWED_ORIGINS.includes(origin) ||
-    (allowedOriginEnv && origin === allowedOriginEnv) ||
-    (origin.endsWith(".vercel.app") && origin.includes("share-quest"));
+  const fallback = allowedOriginEnv || "https://share-quest.vercel.app";
 
   return {
-    "Access-Control-Allow-Origin": isAllowed
-      ? origin
-      : allowedOriginEnv || "https://share-quest.vercel.app",
+    "Access-Control-Allow-Origin": isAllowedOrigin(origin) ? origin : fallback,
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
+    Vary: "Origin",
   };
 }
 
