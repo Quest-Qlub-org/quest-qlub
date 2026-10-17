@@ -138,7 +138,7 @@ export function SecuritySettingsSection({ showToast }: { showToast: (msg: string
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "sharequest-backup-codes.txt";
+    a.download = "quest-qlub-backup-codes.txt";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

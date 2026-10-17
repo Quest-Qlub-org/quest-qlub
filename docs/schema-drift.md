@@ -60,6 +60,18 @@ DB の `supabase_migrations.schema_migrations` に記録済みのバージョン
     末尾に変更）。実DBで `<script>` / イベントハンドラ / `javascript:` / `srcdoc` を
     検知し、通常の本文では誤検知しないことを確認済み。
 
+- `20261017100000_harden_mfa_backup_codes_security.sql`（未適用・次回デプロイ）
+  - **MFAバックアップコードの暗号強度向上と権限最小化**:
+    - `mfa_backup_codes` テーブルの直接 SELECT/INSERT/UPDATE/DELETE 権限を剥奪し、メタデータ列のみ許可。ハッシュ流出によるオフラインクラックを遮断。
+    - `generate_mfa_backup_codes()` の疑似乱数 `random()` を廃止し、暗号学的安全な乱数 `gen_random_bytes` による生成へ更新。
+    - `verify_and_consume_backup_code()` におけるブルートフォース試行への微小遅延防御を追加。
+
+- `20261017101000_capture_missing_schema_and_policies.sql`（未適用・次回デプロイ）
+  - **スキーマドリフト解消 & 記事認可ポリシー強化**:
+    - `admin_promote_writer` 関数本体の正式定義とリポジトリ取り込み。
+    - `article_comments` テーブル定義・RLSポリシー（閲覧・投稿・削除）の作成。
+    - `articles` の UPDATE / DELETE ポリシーに `profiles.role IN ('writer', 'editor')` の存在チェックを追加し、降格された元ライターによる不正更新・削除を遮断。
+
 ## セキュリティ強化（コード・Edge Function）
 
 - **S4**: `send-contact-email` の CORS 許可リストを厳格化。任意の `*.vercel.app`

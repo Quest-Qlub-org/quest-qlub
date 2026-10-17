@@ -1,35 +1,82 @@
+import { lazy } from "react";
 import { Routes, Route, useParams, useNavigate } from "react-router-dom";
 import { AppProviders } from "./context/AppContext";
 import { AppLayout } from "./components/layout/AppLayout";
 import { RoleRoute } from "./components/RoleRoute";
 
-// Views
+// Views: 初期表示速度のためトップビューは同期インポート
 import { HomeView } from "./views/HomeView";
-import { ArticleView } from "./views/ArticleView";
-import { SearchView } from "./views/SearchView";
-import { WritersView } from "./views/WritersView";
-import { ProfileView } from "./views/ProfileView";
-import { FavoritesView } from "./views/FavoritesView";
-import { SettingsView } from "./views/SettingsView";
-import { AboutView } from "./views/AboutView";
-import { PrivacyView } from "./views/PrivacyView";
-import { TermsView } from "./views/TermsView";
-import { ContactView } from "./views/ContactView";
-import { WriterApplyView } from "./views/WriterApplyView";
-import { LoginView } from "./views/auth/LoginView";
-import { RegisterView } from "./views/auth/RegisterView";
-import { ForgotPasswordView } from "./views/auth/ForgotPasswordView";
-import { ResetPasswordView } from "./views/auth/ResetPasswordView";
-import { SetupProfileView } from "./views/auth/SetupProfileView";
 
-// Dashboard Views
-import { WriterDashboard } from "./views/dashboard/WriterDashboard";
-import { WriterSeriesPage } from "./views/dashboard/WriterSeriesPage";
-import { ArticleEditorPage } from "./views/dashboard/ArticleEditorView";
-import { EditorDashboard } from "./views/dashboard/EditorDashboard";
-import { EditorArticlesView } from "./views/dashboard/EditorArticlesView";
-import { EditorRecommendView } from "./views/dashboard/EditorRecommendView";
-import { EditorWritersView } from "./views/dashboard/EditorWritersView";
+// 遅延読み込みコンポーネント (Code Splitting)
+const ArticleView = lazy(() =>
+  import("./views/ArticleView").then((m) => ({ default: m.ArticleView })),
+);
+const SearchView = lazy(() =>
+  import("./views/SearchView").then((m) => ({ default: m.SearchView })),
+);
+const WritersView = lazy(() =>
+  import("./views/WritersView").then((m) => ({ default: m.WritersView })),
+);
+const ProfileView = lazy(() =>
+  import("./views/ProfileView").then((m) => ({ default: m.ProfileView })),
+);
+const FavoritesView = lazy(() =>
+  import("./views/FavoritesView").then((m) => ({ default: m.FavoritesView })),
+);
+const SettingsView = lazy(() =>
+  import("./views/SettingsView").then((m) => ({ default: m.SettingsView })),
+);
+const AboutView = lazy(() => import("./views/AboutView").then((m) => ({ default: m.AboutView })));
+const PrivacyView = lazy(() =>
+  import("./views/PrivacyView").then((m) => ({ default: m.PrivacyView })),
+);
+const TermsView = lazy(() => import("./views/TermsView").then((m) => ({ default: m.TermsView })));
+const ContactView = lazy(() =>
+  import("./views/ContactView").then((m) => ({ default: m.ContactView })),
+);
+const WriterApplyView = lazy(() =>
+  import("./views/WriterApplyView").then((m) => ({ default: m.WriterApplyView })),
+);
+
+// 認証関連ビュー
+const LoginView = lazy(() =>
+  import("./views/auth/LoginView").then((m) => ({ default: m.LoginView })),
+);
+const RegisterView = lazy(() =>
+  import("./views/auth/RegisterView").then((m) => ({ default: m.RegisterView })),
+);
+const ForgotPasswordView = lazy(() =>
+  import("./views/auth/ForgotPasswordView").then((m) => ({ default: m.ForgotPasswordView })),
+);
+const ResetPasswordView = lazy(() =>
+  import("./views/auth/ResetPasswordView").then((m) => ({ default: m.ResetPasswordView })),
+);
+const SetupProfileView = lazy(() =>
+  import("./views/auth/SetupProfileView").then((m) => ({ default: m.SetupProfileView })),
+);
+
+// ダッシュボード・エディタ関連ビュー (TipTap等の重量級チャンクを分離)
+const WriterDashboard = lazy(() =>
+  import("./views/dashboard/WriterDashboard").then((m) => ({ default: m.WriterDashboard })),
+);
+const WriterSeriesPage = lazy(() =>
+  import("./views/dashboard/WriterSeriesPage").then((m) => ({ default: m.WriterSeriesPage })),
+);
+const ArticleEditorPage = lazy(() =>
+  import("./views/dashboard/ArticleEditorView").then((m) => ({ default: m.ArticleEditorPage })),
+);
+const EditorDashboard = lazy(() =>
+  import("./views/dashboard/EditorDashboard").then((m) => ({ default: m.EditorDashboard })),
+);
+const EditorArticlesView = lazy(() =>
+  import("./views/dashboard/EditorArticlesView").then((m) => ({ default: m.EditorArticlesView })),
+);
+const EditorRecommendView = lazy(() =>
+  import("./views/dashboard/EditorRecommendView").then((m) => ({ default: m.EditorRecommendView })),
+);
+const EditorWritersView = lazy(() =>
+  import("./views/dashboard/EditorWritersView").then((m) => ({ default: m.EditorWritersView })),
+);
 
 // Types & Utilities export for backward compatibility & tests
 export type { Series, Article } from "./types";

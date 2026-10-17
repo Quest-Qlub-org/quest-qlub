@@ -19,6 +19,9 @@ export interface AppContextType {
   userRole: "guest" | "viewer" | "writer" | "editor";
   setUserRole: React.Dispatch<React.SetStateAction<"guest" | "viewer" | "writer" | "editor">>;
   authLoading: boolean;
+  mfaChallengeRequired: boolean;
+  setMfaChallengeRequired: React.Dispatch<React.SetStateAction<boolean>>;
+  refreshProfile: () => Promise<void>;
 
   // Global UI helpers
   showToast: (message: string) => void;
@@ -120,6 +123,9 @@ export function useApp(): AppContextType {
     userRole: auth.userRole,
     setUserRole: auth.setUserRole,
     authLoading: auth.authLoading,
+    mfaChallengeRequired: auth.mfaChallengeRequired,
+    setMfaChallengeRequired: auth.setMfaChallengeRequired,
+    refreshProfile: auth.refreshProfile,
 
     showToast: ui.showToast,
     navigate,

@@ -190,6 +190,7 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
+  const [linkError, setLinkError] = useState("");
   const [showImageInput, setShowImageInput] = useState(false);
   const [imageUrl, setImageUrl] = useState("");
   const [imageUploading, setImageUploading] = useState(false);
@@ -247,19 +248,41 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
     if (!editor) return;
     const existingHref = editor.getAttributes("link").href ?? "";
     setLinkUrl(existingHref);
+    setLinkError("");
     setShowLinkInput(true);
   }, [editor]);
 
   const applyLink = useCallback(() => {
     if (!editor) return;
     const trimmed = linkUrl.trim();
-    if (trimmed) {
-      editor.chain().focus().extendMarkRange("link").setLink({ href: trimmed }).run();
-    } else {
+    if (!trimmed) {
       editor.chain().focus().unsetLink().run();
+      setShowLinkInput(false);
+      setLinkUrl("");
+      setLinkError("");
+      return;
     }
+
+    // 危険なスキームを拒絶（javascript:, vbscript:, data: 等のXSSベクター）
+    if (/^(javascript|vbscript|data):/i.test(trimmed)) {
+      setLinkError("安全なURL（https://, http://, mailto: 等）を入力してください");
+      return;
+    }
+
+    // プロトコル未指定の場合は安全のため https:// を付与
+    let safeUrl = trimmed;
+    if (
+      !/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(trimmed) &&
+      !trimmed.startsWith("/") &&
+      !trimmed.startsWith("#")
+    ) {
+      safeUrl = `https://${trimmed}`;
+    }
+
+    editor.chain().focus().extendMarkRange("link").setLink({ href: safeUrl }).run();
     setShowLinkInput(false);
     setLinkUrl("");
+    setLinkError("");
   }, [editor, linkUrl]);
 
   const insertImage = useCallback(() => {
@@ -667,9 +690,12 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
             <input
               type="url"
               value={linkUrl}
-              onChange={(e) => setLinkUrl(e.target.value)}
+              onChange={(e) => {
+                setLinkUrl(e.target.value);
+                setLinkError("");
+              }}
               placeholder="https://example.com"
-              className="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400 mb-4"
+              className="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400 mb-2"
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
@@ -680,6 +706,7 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
               }}
               autoFocus
             />
+            {linkError && <p className="text-xs text-red-500 mb-3 font-medium">{linkError}</p>}
             <div className="flex gap-2">
               <button
                 type="button"

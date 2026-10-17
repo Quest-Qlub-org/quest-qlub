@@ -71,6 +71,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshProfile = async () => {
     if (!user?.id) return;
+    try {
+      const { data } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (data) {
+        setMfaChallengeRequired(data.currentLevel === "aal1" && data.nextLevel === "aal2");
+      }
+    } catch {
+      // ignore
+    }
     const { profile: updatedProfile, role } = await fetchProfileData(
       user.id,
       user.email,
@@ -84,6 +92,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let isMounted = true;
 
+    const checkMfaAssurance = async () => {
+      try {
+        const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+        if (!error && data) {
+          if (data.currentLevel === "aal1" && data.nextLevel === "aal2") {
+            if (isMounted) setMfaChallengeRequired(true);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to check MFA assurance level", err);
+      }
+      if (isMounted) setMfaChallengeRequired(false);
+    };
+
     // getSession によるセッション初期復元
     supabase.auth
       .getSession()
@@ -91,10 +114,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!isMounted) return;
         if (session?.user) {
           setUser(session.user);
+          void checkMfaAssurance();
         } else {
           setUser(null);
           setProfile(null);
           setUserRole("guest");
+          setMfaChallengeRequired(false);
         }
       })
       .catch((e) => {
@@ -116,12 +141,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
         setProfile(null);
         setUserRole("guest");
+        setMfaChallengeRequired(false);
         setAuthLoading(false);
         return;
       }
 
       setUser(session.user);
       setAuthLoading(false);
+      void checkMfaAssurance();
     });
 
     return () => {
@@ -141,9 +168,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     // 初回フォールバック設定（画面のチラつきや未ログイン誤判定を防止）
+    // ⚠️ セキュリティ対策: クライアントから改ざん可能な user_metadata.role は絶対に信用せず、
+    // DB（profiles テーブル）から正式取得できるまで常に安全な "viewer" とする。
     const meta = user.user_metadata || {};
-    const fallbackRole: Profile["role"] =
-      meta.role === "writer" || meta.role === "editor" ? meta.role : "viewer";
+    const fallbackRole: Profile["role"] = "viewer";
     const initialFallback: Profile = {
       id: user.id,
       email: user.email || "",

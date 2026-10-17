@@ -74,6 +74,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         .select(
           "id, title, thumbnail, thumbnail_url, thumbnail_color, writer_id, views, likes, tags, is_recommended, is_popular, status, summary, series_id, episode_number, created_at",
         )
+        .eq("status", "published")
         .order("created_at", { ascending: false })
         .range(0, ARTICLE_PAGE_SIZE - 1);
 
@@ -86,6 +87,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           .select(
             "id, title, thumbnail, thumbnail_url, thumbnail_color, writer_id, views, likes, tags, is_recommended, is_popular, status, summary, series_id, episode_number, created_at",
           )
+          .eq("status", "published")
           .order("created_at", { ascending: false })
           .range(0, ARTICLE_PAGE_SIZE - 1);
       }
@@ -112,6 +114,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         .select(
           "id, title, thumbnail, thumbnail_url, thumbnail_color, writer_id, views, likes, tags, is_recommended, is_popular, status, summary, series_id, episode_number, created_at",
         )
+        .eq("status", "published")
         .order("created_at", { ascending: false })
         .range(start, end);
 

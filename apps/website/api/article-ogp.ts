@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL || "https://uksgnlfnxytqljrctiqg.supabase.co";
-const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || "";
-const SITE_URL = "https://quest-qlub.vercel.app";
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || "";
+const SITE_URL = process.env.SITE_URL || "https://quest-qlub.vercel.app";
 
 const BOT_USER_AGENTS = [
   "twitterbot",
@@ -50,28 +50,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let description = "Quest Qlubは、学びの「楽しい！」をつなげる記事プラットフォームです。";
   let imageUrl = `${SITE_URL}/ogp.png`;
 
-  try {
-    const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/articles?id=eq.${encodeURIComponent(articleId)}&select=title,summary,thumbnail_url`,
-      {
-        headers: {
-          apikey: SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+  if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+    try {
+      const response = await fetch(
+        `${SUPABASE_URL}/rest/v1/articles?id=eq.${encodeURIComponent(articleId)}&select=title,summary,thumbnail_url`,
+        {
+          headers: {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          },
         },
-      },
-    );
+      );
 
-    if (response.ok) {
-      const data = await response.json();
-      if (Array.isArray(data) && data.length > 0) {
-        const article = data[0];
-        if (article.title) title = `${article.title} | Quest Qlub`;
-        if (article.summary) description = article.summary;
-        if (article.thumbnail_url) imageUrl = article.thumbnail_url;
+      if (response.ok) {
+        const data = await response.json();
+        if (Array.isArray(data) && data.length > 0) {
+          const article = data[0];
+          if (article.title) title = `${article.title} | Quest Qlub`;
+          if (article.summary) description = article.summary;
+          if (article.thumbnail_url) imageUrl = article.thumbnail_url;
+        }
       }
+    } catch (err) {
+      console.error("Failed to fetch article for OGP", err);
     }
-  } catch (err) {
-    console.error("Failed to fetch article for OGP", err);
   }
 
   const articleUrl = `${SITE_URL}/articles/${encodeURIComponent(articleId)}`;

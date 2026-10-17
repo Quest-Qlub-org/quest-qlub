@@ -1,5 +1,7 @@
+import { Suspense } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { X } from "lucide-react";
+import { supabase } from "../../supabase";
 import { Header } from "../navigation/Header";
 import { MobileNav } from "../navigation/MobileNav";
 import { EnvironmentBanner } from "../EnvironmentBanner";
@@ -20,6 +22,29 @@ export function AppLayout() {
 
   const hideHeader = HIDE_HEADER_PATHS.some((path) => location.pathname.startsWith(path));
 
+  // Root-level MFA Barrier: 2FAが未完了の場合は Outlet を一切マウントせず、検証ツールによるDOM削除バイパスを物理的に無力化
+  // ただし /login 等の認証画面では LoginView 自身がインライン2FAを処理するためアンマウントしない（再ログイン画面ループ防止）
+  if (mfaChallengeRequired && !hideHeader) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <MfaChallengeModal
+          isOpen={true}
+          onSuccess={() => {
+            setMfaChallengeRequired(false);
+            if (location.pathname.startsWith("/login")) {
+              void navigate("/");
+            }
+          }}
+          onCancel={async () => {
+            setMfaChallengeRequired(false);
+            await supabase.auth.signOut().catch(() => {});
+            void navigate("/login");
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 pb-20 sm:pb-10 text-gray-800 font-sans selection:bg-blue-200 flex flex-col justify-between">
       <div>
@@ -28,7 +53,15 @@ export function AppLayout() {
         {!hideHeader && <MobileNav />}
 
         <main className="max-w-6xl mx-auto flex-1 w-full">
-          <Outlet />
+          <Suspense
+            fallback={
+              <div className="flex items-center justify-center min-h-[50vh]">
+                <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+              </div>
+            }
+          >
+            <Outlet />
+          </Suspense>
         </main>
       </div>
 
@@ -131,17 +164,6 @@ export function AppLayout() {
             </div>
           </div>
         </footer>
-      )}
-
-      {mfaChallengeRequired && (
-        <MfaChallengeModal
-          onSuccess={() => setMfaChallengeRequired(false)}
-          onCancel={() => {
-            // Escキー押下等で不用意にセッションが全破棄されないよう、
-            // ログアウトはモーダル内の明示的な操作に委ねる
-            setMfaChallengeRequired(false);
-          }}
-        />
       )}
 
       {toastMessage && (

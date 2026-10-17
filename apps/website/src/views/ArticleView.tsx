@@ -112,7 +112,7 @@ export const ArticleView = () => {
 
           // 閲覧数インクリメント
           try {
-            await supabase.rpc("increment_views", { article_id: articleId });
+            await supabase.rpc("increment_views", { p_article_id: articleId });
           } catch {
             // 閲覧数インクリメントエラーは無視
           }
