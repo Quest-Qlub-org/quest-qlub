@@ -35,3 +35,5 @@ supabase/.temp/
 
 # AI agent worktrees
 .claude/worktrees/
+.vercel
+.env*
