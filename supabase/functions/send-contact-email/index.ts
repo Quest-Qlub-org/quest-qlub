@@ -24,7 +24,7 @@ function isAllowedOrigin(origin: string): boolean {
 function getCorsHeaders(req: Request) {
   const origin = req.headers.get("origin") || "";
   const allowedOriginEnv = Deno.env.get("ALLOWED_ORIGIN");
-  const fallback = allowedOriginEnv || "https://share-quest.vercel.app";
+  const fallback = allowedOriginEnv || "https://quest-qlub.vercel.app";
 
   return {
     "Access-Control-Allow-Origin": isAllowedOrigin(origin) ? origin : fallback,

@@ -5,4 +5,4 @@ Disallow: /writer/
 Disallow: /settings/
 Disallow: /auth/
 
-Sitemap: https://share-quest.vercel.app/sitemap.xml
+Sitemap: https://quest-qlub.vercel.app/sitemap.xml

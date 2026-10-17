@@ -18,8 +18,8 @@ export const DEFAULT_META = {
   title: "Quest Qlub | 学びの「楽しい！」をつなげる",
   description:
     "Quest Qlubは、学びの「楽しい！」をつなげる記事プラットフォームです。ライターと読者をつなぎ、知識と好奇心を共有します。",
-  url: "https://share-quest.vercel.app/",
-  image: "https://share-quest.vercel.app/ogp.png",
+  url: "https://quest-qlub.vercel.app/",
+  image: "https://quest-qlub.vercel.app/ogp.png",
   type: "website" as const,
   twitterCard: "summary_large_image" as const,
 };
@@ -136,7 +136,7 @@ export function generateArticleJsonLd({
       name: "Quest Qlub",
       logo: {
         "@type": "ImageObject",
-        url: "https://share-quest.vercel.app/brand_logo.jpg",
+        url: "https://quest-qlub.vercel.app/brand_logo.jpg",
       },
     },
   };

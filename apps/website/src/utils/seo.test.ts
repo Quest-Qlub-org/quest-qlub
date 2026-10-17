@@ -13,7 +13,7 @@ describe("seo utility", () => {
       title: "記事タイトル",
       description: "記事の説明文です",
       image: "https://example.com/thumbnail.png",
-      url: "https://share-quest.vercel.app/articles/123",
+      url: "https://quest-qlub.vercel.app/articles/123",
       type: "article",
     });
 
@@ -46,7 +46,7 @@ describe("seo utility", () => {
     const jsonLd = generateArticleJsonLd({
       title: "テスト記事",
       description: "説明文",
-      url: "https://share-quest.vercel.app/articles/abc",
+      url: "https://quest-qlub.vercel.app/articles/abc",
       authorName: "山田太郎",
     });
 

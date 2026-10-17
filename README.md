@@ -2,7 +2,7 @@
 
 > 学びの「楽しい！」をつなげる記事サービス
 
-**本番URL**: [https://share-quest.vercel.app/](https://share-quest.vercel.app/)
+**本番URL**: [https://quest-qlub.vercel.app/](https://quest-qlub.vercel.app/)
 
 ## Quest Qlub とは
 
@@ -110,4 +110,4 @@ share-quest/
 
 ## お問い合わせ
 
-ご質問・ご意見は [https://share-quest.vercel.app/contact](https://share-quest.vercel.app/contact) よりお願いいたします。
+ご質問・ご意見は [https://quest-qlub.vercel.app/contact](https://quest-qlub.vercel.app/contact) よりお願いいたします。

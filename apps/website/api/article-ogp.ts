@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || "https://uksgnlfnxytqljrctiqg.supabase.co";
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || "";
-const SITE_URL = "https://share-quest.vercel.app";
+const SITE_URL = "https://quest-qlub.vercel.app";
 
 const BOT_USER_AGENTS = [
   "twitterbot",
