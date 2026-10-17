@@ -307,6 +307,11 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
     const text = content
       .replace(/<[^>]+>/g, "")
       .replace(/&nbsp;/g, " ")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#0?39;/g, "'")
+      .replace(/&amp;/g, "&")
       .trim();
     const charCount = text.replace(/\s+/g, "").length;
     const readingMinutes = Math.max(1, Math.ceil(charCount / 500));

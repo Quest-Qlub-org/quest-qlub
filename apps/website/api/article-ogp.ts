@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL || "https://uuxkrmejknhfzzmrmbba.supabase.co";
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL || "https://uksgnlfnxytqljrctiqg.supabase.co";
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || "";
 const SITE_URL = "https://share-quest.vercel.app";
 
@@ -27,11 +27,14 @@ function escapeHtml(str: string): string {
     .replace(/'/g, "&#039;");
 }
 
+// 記事IDはURLのパスに埋め込むため、安全な文字のみ許可する
+const ARTICLE_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { id } = req.query;
   const articleId = Array.isArray(id) ? id[0] : id;
 
-  if (!articleId) {
+  if (!articleId || !ARTICLE_ID_PATTERN.test(articleId)) {
     return res.redirect(302, SITE_URL);
   }
 
@@ -40,7 +43,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // 人間のブラウザからのアクセスの場合は、SPAのクライアントルートへリダイレクト
   if (!isBot && !req.query.force_ogp) {
-    return res.redirect(302, `${SITE_URL}/articles/${articleId}`);
+    return res.redirect(302, `${SITE_URL}/articles/${encodeURIComponent(articleId)}`);
   }
 
   let title = "Quest Qlub | 学びの「楽しい！」をつなげる";
@@ -71,7 +74,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.error("Failed to fetch article for OGP", err);
   }
 
-  const articleUrl = `${SITE_URL}/articles/${articleId}`;
+  const articleUrl = `${SITE_URL}/articles/${encodeURIComponent(articleId)}`;
 
   const html = `<!DOCTYPE html>
 <html lang="ja">
