@@ -57,7 +57,7 @@ export const ProfileView = () => {
           );
           let query = supabase
             .from("profiles")
-            .select("id, role, display_name, username, avatar_url, bio, created_at");
+            .select("id, role, display_name, username, x_account, avatar_url, bio, created_at");
 
           if (isUuid) {
             query = query.eq("id", targetIdentifier);
@@ -117,7 +117,8 @@ export const ProfileView = () => {
     };
   }, [targetIdentifier, cleanTarget, cachedWriter]);
 
-  const cleanUsername = (writer?.x_account || writer?.username || "").replace(/^@/, "");
+  const cleanUsername = (writer?.username || "").replace(/^@/, "");
+  const xAccount = (writer?.x_account || "").replace(/^@/, "");
   const following = writer ? isFollowing(writer.id) : false;
 
   useEffect(() => {
@@ -211,19 +212,19 @@ export const ProfileView = () => {
             )}
           </button>
         </div>
-        {cleanUsername && (
+        {xAccount && (
           <div className="mt-2">
             <a
-              href={`https://x.com/${encodeURIComponent(cleanUsername)}`}
+              href={`https://x.com/${encodeURIComponent(xAccount)}`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-black/20 hover:bg-black/35 text-white rounded-full text-xs font-bold backdrop-blur-sm transition-all border border-white/20 hover:border-white/40 shadow-sm"
-              aria-label={`@${cleanUsername} のX（旧Twitter）アカウントを開く`}
+              aria-label={`@${xAccount} のX（旧Twitter）アカウントを開く`}
             >
               <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.259 5.63 5.905-5.63Zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
               </svg>
-              <span>@{cleanUsername}</span>
+              <span>@{xAccount}</span>
             </a>
           </div>
         )}

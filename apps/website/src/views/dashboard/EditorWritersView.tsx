@@ -22,7 +22,7 @@ export function EditorWritersView() {
       // 安全な公開カラムのみ取得するフォールバック
       const { data: fallbackData } = await supabase
         .from("profiles")
-        .select("id, role, display_name, username, avatar_url, bio, created_at")
+        .select("id, role, display_name, username, x_account, avatar_url, bio, created_at")
         .order("role", { ascending: true });
       if (fallbackData) setAllProfiles(fallbackData as Profile[]);
     }

@@ -134,7 +134,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     try {
       let res = await supabase
         .from("profiles")
-        .select("id, role, display_name, username, avatar_url, bio, created_at")
+        .select("id, role, display_name, username, x_account, avatar_url, bio, created_at")
         .in("role", ["writer", "editor"])
         .order("created_at", { ascending: false })
         .range(0, WRITER_PAGE_SIZE - 1);
@@ -144,7 +144,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         await new Promise((r) => setTimeout(r, 200));
         res = await supabase
           .from("profiles")
-          .select("id, role, display_name, username, avatar_url, bio, created_at")
+          .select("id, role, display_name, username, x_account, avatar_url, bio, created_at")
           .in("role", ["writer", "editor"])
           .order("created_at", { ascending: false })
           .range(0, WRITER_PAGE_SIZE - 1);
@@ -169,7 +169,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       const end = start + WRITER_PAGE_SIZE - 1;
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, role, display_name, username, avatar_url, bio, created_at")
+        .select("id, role, display_name, username, x_account, avatar_url, bio, created_at")
         .in("role", ["writer", "editor"])
         .order("created_at", { ascending: false })
         .range(start, end);

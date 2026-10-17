@@ -81,7 +81,7 @@ export const ArticleView = () => {
             if (!cachedW) {
               const { data: wData } = await supabase
                 .from("profiles")
-                .select("id, role, display_name, username, avatar_url, bio, created_at")
+                .select("id, role, display_name, username, x_account, avatar_url, bio, created_at")
                 .eq("id", mapped.writerId)
                 .maybeSingle();
               if (isMounted && wData) {

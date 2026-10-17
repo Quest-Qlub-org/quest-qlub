@@ -265,12 +265,10 @@ function UsernameEdit({
     if (error) {
       setErr("このユーザー名はすでに使われています");
     } else {
-      setProfile((p) => (p ? { ...p, username: cleanUname, x_account: cleanUname } : p));
+      setProfile((p) => (p ? { ...p, username: cleanUname } : p));
       if (setWriters) {
         setWriters((ws) =>
-          ws.map((w) =>
-            w.id === profile.id ? { ...w, username: cleanUname, x_account: cleanUname } : w,
-          ),
+          ws.map((w) => (w.id === profile.id ? { ...w, username: cleanUname } : w)),
         );
       }
       setEditing(false);
@@ -437,7 +435,7 @@ function XAccountEdit({
   setWriters?: React.Dispatch<React.SetStateAction<Profile[]>>;
   showToast: (msg: string) => void;
 }) {
-  const currentXHandle = (profile?.x_account || profile?.username || "").replace(/^@/, "");
+  const currentXHandle = (profile?.x_account ?? "").replace(/^@/, "");
   const [editing, setEditing] = useState(false);
   const [handle, setHandle] = useState(currentXHandle);
   const [saving, setSaving] = useState(false);
@@ -446,43 +444,27 @@ function XAccountEdit({
   const handleSave = async () => {
     if (!profile) return;
     const cleanHandle = normalizeHandle(handle);
-    if (cleanHandle && !/^[a-zA-Z0-9_]{3,20}$/.test(cleanHandle)) {
-      setErr("半角英数字・アンダースコアのみ。3〜20文字で入力してください");
+    if (cleanHandle && !/^[a-zA-Z0-9_]{1,15}$/.test(cleanHandle)) {
+      setErr("半角英数字・アンダースコアのみ。1〜15文字で入力してください");
       return;
     }
     setSaving(true);
     setErr("");
     const { error } = await supabase
       .from("profiles")
-      .update({ username: cleanHandle || null })
+      .update({ x_account: cleanHandle || null })
       .eq("id", profile.id);
     if (!error) {
-      setProfile((p) =>
-        p
-          ? {
-              ...p,
-              username: cleanHandle || null,
-              x_account: cleanHandle || undefined,
-            }
-          : p,
-      );
+      setProfile((p) => (p ? { ...p, x_account: cleanHandle || null } : p));
       if (setWriters) {
         setWriters((ws) =>
-          ws.map((w) =>
-            w.id === profile.id
-              ? {
-                  ...w,
-                  username: cleanHandle || null,
-                  x_account: cleanHandle || undefined,
-                }
-              : w,
-          ),
+          ws.map((w) => (w.id === profile.id ? { ...w, x_account: cleanHandle || null } : w)),
         );
       }
       setEditing(false);
       showToast("Xアカウントを更新しました");
     } else {
-      setErr("このユーザー名はすでに使われているか、保存できませんでした");
+      setErr("保存できませんでした。しばらくして再度お試しください");
       showToast("更新に失敗しました");
     }
     setSaving(false);
