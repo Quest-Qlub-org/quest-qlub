@@ -12,6 +12,7 @@ import type { Article } from "../types";
 import { mapDbArticleToArticle } from "../types";
 import { ARTICLE_LIST_FIELDS } from "../context/DataContext";
 import { getProfileRoles, getRoleLabel } from "../utils/roles";
+import { fetchSingleProfileWithFallback } from "../utils/profileQueries";
 
 export const ProfileView = () => {
   const { username } = useParams<{ username: string }>();
@@ -75,37 +76,9 @@ export const ProfileView = () => {
           const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
             targetIdentifier,
           );
-          let query = supabase
-            .from("profiles")
-            .select(
-              "id, role, roles, display_name, username, x_account, avatar_url, bio, created_at",
-            );
-
-          if (isUuid) {
-            query = query.eq("id", targetIdentifier);
-          } else {
-            query = query.eq("username", cleanTarget);
-          }
-
-          let fetchedProfile: Profile | null = null;
-          const { data, error } = await query.maybeSingle();
-
-          if (!error && data) {
-            fetchedProfile = data as unknown as Profile;
-          } else if (error && (error.code === "42703" || error.message?.includes("roles"))) {
-            let fallbackQuery = supabase
-              .from("profiles")
-              .select("id, role, display_name, username, x_account, avatar_url, bio, created_at");
-            if (isUuid) {
-              fallbackQuery = fallbackQuery.eq("id", targetIdentifier);
-            } else {
-              fallbackQuery = fallbackQuery.eq("username", cleanTarget);
-            }
-            const fallbackRes = await fallbackQuery.maybeSingle();
-            if (!fallbackRes.error && fallbackRes.data) {
-              fetchedProfile = fallbackRes.data as unknown as Profile;
-            }
-          }
+          const fetchedProfile = await fetchSingleProfileWithFallback(
+            isUuid ? { id: targetIdentifier } : { username: cleanTarget },
+          );
 
           if (!isMounted) return;
 

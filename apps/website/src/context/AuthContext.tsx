@@ -3,6 +3,7 @@ import type { User } from "@supabase/supabase-js";
 import { supabase } from "../supabase";
 import type { Profile } from "../supabase";
 import { getPrimaryRole } from "../utils/roles";
+import { fetchSingleProfileWithFallback } from "../utils/profileQueries";
 
 export type UserRole = "guest" | "viewer" | "writer" | "editor" | "engineer";
 
@@ -33,25 +34,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     userMetadata?: Record<string, unknown>,
   ): Promise<{ profile: Profile; role: UserRole }> => {
     try {
-      let profileData: Profile | null = null;
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, role, roles, display_name, username, x_account, avatar_url, bio, created_at")
-        .eq("id", userId)
-        .maybeSingle();
-
-      if (!error && data) {
-        profileData = data as unknown as Profile;
-      } else if (error && (error.code === "42703" || error.message?.includes("roles"))) {
-        const retryRes = await supabase
-          .from("profiles")
-          .select("id, role, display_name, username, x_account, avatar_url, bio, created_at")
-          .eq("id", userId)
-          .maybeSingle();
-        if (!retryRes.error && retryRes.data) {
-          profileData = retryRes.data as unknown as Profile;
-        }
-      }
+      const profileData = await fetchSingleProfileWithFallback({ id: userId });
 
       if (profileData) {
         const profileRoles =

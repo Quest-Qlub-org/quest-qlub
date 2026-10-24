@@ -31,6 +31,7 @@ import {
 } from "../../utils/scheduledArticles";
 import { profileHasRole } from "../../utils/roles";
 import { updateMetaTags } from "../../utils/seo";
+import { isArticleOptionalColumnSchemaError } from "../../utils/supabaseErrors";
 
 export const ArticleEditorTabs = ({
   settingsPanel,
@@ -51,14 +52,56 @@ export interface ArticleEditorPageProps {
   editingId: string | null;
 }
 
-const isOptionalColumnSchemaError = (err: unknown): boolean => {
-  const e = err as { code?: string; message?: string } | null;
-  return (
-    e?.code === "42703" ||
-    (typeof e?.message === "string" &&
-      (e.message.includes("comments_enabled") || e.message.includes("scheduled_at")))
-  );
-};
+function buildBaseArticlePayload(params: {
+  title: string;
+  content: string;
+  summary: string;
+  tags: string[];
+  thumbnailColor: string;
+  thumbnailUrl: string | null;
+  seriesId: string;
+  episodeNumber: string;
+  commentsEnabled: boolean;
+}): Record<string, unknown> {
+  return {
+    title: params.title,
+    content: params.content,
+    summary: params.summary || null,
+    tags: params.tags,
+    thumbnail_color: params.thumbnailColor,
+    thumbnail_url: params.thumbnailUrl,
+    series_id: params.seriesId || null,
+    episode_number: params.episodeNumber ? parseInt(params.episodeNumber, 10) : null,
+    comments_enabled: params.commentsEnabled,
+  };
+}
+
+async function updateArticleWithFallback(targetId: string, payload: Record<string, unknown>) {
+  let { error } = await supabase.from("articles").update(payload).eq("id", targetId);
+  if (error && isArticleOptionalColumnSchemaError(error)) {
+    const { comments_enabled: _c, scheduled_at: _s, ...safePayload } = payload;
+    if (safePayload.status === "scheduled") {
+      safePayload.status = "published";
+    }
+    const retryRes = await supabase.from("articles").update(safePayload).eq("id", targetId);
+    error = retryRes.error;
+  }
+  return { error };
+}
+
+async function insertArticleWithFallback(payload: Record<string, unknown>) {
+  let { data, error } = await supabase.from("articles").insert(payload).select().single();
+  if (error && isArticleOptionalColumnSchemaError(error)) {
+    const { comments_enabled: _c, scheduled_at: _s, ...safePayload } = payload;
+    if (safePayload.status === "scheduled") {
+      safePayload.status = "published";
+    }
+    const retryRes = await supabase.from("articles").insert(safePayload).select().single();
+    data = retryRes.data;
+    error = retryRes.error;
+  }
+  return { data, error };
+}
 
 const ALLOWED_IMAGE_TYPES: Record<string, string> = {
   "image/jpeg": "jpg",
@@ -258,6 +301,17 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
     const isFutureSchedule = isArticleScheduledFuture(scheduledIso);
 
     const isEditor = userRole === "editor" || profileHasRole(profile, "editor");
+    const currentValues = {
+      title: formTitle,
+      content: formContent,
+      summary: formSummary,
+      tags,
+      thumbnailColor: formColor,
+      thumbnailUrl,
+      seriesId: formSeriesId,
+      episodeNumber: formEpisodeNumber,
+      commentsEnabled: formCommentsEnabled,
+    };
 
     if (targetId) {
       const nextStatus: ArticleStatus | undefined = submitForReview
@@ -266,17 +320,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
           : "pending"
         : undefined;
 
-      const updatePayload: Record<string, unknown> = {
-        title: formTitle,
-        content: formContent,
-        summary: formSummary || null,
-        tags,
-        thumbnail_color: formColor,
-        thumbnail_url: thumbnailUrl,
-        series_id: formSeriesId || null,
-        episode_number: formEpisodeNumber ? parseInt(formEpisodeNumber, 10) : null,
-        comments_enabled: formCommentsEnabled,
-      };
+      const updatePayload = buildBaseArticlePayload(currentValues);
       if (nextStatus) {
         updatePayload.status = nextStatus;
       }
@@ -284,17 +328,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
         updatePayload.scheduled_at = scheduledIso;
       }
 
-      let { error } = await supabase.from("articles").update(updatePayload).eq("id", targetId);
-
-      // comments_enabled / scheduled_at 列未存在時は除外して自動再試行
-      if (error && isOptionalColumnSchemaError(error)) {
-        const { comments_enabled: _c, scheduled_at: _s, ...safePayload } = updatePayload;
-        if (safePayload.status === "scheduled") {
-          safePayload.status = "published";
-        }
-        const retryRes = await supabase.from("articles").update(safePayload).eq("id", targetId);
-        error = retryRes.error;
-      }
+      const { error } = await updateArticleWithFallback(targetId, updatePayload);
 
       if (!error) {
         setLocalScheduledAt(targetId, scheduledIso);
@@ -351,39 +385,18 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
           : "pending"
         : "draft";
 
-      const insertPayload: Record<string, unknown> = {
-        title: formTitle,
-        content: formContent,
-        summary: formSummary || null,
-        tags,
-        thumbnail_color: formColor,
-        thumbnail_url: thumbnailUrl,
-        writer_id: currentUserId,
-        status: initialStatus,
-        views: 0,
-        likes: 0,
-        is_recommended: false,
-        is_popular: false,
-        series_id: formSeriesId || null,
-        episode_number: formEpisodeNumber ? parseInt(formEpisodeNumber, 10) : null,
-        comments_enabled: formCommentsEnabled,
-      };
+      const insertPayload = buildBaseArticlePayload(currentValues);
+      insertPayload.writer_id = currentUserId;
+      insertPayload.status = initialStatus;
+      insertPayload.views = 0;
+      insertPayload.likes = 0;
+      insertPayload.is_recommended = false;
+      insertPayload.is_popular = false;
       if (scheduledIso) {
         insertPayload.scheduled_at = scheduledIso;
       }
 
-      let { data, error } = await supabase.from("articles").insert(insertPayload).select().single();
-
-      // comments_enabled / scheduled_at 列未存在時は除外して自動再試行
-      if (error && isOptionalColumnSchemaError(error)) {
-        const { comments_enabled: _c, scheduled_at: _s, ...safePayload } = insertPayload;
-        if (safePayload.status === "scheduled") {
-          safePayload.status = "published";
-        }
-        const retryRes = await supabase.from("articles").insert(safePayload).select().single();
-        data = retryRes.data;
-        error = retryRes.error;
-      }
+      const { data, error } = await insertArticleWithFallback(insertPayload);
       if (!error && data) {
         autoSaveIdRef.current = data.id;
         setLocalScheduledAt(data.id, scheduledIso);
@@ -465,54 +478,31 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
   useEffect(() => {
     if (!isDirty || !formTitle.trim()) return;
     const timer = setTimeout(async () => {
+      const currentValues = {
+        title: formTitle,
+        content: formContent,
+        summary: formSummary,
+        tags,
+        thumbnailColor: formColor,
+        thumbnailUrl,
+        seriesId: formSeriesId,
+        episodeNumber: formEpisodeNumber,
+        commentsEnabled: formCommentsEnabled,
+      };
+
       if (autoSaveIdRef.current) {
-        const updatePayload: Record<string, unknown> = {
-          title: formTitle,
-          content: formContent,
-          summary: formSummary || null,
-          tags,
-          thumbnail_color: formColor,
-          thumbnail_url: thumbnailUrl,
-          series_id: formSeriesId || null,
-          episode_number: formEpisodeNumber ? parseInt(formEpisodeNumber, 10) : null,
-          comments_enabled: formCommentsEnabled,
-        };
-        const { error } = await supabase
-          .from("articles")
-          .update(updatePayload)
-          .eq("id", autoSaveIdRef.current);
-        if (error && isOptionalColumnSchemaError(error)) {
-          const { comments_enabled: _, ...safePayload } = updatePayload;
-          await supabase.from("articles").update(safePayload).eq("id", autoSaveIdRef.current);
-        }
+        const updatePayload = buildBaseArticlePayload(currentValues);
+        await updateArticleWithFallback(autoSaveIdRef.current, updatePayload);
       } else {
-        const insertPayload: Record<string, unknown> = {
-          title: formTitle,
-          content: formContent,
-          summary: formSummary || null,
-          tags,
-          thumbnail_color: formColor,
-          thumbnail_url: thumbnailUrl,
-          writer_id: currentUserId,
-          status: "draft",
-          views: 0,
-          likes: 0,
-          is_recommended: false,
-          is_popular: false,
-          series_id: formSeriesId || null,
-          episode_number: formEpisodeNumber ? parseInt(formEpisodeNumber, 10) : null,
-          comments_enabled: formCommentsEnabled,
-        };
-        let { data, error } = await supabase
-          .from("articles")
-          .insert(insertPayload)
-          .select()
-          .single();
-        if (error && isOptionalColumnSchemaError(error)) {
-          const { comments_enabled: _, ...safePayload } = insertPayload;
-          const retryRes = await supabase.from("articles").insert(safePayload).select().single();
-          data = retryRes.data;
-        }
+        const insertPayload = buildBaseArticlePayload(currentValues);
+        insertPayload.writer_id = currentUserId;
+        insertPayload.status = "draft";
+        insertPayload.views = 0;
+        insertPayload.likes = 0;
+        insertPayload.is_recommended = false;
+        insertPayload.is_popular = false;
+
+        const { data } = await insertArticleWithFallback(insertPayload);
         if (data) {
           autoSaveIdRef.current = data.id;
           setArticles((prev) => [
@@ -521,7 +511,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
               title: formTitle,
               thumbnail: "",
               thumbnailColor: formColor,
-              thumbnailUrl: thumbnailUrl,
+              thumbnailUrl,
               writerId: currentUserId ?? "",
               views: 0,
               likes: 0,

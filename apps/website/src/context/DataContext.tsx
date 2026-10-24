@@ -3,13 +3,8 @@ import { supabase } from "../supabase";
 import type { Profile } from "../supabase";
 import type { Article, Series } from "../types";
 import { mapDbArticleToArticle } from "../types";
-import {
-  enrichFallbackProfileRoles,
-  getLocalRolesOverride,
-  getProfileRoles,
-  isStaffRole,
-  normalizeRoles,
-} from "../utils/roles";
+import { getProfileRoles, isStaffRole } from "../utils/roles";
+import { fetchProfilesListWithFallback } from "../utils/profileQueries";
 import { applySeriesOverrides } from "../utils/seriesOverrides";
 import { getLocalScheduledAt, isArticlePubliclyVisible } from "../utils/scheduledArticles";
 import { useAuth } from "./AuthContext";
@@ -21,17 +16,6 @@ const WRITER_PAGE_SIZE = 12;
 // 安全な記事一覧取得フィールド（巨大な本文 content を除外し、実DBで確実に存在するカラムのみ）
 export const ARTICLE_LIST_FIELDS =
   "id, title, thumbnail, thumbnail_url, thumbnail_color, writer_id, views, likes, tags, is_recommended, is_popular, status, summary, series_id, episode_number, created_at";
-
-function applyProfileRoleOverrides(profile: Profile): Profile {
-  const localOverride = getLocalRolesOverride(profile.id);
-  if (localOverride && localOverride.length > 0) {
-    return {
-      ...profile,
-      roles: normalizeRoles(localOverride, profile.role),
-    };
-  }
-  return profile;
-}
 
 function enrichMappedArticleSchedule(article: Article): Article {
   const localSched = getLocalScheduledAt(article.id);
@@ -187,27 +171,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const fetchWriters = useCallback(async () => {
     setWritersLoading(true);
     try {
-      let writerRows: Profile[] | null = null;
-      const res = await supabase
-        .from("profiles")
-        .select("id, role, roles, display_name, username, x_account, avatar_url, bio, created_at")
-        .in("role", ["writer", "editor"])
-        .order("created_at", { ascending: false })
-        .range(0, WRITER_PAGE_SIZE - 1);
-
-      if (res.error && (res.error.code === "42703" || res.error.message?.includes("roles"))) {
-        const fallbackRes = await supabase
-          .from("profiles")
-          .select("id, role, display_name, username, x_account, avatar_url, bio, created_at")
-          .in("role", ["writer", "editor"])
-          .order("created_at", { ascending: false })
-          .range(0, WRITER_PAGE_SIZE - 1);
-        if (!fallbackRes.error && fallbackRes.data) {
-          writerRows = (fallbackRes.data as unknown as Profile[]).map(enrichFallbackProfileRoles);
-        }
-      } else if (!res.error && res.data) {
-        writerRows = (res.data as unknown as Profile[]).map(applyProfileRoleOverrides);
-      }
+      const writerRows = await fetchProfilesListWithFallback({
+        inRole: ["writer", "editor"],
+        order: { column: "created_at", ascending: false },
+        range: { from: 0, to: WRITER_PAGE_SIZE - 1 },
+      });
 
       if (writerRows) {
         setWriters(writerRows);
@@ -226,31 +194,15 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     try {
       const start = writers.length;
       const end = start + WRITER_PAGE_SIZE - 1;
-      let newRows: Profile[] | null = null;
-      const res = await supabase
-        .from("profiles")
-        .select("id, role, roles, display_name, username, x_account, avatar_url, bio, created_at")
-        .in("role", ["writer", "editor"])
-        .order("created_at", { ascending: false })
-        .range(start, end);
-
-      if (res.error && (res.error.code === "42703" || res.error.message?.includes("roles"))) {
-        const fallbackRes = await supabase
-          .from("profiles")
-          .select("id, role, display_name, username, x_account, avatar_url, bio, created_at")
-          .in("role", ["writer", "editor"])
-          .order("created_at", { ascending: false })
-          .range(start, end);
-        if (!fallbackRes.error && fallbackRes.data) {
-          newRows = (fallbackRes.data as unknown as Profile[]).map(enrichFallbackProfileRoles);
-        }
-      } else if (!res.error && res.data) {
-        newRows = (res.data as unknown as Profile[]).map(applyProfileRoleOverrides);
-      }
+      const newRows = await fetchProfilesListWithFallback({
+        inRole: ["writer", "editor"],
+        order: { column: "created_at", ascending: false },
+        range: { from: start, to: end },
+      });
 
       if (newRows) {
         if (newRows.length > 0) {
-          setWriters((prev) => [...prev, ...newRows!]);
+          setWriters((prev) => [...prev, ...newRows]);
         }
         setHasMoreWriters(newRows.length === WRITER_PAGE_SIZE);
       }
@@ -264,23 +216,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const fetchTeamMembers = useCallback(async () => {
     setTeamMembersLoading(true);
     try {
-      let memberRows: Profile[] | null = null;
-      const res = await supabase
-        .from("profiles")
-        .select("id, role, roles, display_name, username, x_account, avatar_url, bio, created_at")
-        .order("created_at", { ascending: true });
-
-      if (res.error && (res.error.code === "42703" || res.error.message?.includes("roles"))) {
-        const fallbackRes = await supabase
-          .from("profiles")
-          .select("id, role, display_name, username, x_account, avatar_url, bio, created_at")
-          .order("created_at", { ascending: true });
-        if (!fallbackRes.error && fallbackRes.data) {
-          memberRows = (fallbackRes.data as unknown as Profile[]).map(enrichFallbackProfileRoles);
-        }
-      } else if (!res.error && res.data) {
-        memberRows = (res.data as unknown as Profile[]).map(applyProfileRoleOverrides);
-      }
+      const memberRows = await fetchProfilesListWithFallback({
+        order: { column: "created_at", ascending: true },
+      });
 
       if (memberRows) {
         const staffList = memberRows.filter((p) => {
