@@ -13,6 +13,7 @@ import {
   setLocalRolesOverride,
   enrichFallbackProfileRoles,
 } from "../../utils/roles";
+import { updateMetaTags } from "../../utils/seo";
 
 export function EditorWritersView() {
   const { showToast, refreshTeamMembers, refreshWriters } = useApp();
@@ -23,6 +24,13 @@ export function EditorWritersView() {
   const [customRoleInputs, setCustomRoleInputs] = useState<Record<string, string>>({});
   const [openCustomInputId, setOpenCustomInputId] = useState<string | null>(null);
   const nav = useNavigate();
+
+  useEffect(() => {
+    updateMetaTags({
+      title: "ライター権限管理",
+      noindex: true,
+    });
+  }, []);
 
   const notifyRolesUpdated = () => {
     if (typeof refreshTeamMembers === "function") {

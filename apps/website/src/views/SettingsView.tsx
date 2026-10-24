@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { supabase } from "../supabase";
@@ -6,6 +7,7 @@ import { ProfileSettingsSection } from "./settings/ProfileSettingsSection";
 import { AppearanceSettingsSection } from "./settings/AppearanceSettingsSection";
 import { SecuritySettingsSection } from "./settings/SecuritySettingsSection";
 import { RoleSettingsSection } from "./settings/RoleSettingsSection";
+import { updateMetaTags } from "../utils/seo";
 
 export const SettingsView = () => {
   const navigate = useNavigate();
@@ -19,6 +21,13 @@ export const SettingsView = () => {
     setFontSize,
     authLoading,
   } = useApp();
+
+  useEffect(() => {
+    updateMetaTags({
+      title: "設定",
+      noindex: true,
+    });
+  }, []);
 
   if (authLoading) {
     return (

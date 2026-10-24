@@ -1,7 +1,18 @@
+import { useEffect } from "react";
 import { ChevronLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { updateMetaTags } from "../utils/seo";
+
 export function PrivacyView() {
   const navigate = useNavigate();
+
+  useEffect(() => {
+    updateMetaTags({
+      title: "プライバシーポリシー",
+      description: "Quest Qlubのプライバシーポリシー（個人情報の取り扱い）をご確認いただけます。",
+      url: "https://quest-qlub.vercel.app/privacy",
+    });
+  }, []);
   const sections: { title: string; text?: string; items?: string[] }[] = [
     {
       title: "1. 収集する情報",

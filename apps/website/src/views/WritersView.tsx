@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useApp } from "../context/AppContext";
 import { CustomUserIcon } from "../components/icons/NavIcons";
 import { ChevronLeft, Loader2, UserPlus, UserCheck } from "lucide-react";
@@ -5,6 +6,7 @@ import type { Profile } from "../supabase";
 import { WriterRowSkeleton } from "../components/Skeleton";
 import { useFollows } from "../hooks/useFollows";
 import { getProfileRoles, profileHasRole, getRoleLabel } from "../utils/roles";
+import { updateMetaTags } from "../utils/seo";
 
 const WriterRow = ({
   w,
@@ -98,6 +100,15 @@ export const WritersView = () => {
     showToast,
   } = useApp();
   const { isFollowing, toggleFollow, isAuthenticated, currentUserId } = useFollows();
+
+  useEffect(() => {
+    updateMetaTags({
+      title: "ライター一覧",
+      description:
+        "Quest Qlubで活躍するライター一覧です。多彩な専門知識を持つ執筆者たちをご紹介します。",
+      url: "https://quest-qlub.vercel.app/writers",
+    });
+  }, []);
 
   const handleToggleFollow = async (id: string) => {
     if (!isAuthenticated) {

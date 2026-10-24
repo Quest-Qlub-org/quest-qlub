@@ -12,6 +12,7 @@ import {
   getLocalScheduledAt,
 } from "../../utils/scheduledArticles";
 import { ChevronLeft, Plus, Edit3, Loader2, Eye, X, Clock, RotateCcw } from "lucide-react";
+import { updateMetaTags } from "../../utils/seo";
 
 function enrichWriterArticle(article: Article): Article {
   const localSched = getLocalScheduledAt(article.id);
@@ -31,6 +32,13 @@ export const WriterDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [previewArticle, setPreviewArticle] = useState<Article | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+
+  useEffect(() => {
+    updateMetaTags({
+      title: "ライターダッシュボード",
+      noindex: true,
+    });
+  }, []);
 
   const fetchMyArticles = useCallback(async () => {
     if (authLoading) return;

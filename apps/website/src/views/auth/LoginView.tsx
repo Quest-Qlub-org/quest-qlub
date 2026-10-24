@@ -3,6 +3,7 @@ import { supabase } from "../../supabase";
 import { useApp } from "../../context/AppContext";
 import { setInMemorySudoAuthorized } from "../../components/RoleRoute";
 import { Key, ShieldCheck, AlertCircle, LogOut, KeyRound } from "lucide-react";
+import { updateMetaTags } from "../../utils/seo";
 
 export const LoginView = () => {
   const [step, setStep] = useState<"credentials" | "mfa_totp" | "mfa_backup">("credentials");
@@ -16,6 +17,13 @@ export const LoginView = () => {
   const [fetchingFactor, setFetchingFactor] = useState(false);
   const [isPasskeySupported, setIsPasskeySupported] = useState(false);
   const { navigate, setMfaChallengeRequired, refreshProfile } = useApp();
+
+  useEffect(() => {
+    updateMetaTags({
+      title: "ログイン",
+      noindex: true,
+    });
+  }, []);
 
   const isMfaCompletedRef = useRef(false);
   const stepRef = useRef(step);

@@ -509,5 +509,60 @@ describe("ArticleView", () => {
 
     expect(container.textContent).toContain("記事が見つかりません");
     expect(container.textContent).not.toContain("秘密の本文");
+
+    // 未公開記事アクセス拒否時は noindex, nofollow が設定される
+    const robotsMeta = document.querySelector('meta[name="robots"]')?.getAttribute("content");
+    expect(robotsMeta).toBe("noindex, nofollow");
+  });
+
+  it("sets robots index, follow for published article and noindex for preview article", async () => {
+    const publishedArt = {
+      id: "art-pub-meta",
+      title: "公開メタ記事",
+      content: "<p>公開記事本文</p>",
+      status: "published",
+      writer_id: "usr-author-pub",
+      created_at: "2026-10-24T10:00:00Z",
+    };
+
+    const fromMock = vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      const chain: any = {
+        select: vi.fn(() => chain),
+        eq: vi.fn(() => chain),
+        in: vi.fn(() => chain),
+        order: vi.fn(() => chain),
+        range: vi.fn(() => Promise.resolve({ data: [], error: null })),
+        maybeSingle: vi.fn(() => {
+          if (table === "articles") return Promise.resolve({ data: publishedArt, error: null });
+          return Promise.resolve({ data: null, error: null });
+        }),
+      };
+      return chain;
+    });
+
+    await act(async () => {
+      root!.render(
+        <MemoryRouter initialEntries={["/articles/art-pub-meta"]}>
+          <AppProviders>
+            <Routes>
+              <Route path="/articles/:id" element={<ArticleView />} />
+            </Routes>
+          </AppProviders>
+        </MemoryRouter>,
+      );
+    });
+
+    for (let i = 0; i < 30; i++) {
+      if (document.title.includes("公開メタ記事")) break;
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 20));
+      });
+    }
+
+    expect(document.title).toBe("公開メタ記事 | Quest Qlub");
+    const robotsPub = document.querySelector('meta[name="robots"]')?.getAttribute("content");
+    expect(robotsPub).toBe("index, follow");
+
+    fromMock.mockRestore();
   });
 });

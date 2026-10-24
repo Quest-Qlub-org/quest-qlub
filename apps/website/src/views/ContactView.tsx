@@ -8,6 +8,7 @@ import {
   getRemainingCooldownSeconds,
   recordSubmissionTimestamp,
 } from "../utils/antiSpam";
+import { updateMetaTags } from "../utils/seo";
 
 export function ContactView() {
   const nav = useNavigate();
@@ -21,6 +22,14 @@ export function ContactView() {
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [err, setErr] = useState("");
+
+  useEffect(() => {
+    updateMetaTags({
+      title: "お問い合わせ",
+      description: "Quest Qlubへのお問い合わせ・ご要望窓口です。",
+      url: "https://quest-qlub.vercel.app/contact",
+    });
+  }, []);
 
   useEffect(() => {
     if (cooldown <= 0) return;

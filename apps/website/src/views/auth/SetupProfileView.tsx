@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "../../supabase";
 import { useApp } from "../../context/AppContext";
+import { updateMetaTags } from "../../utils/seo";
 
 export const SetupProfileView = () => {
   const { profile, setProfile, showToast } = useApp();
@@ -8,6 +9,13 @@ export const SetupProfileView = () => {
   const [username, setUsername] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    updateMetaTags({
+      title: "プロフィール設定",
+      noindex: true,
+    });
+  }, []);
 
   const handleSave = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();

@@ -1,8 +1,9 @@
-import { lazy } from "react";
+import { lazy, useEffect } from "react";
 import { Routes, Route, useParams, useNavigate } from "react-router-dom";
 import { AppProviders } from "./context/AppContext";
 import { AppLayout } from "./components/layout/AppLayout";
 import { RoleRoute } from "./components/RoleRoute";
+import { updateMetaTags } from "./utils/seo";
 
 // Views: 初期表示速度のためトップビューは同期インポート
 import { HomeView } from "./views/HomeView";
@@ -137,6 +138,14 @@ function ArticleEditWrapper() {
 
 function NotFoundView() {
   const navigate = useNavigate();
+
+  useEffect(() => {
+    updateMetaTags({
+      title: "ページが見つかりません",
+      noindex: true,
+    });
+  }, []);
+
   return (
     <div className="flex flex-col items-center justify-center min-h-[70vh] px-6 text-center animate-in fade-in duration-300">
       <p className="text-8xl font-black text-gray-200 select-none mb-2">404</p>

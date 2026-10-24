@@ -30,6 +30,7 @@ import {
   toSafeIsoString,
 } from "../../utils/scheduledArticles";
 import { profileHasRole } from "../../utils/roles";
+import { updateMetaTags } from "../../utils/seo";
 
 export const ArticleEditorTabs = ({
   settingsPanel,
@@ -79,6 +80,13 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
   } = useApp();
   const currentUserId = profile?.id ?? null;
   const editingArticle = editingId ? (articles.find((a) => a.id === editingId) ?? null) : null;
+
+  useEffect(() => {
+    updateMetaTags({
+      title: editingId ? "記事の編集" : "新規記事作成",
+      noindex: true,
+    });
+  }, [editingId]);
 
   const [formTitle, setFormTitle] = useState(editingArticle?.title ?? "");
   const [formContent, setFormContent] = useState(editingArticle?.content ?? "");

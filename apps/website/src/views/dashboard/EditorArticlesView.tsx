@@ -15,6 +15,7 @@ import {
 } from "../../utils/scheduledArticles";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
+import { updateMetaTags } from "../../utils/seo";
 
 function enrichEditorArticle(article: Article): Article {
   const localSched = getLocalScheduledAt(article.id);
@@ -34,6 +35,13 @@ export function EditorArticlesView() {
   const [previewArticle, setPreviewArticle] = useState<Article | null>(null);
   const [scheduleInput, setScheduleInput] = useState("");
   const nav = useNavigate();
+
+  useEffect(() => {
+    updateMetaTags({
+      title: "記事管理",
+      noindex: true,
+    });
+  }, []);
 
   useEffect(() => {
     void supabase

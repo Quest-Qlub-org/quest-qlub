@@ -347,4 +347,14 @@ describe("AboutView", () => {
 
     unmount();
   });
+
+  it("sets SEO meta tags on mount", () => {
+    const { unmount } = renderWithRouter(<AboutView />);
+    expect(document.title).toBe("Quest Qlubについて | Quest Qlub");
+    const canonical = document.querySelector('link[rel="canonical"]')?.getAttribute("href");
+    expect(canonical).toBe("https://quest-qlub.vercel.app/about");
+    const robots = document.querySelector('meta[name="robots"]')?.getAttribute("content");
+    expect(robots).toBe("index, follow");
+    unmount();
+  });
 });

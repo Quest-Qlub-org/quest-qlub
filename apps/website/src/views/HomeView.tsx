@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import imgRecommend from "../assets/recommend_icon.png";
 import imgPopular from "../assets/popular_icon.png";
 import imgTitleDetail from "../assets/brand_title_detail.png";
@@ -8,6 +9,7 @@ import { ArticleCardSkeleton } from "../components/Skeleton";
 import { Loader2, Users } from "lucide-react";
 import { useFollows } from "../hooks/useFollows";
 import { isArticlePubliclyVisible } from "../utils/scheduledArticles";
+import { updateMetaTags, generateHomeJsonLd } from "../utils/seo";
 
 export const HomeView = () => {
   const {
@@ -19,6 +21,16 @@ export const HomeView = () => {
     navigate,
   } = useApp();
   const { followedIds } = useFollows();
+
+  useEffect(() => {
+    updateMetaTags({
+      title: "Quest Qlub | 学びの「楽しい！」をつなげる",
+      description:
+        "Quest Qlubは、学びの「楽しい！」をつなげる記事プラットフォームです。ライターと読者をつなぎ、知識と好奇心を共有します。",
+      url: "https://quest-qlub.vercel.app/",
+      jsonLd: generateHomeJsonLd(),
+    });
+  }, []);
 
   const published = articles.filter(isArticlePubliclyVisible);
   const recommended = published.filter((a) => a.isRecommended);

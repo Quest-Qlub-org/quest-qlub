@@ -7,6 +7,7 @@ import {
   recordSubmissionTimestamp,
   FORGOT_PASSWORD_COOLDOWN_KEY,
 } from "../../utils/antiSpam";
+import { updateMetaTags } from "../../utils/seo";
 
 export const ForgotPasswordView = () => {
   const [email, setEmail] = useState("");
@@ -19,6 +20,13 @@ export const ForgotPasswordView = () => {
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const { navigate, showToast } = useApp();
+
+  useEffect(() => {
+    updateMetaTags({
+      title: "パスワード再設定",
+      noindex: true,
+    });
+  }, []);
 
   useEffect(() => {
     if (cooldown <= 0) return;

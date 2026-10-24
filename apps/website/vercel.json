@@ -32,12 +32,22 @@
   ],
   "rewrites": [
     {
+      "source": "/sitemap.xml",
+      "destination": "/api/sitemap"
+    },
+    {
       "source": "/articles/:id",
       "has": [
         {
           "type": "header",
           "key": "user-agent",
-          "value": "(?i).*(twitterbot|facebookexternalhit|facebot|slackbot|linkedinbot|discordbot|whatsapp|telegrambot|pinterest).*"
+          "value": "(?i).*(twitterbot|facebookexternalhit|facebot|slackbot|linkedinbot|discordbot|whatsapp|telegrambot|pinterest|line|linespider|line-poker).*"
+        }
+      ],
+      "missing": [
+        {
+          "type": "query",
+          "key": "direct"
         }
       ],
       "destination": "/api/article-ogp?id=:id"

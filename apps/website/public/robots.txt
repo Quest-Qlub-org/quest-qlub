@@ -1,8 +1,13 @@
 User-agent: *
 Allow: /
-Disallow: /editor/
-Disallow: /writer/
-Disallow: /settings/
-Disallow: /auth/
+Disallow: /editor-dash
+Disallow: /writer-dash
+Disallow: /settings
+Disallow: /favorites
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /setup-profile
 
 Sitemap: https://quest-qlub.vercel.app/sitemap.xml

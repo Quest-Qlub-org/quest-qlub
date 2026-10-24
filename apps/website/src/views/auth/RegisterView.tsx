@@ -8,6 +8,7 @@ import {
   recordSubmissionTimestamp,
   REGISTER_COOLDOWN_KEY,
 } from "../../utils/antiSpam";
+import { updateMetaTags } from "../../utils/seo";
 
 export const RegisterView = () => {
   const [email, setEmail] = useState("");
@@ -22,6 +23,13 @@ export const RegisterView = () => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const { navigate, showToast } = useApp();
+
+  useEffect(() => {
+    updateMetaTags({
+      title: "アカウント登録",
+      noindex: true,
+    });
+  }, []);
 
   useEffect(() => {
     if (cooldown <= 0) return;

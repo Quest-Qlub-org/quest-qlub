@@ -1,7 +1,18 @@
+import { useEffect } from "react";
 import { ChevronLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { updateMetaTags } from "../utils/seo";
+
 export function TermsView() {
   const navigate = useNavigate();
+
+  useEffect(() => {
+    updateMetaTags({
+      title: "利用規約",
+      description: "Quest Qlubの利用規約をご確認いただけます。",
+      url: "https://quest-qlub.vercel.app/terms",
+    });
+  }, []);
   const sections: { title: string; text?: string; items?: string[] }[] = [
     {
       title: "1. サービスの目的",

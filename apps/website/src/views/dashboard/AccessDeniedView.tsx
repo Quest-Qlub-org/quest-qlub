@@ -1,6 +1,8 @@
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ShieldAlert, Home, LogIn, ArrowRight } from "lucide-react";
 import { useApp } from "../../context/AppContext";
+import { updateMetaTags } from "../../utils/seo";
 
 interface AccessDeniedViewProps {
   requiredRole?: "writer" | "editor" | "authenticated";
@@ -10,6 +12,13 @@ interface AccessDeniedViewProps {
 export function AccessDeniedView({ requiredRole, message }: AccessDeniedViewProps) {
   const navigate = useNavigate();
   const { user, profile } = useApp();
+
+  useEffect(() => {
+    updateMetaTags({
+      title: "アクセス権限がありません",
+      noindex: true,
+    });
+  }, []);
 
   const getExplanation = () => {
     if (message) return message;

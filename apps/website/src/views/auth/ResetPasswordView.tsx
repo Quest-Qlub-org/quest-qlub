@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "../../supabase";
 import { useApp } from "../../context/AppContext";
 import { validatePassword } from "../../utils/validation";
+import { updateMetaTags } from "../../utils/seo";
 
 export const ResetPasswordView = () => {
   const [password, setPassword] = useState("");
@@ -10,6 +11,13 @@ export const ResetPasswordView = () => {
   const [loading, setLoading] = useState(false);
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
   const { navigate, showToast } = useApp();
+
+  useEffect(() => {
+    updateMetaTags({
+      title: "新しいパスワードの設定",
+      noindex: true,
+    });
+  }, []);
 
   useEffect(() => {
     void supabase.auth.getSession().then(({ data: { session } }) => {

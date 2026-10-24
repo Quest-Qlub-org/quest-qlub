@@ -26,6 +26,7 @@ import {
   ExternalLink,
   Edit3,
 } from "lucide-react";
+import { updateMetaTags } from "../../utils/seo";
 
 function enrichArticleWithLocalSchedule(article: Article): Article {
   const localSched = getLocalScheduledAt(article.id);
@@ -46,6 +47,13 @@ export const EditorDashboard = () => {
   const [previewArticle, setPreviewArticle] = useState<Article | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [scheduleInput, setScheduleInput] = useState("");
+
+  useEffect(() => {
+    updateMetaTags({
+      title: "編集長ダッシュボード",
+      noindex: true,
+    });
+  }, []);
 
   const fetchEditorQueue = useCallback(async () => {
     try {

@@ -1,12 +1,22 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabase";
 import { useApp } from "../context/AppContext";
 import { PenTool, CheckCircle, Send, ArrowLeft } from "lucide-react";
+import { updateMetaTags } from "../utils/seo";
 
 export const WriterApplyView = () => {
   const navigate = useNavigate();
   const { user, profile, showToast } = useApp();
+
+  useEffect(() => {
+    updateMetaTags({
+      title: "ライター応募",
+      description:
+        "Quest Qlubであなたの知見やアイデアを発信しませんか？ライター応募を受け付けています。",
+      url: "https://quest-qlub.vercel.app/writer-apply",
+    });
+  }, []);
 
   const [name, setName] = useState(profile?.display_name || "");
   const [email, setEmail] = useState(user?.email || "");

@@ -210,12 +210,25 @@ export const ArticleView = () => {
       author: authorName,
       publishedTime: article.createdAt ?? undefined,
       jsonLd,
+      noindex: article.status !== "published",
     });
 
     return () => {
       resetMetaTags();
     };
   }, [article, writers, writerFallback]);
+
+  useEffect(() => {
+    if (notFound) {
+      updateMetaTags({
+        title: "記事が見つかりません",
+        noindex: true,
+      });
+      return () => {
+        resetMetaTags();
+      };
+    }
+  }, [notFound]);
 
   if (loading) {
     return (

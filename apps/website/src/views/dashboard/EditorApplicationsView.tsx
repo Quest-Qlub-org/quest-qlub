@@ -4,6 +4,7 @@ import { ChevronLeft, Mail, UserPlus, Search, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
 import { formatArticleDate } from "../../utils/date";
+import { updateMetaTags } from "../../utils/seo";
 
 export interface ContactMessage {
   id: string;
@@ -22,6 +23,13 @@ export function EditorApplicationsView() {
   const [keyword, setKeyword] = useState("");
   const [promotingEmail, setPromotingEmail] = useState<string | null>(null);
   const nav = useNavigate();
+
+  useEffect(() => {
+    updateMetaTags({
+      title: "ライター応募管理",
+      noindex: true,
+    });
+  }, []);
 
   const fetchMessages = useCallback(async () => {
     setLoading(true);

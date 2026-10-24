@@ -11,7 +11,8 @@ export interface MetaTagsOptions {
   twitterCard?: "summary" | "summary_large_image";
   author?: string;
   publishedTime?: string;
-  jsonLd?: Record<string, any>;
+  jsonLd?: Record<string, any> | Array<Record<string, any>>;
+  noindex?: boolean;
 }
 
 export const DEFAULT_META = {
@@ -50,7 +51,14 @@ function setOrCreateLink(rel: string, href: string): void {
 export function updateMetaTags(options: MetaTagsOptions): void {
   if (typeof document === "undefined") return;
 
-  const fullTitle = options.title ? `${options.title} | Quest Qlub` : DEFAULT_META.title;
+  const fullTitle = options.title
+    ? options.title.startsWith("Quest Qlub | ") ||
+      options.title.endsWith(" | Quest Qlub") ||
+      options.title === "Quest Qlub"
+      ? options.title
+      : `${options.title} | Quest Qlub`
+    : DEFAULT_META.title;
+
   const description = options.description ?? DEFAULT_META.description;
   const url =
     options.url ?? (typeof window !== "undefined" ? window.location.href : DEFAULT_META.url);
@@ -60,6 +68,10 @@ export function updateMetaTags(options: MetaTagsOptions): void {
 
   // Title
   document.title = fullTitle;
+
+  // Robots
+  const robotsContent = options.noindex ? "noindex, nofollow" : "index, follow";
+  setOrCreateMeta("name", "robots", robotsContent);
 
   // Standard Meta
   setOrCreateMeta("name", "description", description);
@@ -99,6 +111,51 @@ export function updateMetaTags(options: MetaTagsOptions): void {
  */
 export function resetMetaTags(): void {
   updateMetaTags({});
+}
+
+/**
+ * サイト内検索 (SearchAction) を含む WebSite 構造化データ
+ */
+export function generateWebSiteJsonLd() {
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "Quest Qlub",
+    url: "https://quest-qlub.vercel.app/",
+    description: "学びの「楽しい！」をつなげる記事プラットフォーム",
+    potentialAction: {
+      "@type": "SearchAction",
+      target: {
+        "@type": "EntryPoint",
+        urlTemplate: "https://quest-qlub.vercel.app/search?q={search_term}",
+      },
+      "query-input": "required name=search_term",
+    },
+  };
+}
+
+/**
+ * 組織情報 (Organization) 構造化データ
+ */
+export function generateOrganizationJsonLd() {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "Quest Qlub",
+    url: "https://quest-qlub.vercel.app/",
+    logo: "https://quest-qlub.vercel.app/brand_logo.jpg",
+    description: "学びの「楽しい！」をつなげる記事プラットフォーム",
+  };
+}
+
+/**
+ * トップページ用の構造化データ（WebSite + Organization）
+ */
+export function generateHomeJsonLd() {
+  return {
+    "@context": "https://schema.org",
+    "@graph": [generateWebSiteJsonLd(), generateOrganizationJsonLd()],
+  };
 }
 
 /**

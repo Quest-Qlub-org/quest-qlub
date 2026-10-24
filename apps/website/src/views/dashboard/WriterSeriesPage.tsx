@@ -10,10 +10,18 @@ import {
   removeLocalSeriesOverride,
   setLocalSeriesOverride,
 } from "../../utils/seriesOverrides";
+import { updateMetaTags } from "../../utils/seo";
 
 export const WriterSeriesPage = () => {
   const { profile, seriesList, setSeriesList, showToast, navigate, articles, setArticles } =
     useApp();
+
+  useEffect(() => {
+    updateMetaTags({
+      title: "連載の管理",
+      noindex: true,
+    });
+  }, []);
 
   const [newTitle, setNewTitle] = useState("");
   const [newDesc, setNewDesc] = useState("");

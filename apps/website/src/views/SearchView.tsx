@@ -8,6 +8,7 @@ import { X } from "lucide-react";
 import { parseSearchKeywords, matchKeywords } from "../utils/normalizeJapanese";
 import { isArticlePubliclyVisible } from "../utils/scheduledArticles";
 import { profileHasRole } from "../utils/roles";
+import { updateMetaTags } from "../utils/seo";
 
 export const SearchView = () => {
   const { articles, writers } = useApp();
@@ -19,6 +20,14 @@ export const SearchView = () => {
   const [keyword, setKeyword] = useState(() => urlQ || "");
   const [selectedTags, setSelectedTags] = useState<string[]>(() => (urlTag ? [urlTag] : []));
   const [selectedWriterIds, setSelectedWriterIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    updateMetaTags({
+      title: "記事を探す",
+      description: "Quest Qlubで気になるトピックやキーワード、タグから記事を検索できます。",
+      url: "https://quest-qlub.vercel.app/search",
+    });
+  }, []);
 
   useEffect(() => {
     if (urlTag) {

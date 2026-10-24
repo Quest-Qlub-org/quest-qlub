@@ -6,11 +6,19 @@ import { ArticleCardSkeleton } from "../components/Skeleton";
 import { supabase } from "../supabase";
 import type { Article } from "../types";
 import { mapDbArticleToArticle } from "../types";
+import { updateMetaTags } from "../utils/seo";
 
 export const FavoritesView = () => {
   const { articles, articlesLoading, favorites, navigate, userRole, authLoading } = useApp();
   const [extraFavArticles, setExtraFavArticles] = useState<Article[]>([]);
   const [fetchingExtra, setFetchingExtra] = useState(false);
+
+  useEffect(() => {
+    updateMetaTags({
+      title: "お気に入り記事",
+      noindex: true,
+    });
+  }, []);
 
   useEffect(() => {
     if (favorites.length === 0) {

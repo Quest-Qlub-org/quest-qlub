@@ -11,9 +11,18 @@ import {
   formatMemberName,
   enrichFallbackProfileRoles,
 } from "../utils/roles";
+import { updateMetaTags } from "../utils/seo";
 
 export const AboutView = () => {
   const { navigate, teamMembers, teamMembersLoading, refreshTeamMembers } = useApp();
+
+  useEffect(() => {
+    updateMetaTags({
+      title: "Quest Qlubについて",
+      description: "Quest Qlubのビジョンや編集方針、コミュニティについてご紹介します。",
+      url: "https://quest-qlub.vercel.app/about",
+    });
+  }, []);
 
   useEffect(() => {
     if (typeof refreshTeamMembers === "function") {

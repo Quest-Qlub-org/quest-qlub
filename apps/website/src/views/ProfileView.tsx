@@ -193,6 +193,18 @@ export const ProfileView = () => {
     };
   }, [writer, cleanUsername]);
 
+  useEffect(() => {
+    if (notFound) {
+      updateMetaTags({
+        title: "プロフィールが見つかりません",
+        noindex: true,
+      });
+      return () => {
+        resetMetaTags();
+      };
+    }
+  }, [notFound]);
+
   if (loading || (writersLoading && !writer)) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">

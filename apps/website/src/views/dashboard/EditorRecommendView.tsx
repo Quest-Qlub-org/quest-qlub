@@ -5,11 +5,19 @@ import type { Article } from "../../types";
 import { mapDbArticleToArticle } from "../../types";
 import { useNavigate } from "react-router-dom";
 import { isArticlePubliclyVisible, enrichArticleWithSchedule } from "../../utils/scheduledArticles";
+import { updateMetaTags } from "../../utils/seo";
 
 export function EditorRecommendView() {
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
   const nav = useNavigate();
+
+  useEffect(() => {
+    updateMetaTags({
+      title: "おすすめ・注目記事管理",
+      noindex: true,
+    });
+  }, []);
 
   useEffect(() => {
     void supabase
