@@ -60,7 +60,9 @@ export function useFocusTrap<T extends HTMLElement = HTMLDivElement>(
     // モーダル表示時に初期フォーカスを設定
     const timer = setTimeout(() => {
       if (containerRef.current) {
-        const autoFocusEl = containerRef.current.querySelector<HTMLElement>("[autoFocus]");
+        const autoFocusEl = containerRef.current.querySelector<HTMLElement>(
+          "[autofocus], [autoFocus]",
+        );
         if (autoFocusEl) {
           autoFocusEl.focus();
         } else {

@@ -106,6 +106,8 @@ export function parseLocation(pathname: string): { currentView: string; viewPara
   if (pathname === "/privacy") return { currentView: "privacy", viewParam: null };
   if (pathname === "/terms") return { currentView: "terms", viewParam: null };
   if (pathname === "/contact") return { currentView: "contact", viewParam: null };
+  if (pathname === "/writer-apply") return { currentView: "writerApply", viewParam: null };
+  if (pathname === "/setup-profile") return { currentView: "setupProfile", viewParam: null };
   if (pathname === "/writer-dash") return { currentView: "writerDash", viewParam: null };
   if (pathname === "/writer-dash/new") return { currentView: "writerNew", viewParam: null };
   if (pathname === "/writer-dash/series") return { currentView: "writerSeries", viewParam: null };

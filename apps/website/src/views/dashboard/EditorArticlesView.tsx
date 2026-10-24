@@ -109,11 +109,19 @@ export function EditorArticlesView() {
           a.id === article.id ? { ...a, status: nextStatus, scheduledAt: null } : a,
         ),
       );
-      setGlobalArticles((prev) =>
-        prev.map((a) =>
-          a.id === article.id ? { ...a, status: nextStatus, scheduledAt: null } : a,
-        ),
-      );
+      setGlobalArticles((prev) => {
+        const exists = prev.some((a) => a.id === article.id);
+        const updated: Article = { ...article, status: nextStatus, scheduledAt: null };
+        if (exists) {
+          return prev.map((a) =>
+            a.id === article.id ? { ...a, status: nextStatus, scheduledAt: null } : a,
+          );
+        }
+        if (nextStatus === "published") {
+          return [updated, ...prev];
+        }
+        return prev;
+      });
       showToast(
         nextStatus === "published" ? "記事を公開しました" : "記事を非公開（下書き）にしました",
       );
@@ -151,7 +159,17 @@ export function EditorArticlesView() {
         scheduledAt: isFuture ? scheduledIso : null,
       };
       setArticles((prev) => prev.map((a) => (a.id === article.id ? { ...a, ...patch } : a)));
-      setGlobalArticles((prev) => prev.map((a) => (a.id === article.id ? { ...a, ...patch } : a)));
+      setGlobalArticles((prev) => {
+        const exists = prev.some((a) => a.id === article.id);
+        const updated: Article = { ...article, ...patch };
+        if (exists) {
+          return prev.map((a) => (a.id === article.id ? { ...a, ...patch } : a));
+        }
+        if (effectiveStatus === "published") {
+          return [updated, ...prev];
+        }
+        return prev;
+      });
       setPreviewArticle(null);
       showToast(
         effectiveStatus === "draft"

@@ -79,8 +79,9 @@ export const WriterApplyView = () => {
       }
 
       // 2. send-contact-email Edge Function で運営者にメール通知
+      let funcFailed = false;
       try {
-        await supabase.functions.invoke("send-contact-email", {
+        const { error: fnErr } = await supabase.functions.invoke("send-contact-email", {
           body: {
             name: name.trim(),
             email: email.trim(),
@@ -88,8 +89,17 @@ export const WriterApplyView = () => {
             body,
           },
         });
+        if (fnErr) funcFailed = true;
       } catch (funcErr) {
+        funcFailed = true;
         console.warn("Edge function invocation notification failed", funcErr);
+      }
+
+      if (dbError && funcFailed) {
+        setError(
+          "送信に失敗しました。通信環境をご確認のうえ、しばらく経ってから再度お試しください。",
+        );
+        return;
       }
 
       setSubmitted(true);
@@ -185,7 +195,7 @@ export const WriterApplyView = () => {
           <input
             type="email"
             required
-            placeholder="example@share-quest.org"
+            placeholder="example@quest-qlub.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"

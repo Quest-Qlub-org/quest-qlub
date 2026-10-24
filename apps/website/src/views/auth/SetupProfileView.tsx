@@ -4,7 +4,7 @@ import { useApp } from "../../context/AppContext";
 import { updateMetaTags } from "../../utils/seo";
 
 export const SetupProfileView = () => {
-  const { profile, setProfile, showToast } = useApp();
+  const { profile, setProfile, showToast, navigate } = useApp();
   const [displayName, setDisplayName] = useState(profile?.display_name ?? "");
   const [username, setUsername] = useState("");
   const [error, setError] = useState("");
@@ -81,6 +81,7 @@ export const SetupProfileView = () => {
             : null,
         );
         showToast("プロフィールを設定しました！");
+        navigate("/");
       }
     } catch {
       setError("通信エラーが発生しました");

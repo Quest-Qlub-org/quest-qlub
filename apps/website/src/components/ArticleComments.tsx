@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../supabase";
+import { profileHasRole } from "../utils/roles";
 
 export interface CommentItem {
   id: string;
@@ -106,7 +107,7 @@ export function ArticleComments({
   const currentUserId = profile?.id || user?.id || null;
   const isAuthenticated = userRole !== "guest" && !!currentUserId;
   const isArticleWriter = Boolean(currentUserId && writerId && currentUserId === writerId);
-  const isEditor = userRole === "editor";
+  const isEditor = userRole === "editor" || profileHasRole(profile, "editor");
   const canManageArticleComments = isArticleWriter || isEditor;
 
   // コメントオフ時は、記事ライターまたは編集長のみ過去コメントを閲覧可能

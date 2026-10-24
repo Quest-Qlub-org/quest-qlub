@@ -12,7 +12,13 @@ import { useAuth } from "../../context/AuthContext";
 import { useUI } from "../../context/UIContext";
 import imgTitle from "../../assets/brand_title.png";
 
-const HIDE_HEADER_PATHS = ["/login", "/register", "/forgot-password", "/reset-password"];
+const HIDE_HEADER_PATHS = [
+  "/login",
+  "/register",
+  "/forgot-password",
+  "/reset-password",
+  "/setup-profile",
+];
 
 export function AppLayout() {
   const location = useLocation();

@@ -552,5 +552,65 @@ describe("RoleRoute access control", () => {
       expect(container.querySelector("#editor-dashboard")).not.toBeNull();
       expect(container.textContent).toContain("編集長ダッシュボード本体");
     });
+
+    it("allows access to writer role when profile has writer in roles array even if userRole is viewer", () => {
+      setInMemorySudoAuthorized(true);
+      vi.spyOn(AuthContextModule, "useAuth").mockReturnValue({
+        userRole: "viewer",
+        authLoading: false,
+        user: { id: "user-eng-writer", email: "eng-writer@example.com" } as any,
+        profile: {
+          id: "user-eng-writer",
+          role: "viewer",
+          roles: ["engineer", "writer"],
+          email: "eng-writer@example.com",
+          display_name: "エンジニア兼ライター",
+        } as any,
+        setProfile: vi.fn(),
+        setUserRole: vi.fn(),
+        mfaChallengeRequired: false,
+        setMfaChallengeRequired: vi.fn(),
+        refreshProfile: vi.fn(),
+      });
+
+      renderWithRouter(
+        <RoleRoute requiredRole="writer">
+          <div id="writer-content">執筆画面</div>
+        </RoleRoute>,
+      );
+
+      expect(container.querySelector("#writer-content")).not.toBeNull();
+      expect(container.textContent).toContain("執筆画面");
+    });
+
+    it("allows access to editor role when profile has editor in roles array even if userRole is engineer", () => {
+      setInMemorySudoAuthorized(true);
+      vi.spyOn(AuthContextModule, "useAuth").mockReturnValue({
+        userRole: "engineer" as any,
+        authLoading: false,
+        user: { id: "user-eng-editor", email: "eng-editor@example.com" } as any,
+        profile: {
+          id: "user-eng-editor",
+          role: "viewer",
+          roles: ["engineer", "editor"],
+          email: "eng-editor@example.com",
+          display_name: "エンジニア兼編集長",
+        } as any,
+        setProfile: vi.fn(),
+        setUserRole: vi.fn(),
+        mfaChallengeRequired: false,
+        setMfaChallengeRequired: vi.fn(),
+        refreshProfile: vi.fn(),
+      });
+
+      renderWithRouter(
+        <RoleRoute requiredRole="editor">
+          <div id="editor-content">編集長画面</div>
+        </RoleRoute>,
+      );
+
+      expect(container.querySelector("#editor-content")).not.toBeNull();
+      expect(container.textContent).toContain("編集長画面");
+    });
   });
 });

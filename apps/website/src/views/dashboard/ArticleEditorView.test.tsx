@@ -374,4 +374,83 @@ describe("ArticleEditorView schema resilience", () => {
     expect(mockShowToast).toHaveBeenCalledWith("有効な公開予約日時を入力してください");
     expect(insertMock).not.toHaveBeenCalled();
   });
+
+  it("loads draft article from DB when not in articles cache, shows '記事を編集' header, and navigates to writerDash on update", async () => {
+    const draftArticleData = {
+      id: "draft-art-999",
+      title: "下書きの記事タイトル",
+      content: "<p>下書き本文</p>",
+      status: "draft",
+      writer_id: "writer-1",
+      thumbnail_color: "blue",
+      thumbnail_url: null,
+      views: 0,
+      likes: 0,
+      tags: ["テスト"],
+      summary: "下書き要約",
+      created_at: new Date().toISOString(),
+    };
+
+    const updateMock = vi.fn().mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    });
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") {
+        return {
+          update: updateMock,
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data: draftArticleData, error: null }),
+            }),
+          }),
+        } as any;
+      }
+      return {} as any;
+    });
+
+    const mockProfile = createTestProfile({ id: "writer-1", role: "writer" });
+
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      articles: [], // articles キャッシュは空（下書き記事は含まれない）
+      setArticles: mockSetArticles,
+      seriesList: [],
+      profile: mockProfile,
+      userRole: "writer",
+      user: { id: "writer-1" } as any,
+      showToast: mockShowToast,
+      navigate: mockNavigate,
+      getFontSizeClass: () => "text-base",
+    } as any);
+
+    await act(async () => {
+      root!.render(<ArticleEditorPage editingId="draft-art-999" />);
+    });
+
+    // DBからの非同期取得完了を待つ
+    for (let i = 0; i < 20; i++) {
+      if (container.textContent?.includes("記事を編集")) break;
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 20));
+      });
+    }
+
+    // ヘッダーが「新規記事作成」ではなく「記事を編集」になっていること！
+    expect(container.querySelector("h1")?.textContent).toContain("記事を編集");
+
+    // 保存ボタンをクリックして更新
+    const saveBtn = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("更新する"),
+    ) as HTMLButtonElement;
+    expect(saveBtn).toBeDefined();
+
+    await act(async () => {
+      saveBtn.click();
+    });
+
+    expect(updateMock).toHaveBeenCalled();
+    expect(mockShowToast).toHaveBeenCalledWith("記事を更新しました");
+    // 下書き記事編集保存後、確実にダッシュボードへ戻ること！
+    expect(mockNavigate).toHaveBeenCalledWith("writerDash");
+  });
 });

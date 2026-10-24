@@ -131,4 +131,33 @@ describe("FavoritesView", () => {
     expect(container.textContent).toContain("お気に入り記事その2");
     expect(container.textContent).not.toContain("対象外の記事");
   });
+
+  it("filters out future scheduled articles from favorites list", () => {
+    const futureDate = new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString();
+    const publishedArticle = createTestArticle({
+      id: "fav-pub-1",
+      title: "公開中のお気に入り記事",
+      status: "published",
+    });
+    const futureScheduledArticle = createTestArticle({
+      id: "fav-sched-1",
+      title: "未来予約のお気に入り記事",
+      status: "published",
+      scheduledAt: futureDate,
+    });
+
+    setupAppMock({
+      userRole: "viewer",
+      authLoading: false,
+      articles: [publishedArticle, futureScheduledArticle],
+      favorites: ["fav-pub-1", "fav-sched-1"],
+    });
+
+    act(() => {
+      root!.render(<FavoritesView />);
+    });
+
+    expect(container.textContent).toContain("公開中のお気に入り記事");
+    expect(container.textContent).not.toContain("未来予約のお気に入り記事");
+  });
 });

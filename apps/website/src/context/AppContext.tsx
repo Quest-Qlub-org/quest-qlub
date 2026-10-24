@@ -88,6 +88,8 @@ const VIEW_TO_PATH_MAP: Record<string, (param?: string | null) => string> = {
   privacy: () => "/privacy",
   terms: () => "/terms",
   contact: () => "/contact",
+  writerApply: () => "/writer-apply",
+  setupProfile: () => "/setup-profile",
   writerDash: () => "/writer-dash",
   writerNew: () => "/writer-dash/new",
   writerEdit: (p) => (p ? `/writer-dash/edit/${p}` : "/writer-dash/new"),
