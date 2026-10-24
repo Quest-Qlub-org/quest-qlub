@@ -49,11 +49,26 @@ function escapeHtml(str: string): string {
     .replace(/'/g, "&#039;");
 }
 
+function isSafeImageUrl(url?: string | null): boolean {
+  if (!url || typeof url !== "string") return false;
+  const trimmed = url.trim();
+  // http, https, または絶対パス（/から始まる）のみ許可し、javascript: や data: などのスキームを排除
+  return /^https?:\/\/[^\s"'<>]+$/i.test(trimmed) || /^\/[^\s"'<>]+$/.test(trimmed);
+}
+
 // 記事IDはURLのパスに埋め込むため、安全な文字のみ許可する
 const ARTICLE_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 
+interface DbArticleOgpRow {
+  title?: string | null;
+  summary?: string | null;
+  thumbnail_url?: string | null;
+  scheduled_at?: string | null;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const siteUrl = getSiteUrl();
+  const nowMs = Date.now();
   const { id } = req.query;
   const articleId = Array.isArray(id) ? id[0] : id;
 
@@ -86,8 +101,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (supabaseUrl && supabaseAnonKey) {
     try {
-      const response = await fetch(
-        `${supabaseUrl}/rest/v1/articles?id=eq.${encodeURIComponent(articleId)}&status=eq.published&select=title,summary,thumbnail_url`,
+      // 1. 公開記事を取得 (scheduled_at カラムが存在する場合)
+      let response = await fetch(
+        `${supabaseUrl}/rest/v1/articles?id=eq.${encodeURIComponent(articleId)}&status=eq.published&select=title,summary,thumbnail_url,scheduled_at`,
         {
           headers: {
             apikey: supabaseAnonKey,
@@ -96,17 +112,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         },
       );
 
+      // スキーマドリフト耐性: scheduled_at カラム未適用環境 (400 Bad Request / 42703) の自動フォールバック
+      if (!response.ok) {
+        response = await fetch(
+          `${supabaseUrl}/rest/v1/articles?id=eq.${encodeURIComponent(articleId)}&status=eq.published&select=title,summary,thumbnail_url`,
+          {
+            headers: {
+              apikey: supabaseAnonKey,
+              Authorization: `Bearer ${supabaseAnonKey}`,
+            },
+          },
+        );
+      }
+
       if (response.ok) {
-        const data = await response.json();
+        const data = (await response.json()) as DbArticleOgpRow[];
         if (Array.isArray(data) && data.length > 0) {
           const article = data[0];
-          if (article.title) {
-            title = article.title.includes("Quest Qlub")
-              ? article.title
-              : `${article.title} | Quest Qlub`;
+
+          // セキュリティ: 公開予約日時が未来の記事は外部にメタデータを露出させない（情報漏洩防止）
+          let isFutureScheduled = false;
+          if (article.scheduled_at) {
+            const targetMs = new Date(article.scheduled_at).getTime();
+            if (!Number.isNaN(targetMs) && targetMs > nowMs) {
+              isFutureScheduled = true;
+            }
           }
-          if (article.summary) description = article.summary;
-          if (article.thumbnail_url) imageUrl = article.thumbnail_url;
+
+          if (!isFutureScheduled) {
+            if (article.title) {
+              title = article.title.includes("Quest Qlub")
+                ? article.title
+                : `${article.title} | Quest Qlub`;
+            }
+            if (article.summary) description = article.summary;
+            if (isSafeImageUrl(article.thumbnail_url)) {
+              imageUrl = article.thumbnail_url!;
+            }
+          }
         }
       }
     } catch (err) {

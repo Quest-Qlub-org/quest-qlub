@@ -161,6 +161,162 @@ describe("api/article-ogp", () => {
     expect(res.body).toContain('content="https://quest-qlub.vercel.app/articles/article-456"');
     expect(res.body).not.toContain("https://quest-qlub.vercel.app//articles");
   });
+
+  it("does not leak metadata for future scheduled articles (security: prevents premature info disclosure)", async () => {
+    const futureDate = new Date(Date.now() + 86400000 * 2).toISOString(); // 2日後
+    const req: any = {
+      query: { id: "article-future" },
+      headers: {
+        "user-agent": "twitterbot/1.0",
+      },
+    };
+    const res = createMockRes();
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => [
+          {
+            title: "極秘の未来記事タイトル",
+            summary: "まだ公開してはいけない極秘要約",
+            thumbnail_url: "https://example.com/secret.png",
+            scheduled_at: futureDate,
+          },
+        ],
+      }),
+    );
+
+    await articleOgpHandler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    // 未来の記事内容は一切漏洩せず、サイト標準のタイトル・サマリー・画像にフォールバックすること
+    expect(res.body).not.toContain("極秘の未来記事タイトル");
+    expect(res.body).not.toContain("まだ公開してはいけない極秘要約");
+    expect(res.body).not.toContain("https://example.com/secret.png");
+    expect(res.body).toContain("<title>Quest Qlub | 学びの「楽しい！」をつなげる</title>");
+    expect(res.body).toContain(
+      '<meta property="og:description" content="Quest Qlubは、学びの「楽しい！」をつなげる記事プラットフォームです。">',
+    );
+    expect(res.body).toContain(
+      '<meta property="og:image" content="https://quest-qlub.vercel.app/ogp.png">',
+    );
+  });
+
+  it("displays article metadata for already reached scheduled articles", async () => {
+    const pastDate = new Date(Date.now() - 86400000).toISOString(); // 1日前
+    const req: any = {
+      query: { id: "article-published-sched" },
+      headers: {
+        "user-agent": "twitterbot/1.0",
+      },
+    };
+    const res = createMockRes();
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => [
+          {
+            title: "公開済み予約記事",
+            summary: "既に公開日を迎えた記事の概要",
+            thumbnail_url: "https://example.com/thumb.png",
+            scheduled_at: pastDate,
+          },
+        ],
+      }),
+    );
+
+    await articleOgpHandler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain("<title>公開済み予約記事 | Quest Qlub</title>");
+    expect(res.body).toContain(
+      '<meta property="og:description" content="既に公開日を迎えた記事の概要">',
+    );
+    expect(res.body).toContain(
+      '<meta property="og:image" content="https://example.com/thumb.png">',
+    );
+  });
+
+  it("handles schema drift gracefully when scheduled_at column does not exist in DB (HTTP 400 fallback)", async () => {
+    const req: any = {
+      query: { id: "article-drift" },
+      headers: {
+        "user-agent": "twitterbot/1.0",
+      },
+    };
+    const res = createMockRes();
+
+    const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+      // 最初の scheduled_at カラム付きリクエストは 400 Bad Request（カラム未存在）
+      if (url.includes("scheduled_at")) {
+        return {
+          ok: false,
+          status: 400,
+          json: async () => ({
+            code: "42703",
+            message: "column articles.scheduled_at does not exist",
+          }),
+        };
+      }
+      // フォールバックのクエリは成功
+      return {
+        ok: true,
+        status: 200,
+        json: async () => [
+          {
+            title: "スキーマドリフト環境の記事",
+            summary: "安全にフォールバックして取得された概要",
+            thumbnail_url: "https://example.com/drift.png",
+          },
+        ],
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await articleOgpHandler(req, res);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain("<title>スキーマドリフト環境の記事 | Quest Qlub</title>");
+    expect(res.body).toContain(
+      '<meta property="og:description" content="安全にフォールバックして取得された概要">',
+    );
+  });
+
+  it("rejects unsafe thumbnail_url schemes like javascript: and falls back to default ogp.png", async () => {
+    const req: any = {
+      query: { id: "article-unsafe-img" },
+      headers: {
+        "user-agent": "twitterbot/1.0",
+      },
+    };
+    const res = createMockRes();
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => [
+          {
+            title: "安全な記事",
+            summary: "画像に不正スキームが含まれる記事",
+            thumbnail_url: "javascript:alert(1)",
+          },
+        ],
+      }),
+    );
+
+    await articleOgpHandler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).not.toContain("javascript:alert(1)");
+    expect(res.body).toContain(
+      '<meta property="og:image" content="https://quest-qlub.vercel.app/ogp.png">',
+    );
+  });
 });
 
 describe("api/sitemap", () => {
