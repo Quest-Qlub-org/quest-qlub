@@ -160,6 +160,124 @@
   color: #374151; /* text-gray-700 */
 }
 
+/* Dark Mode Article Styles */
+html.dark .article-content {
+  color: #e5e7eb;
+}
+html.dark .article-content h1 {
+  background-color: rgba(191, 120, 58, 0.15);
+  border-left-color: #bf783a;
+  color: #f9fafb;
+}
+html.dark .article-content h2 {
+  border-bottom-color: #374151;
+  border-left-color: #bf783a;
+  color: #f9fafb;
+}
+html.dark .article-content h3 {
+  border-left-color: #6b7280;
+  color: #f3f4f6;
+}
+html.dark .article-content blockquote {
+  border-left-color: #374151;
+  color: #9ca3af;
+}
+html.dark .article-content pre {
+  background: #111827;
+  color: #f3f4f6;
+}
+html.dark .article-content code {
+  background: #374151;
+  color: #fca5a5;
+}
+html.dark .article-content hr {
+  border-top-color: #374151;
+}
+html.dark .article-content a {
+  color: #dfb692;
+}
+html.dark .article-content .custom-frame-theme {
+  border-color: #bf783a;
+  background-color: rgba(191, 120, 58, 0.18);
+  color: #fdf8f3;
+}
+html.dark .article-content .custom-frame-verification {
+  border-color: #10b981;
+  background-color: rgba(16, 185, 129, 0.15);
+  color: #a7f3d0;
+}
+html.dark .article-content .custom-frame-summary {
+  border-color: #8b5cf6;
+  background-color: rgba(139, 92, 246, 0.15);
+  color: #ddd6fe;
+}
+html.dark .article-content .custom-frame-note {
+  border-color: #f59e0b;
+  background-color: rgba(245, 158, 11, 0.15);
+  color: #fde68a;
+}
+html.dark .article-content .custom-frame-body {
+  color: #d1d5db;
+}
+
+/* ダークモード時の黒文字・暗色インラインスタイルの自動コントラスト補正 */
+html.dark .article-content [style*="rgb(0, 0, 0)" i],
+html.dark .article-content [style*="rgb(0,0,0)" i],
+html.dark .article-content [style*="#000000" i],
+html.dark .article-content [style*="#000;" i],
+html.dark .article-content [style$="#000" i],
+html.dark .article-content [style*="color: black" i],
+html.dark .article-content [style*="color:black" i],
+html.dark .article-content [style*="#111827" i],
+html.dark .article-content [style*="#1f2937" i],
+html.dark .article-content [style*="#374151" i],
+html.dark .article-content [style*="#4b5563" i],
+html.dark .article-content [style*="rgb(17, 24, 39)" i],
+html.dark .article-content [style*="rgb(17,24,39)" i],
+html.dark .article-content [style*="rgb(31, 41, 55)" i],
+html.dark .article-content [style*="rgb(31,41,55)" i],
+html.dark .article-content [style*="rgb(55, 65, 81)" i],
+html.dark .article-content [style*="rgb(55,65,81)" i],
+html.dark .article-content [style*="rgb(75, 85, 99)" i],
+html.dark .article-content [style*="rgb(75,85,99)" i],
+html.dark .ProseMirror [style*="rgb(0, 0, 0)" i],
+html.dark .ProseMirror [style*="rgb(0,0,0)" i],
+html.dark .ProseMirror [style*="#000000" i],
+html.dark .ProseMirror [style*="#000;" i],
+html.dark .ProseMirror [style$="#000" i],
+html.dark .ProseMirror [style*="color: black" i],
+html.dark .ProseMirror [style*="color:black" i],
+html.dark .ProseMirror [style*="#111827" i],
+html.dark .ProseMirror [style*="#1f2937" i],
+html.dark .ProseMirror [style*="#374151" i],
+html.dark .ProseMirror [style*="#4b5563" i],
+html.dark .ProseMirror [style*="rgb(17, 24, 39)" i],
+html.dark .ProseMirror [style*="rgb(17,24,39)" i],
+html.dark .ProseMirror [style*="rgb(31, 41, 55)" i],
+html.dark .ProseMirror [style*="rgb(31,41,55)" i],
+html.dark .ProseMirror [style*="rgb(55, 65, 81)" i],
+html.dark .ProseMirror [style*="rgb(55,65,81)" i],
+html.dark .ProseMirror [style*="rgb(75, 85, 99)" i],
+html.dark .ProseMirror [style*="rgb(75,85,99)" i] {
+  color: inherit !important;
+}
+
+/* ダークモード時の白背景インラインスタイルの補正 */
+html.dark .article-content [style*="background-color: #ffffff" i],
+html.dark .article-content [style*="background-color: #fff;" i],
+html.dark .article-content [style$="background-color: #fff" i],
+html.dark .article-content [style*="background-color: white" i],
+html.dark .article-content [style*="background-color: rgb(255, 255, 255)" i],
+html.dark .article-content [style*="background-color: rgb(255,255,255)" i],
+html.dark .ProseMirror [style*="background-color: #ffffff" i],
+html.dark .ProseMirror [style*="background-color: #fff;" i],
+html.dark .ProseMirror [style$="background-color: #fff" i],
+html.dark .ProseMirror [style*="background-color: white" i],
+html.dark .ProseMirror [style*="background-color: rgb(255, 255, 255)" i],
+html.dark .ProseMirror [style*="background-color: rgb(255,255,255)" i] {
+  background-color: transparent !important;
+}
+
 /* Strict Responsive Content Rules (#54-7) */
 .article-content {
   overflow-wrap: break-word;

@@ -357,4 +357,27 @@ describe("AboutView", () => {
     expect(robots).toBe("index, follow");
     unmount();
   });
+
+  it("applies dark mode text styling classes to member buttons", () => {
+    mockTeamMembers = [
+      createTestProfile({
+        id: "usr-engineer-1",
+        display_name: "るーと",
+        username: "astro_root",
+        role: "viewer",
+        roles: ["engineer"],
+      }),
+    ];
+
+    const { container, unmount } = renderWithRouter(<AboutView />);
+    const engineerSection = container.querySelector('[data-testid="engineers-section"]');
+    expect(engineerSection).not.toBeNull();
+
+    const memberBtn = engineerSection?.querySelector("button");
+    expect(memberBtn).not.toBeNull();
+    expect(memberBtn?.className).toContain("dark:text-gray-200");
+    expect(memberBtn?.className).toContain("dark:hover:text-blue-400");
+
+    unmount();
+  });
 });

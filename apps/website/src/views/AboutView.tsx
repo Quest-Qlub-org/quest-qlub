@@ -99,7 +99,7 @@ export const AboutView = () => {
         {extraRoles.map((r) => (
           <span
             key={r}
-            className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-100"
+            className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-300 border border-blue-100 dark:border-blue-800"
           >
             {getRoleLabel(r)}
           </span>
@@ -109,37 +109,37 @@ export const AboutView = () => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-4 sm:p-6 md:p-8 space-y-6 animate-in slide-in-from-bottom-4 duration-300 bg-white min-h-screen">
+    <div className="max-w-4xl mx-auto p-4 sm:p-6 md:p-8 space-y-6 animate-in slide-in-from-bottom-4 duration-300 bg-white dark:bg-gray-900 min-h-screen text-gray-800 dark:text-gray-100 transition-colors">
       <div className="text-center py-6 md:py-8">
         <LogoIcon className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-4" />
         <img
           src={imgTitleDetail}
-          className="h-20 sm:h-24 md:h-28 max-w-full object-contain mx-auto mb-2"
+          className="h-20 sm:h-24 md:h-28 max-w-full object-contain mx-auto mb-2 dark:brightness-0 dark:invert transition-all"
           alt="Quest Qlub - 学びの『楽しい！』をつなげる -"
         />
       </div>
       <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-          <div className="bg-gray-50 p-5 rounded-xl border border-gray-100">
-            <h3 className="font-bold text-gray-800 border-b-2 border-blue-200 pb-2 mb-3 inline-block">
+          <div className="bg-gray-50 dark:bg-gray-800 p-5 rounded-xl border border-gray-100 dark:border-gray-700">
+            <h3 className="font-bold text-gray-800 dark:text-gray-100 border-b-2 border-blue-200 dark:border-blue-600 pb-2 mb-3 inline-block">
               Quest Qlub とは
             </h3>
-            <p className="text-sm text-gray-600 leading-loose">
+            <p className="text-sm text-gray-600 dark:text-gray-300 leading-loose">
               　「学びの『楽しい！』をつなげる」をモットーに、ライターによって書かれる記事から、「学ぶこと」の楽しさや面白さを届けるコンテンツです。
             </p>
-            <p className="text-sm text-gray-600 leading-loose mt-2">
+            <p className="text-sm text-gray-600 dark:text-gray-300 leading-loose mt-2">
               　「勉強」という固い縛りではなく、「気になったことを広げたい」、「学ぶこと自体が楽しい」と思えるようなコンテンツを目指しています。
             </p>
           </div>
-          <div className="bg-gray-50 p-5 rounded-xl border border-gray-100">
-            <h3 className="font-bold text-gray-800 border-b-2 border-blue-200 pb-2 mb-3 inline-block">
+          <div className="bg-gray-50 dark:bg-gray-800 p-5 rounded-xl border border-gray-100 dark:border-gray-700">
+            <h3 className="font-bold text-gray-800 dark:text-gray-100 border-b-2 border-blue-200 dark:border-blue-600 pb-2 mb-3 inline-block">
               主な活動
             </h3>
-            <p className="text-sm text-gray-600 leading-loose">
+            <p className="text-sm text-gray-600 dark:text-gray-300 leading-loose">
               　Quest
               Qlubのライターが、「楽しい」「おもしろい」と感じたことを記事にすることで、その輪を広げています。
             </p>
-            <p className="text-sm text-gray-600 leading-loose mt-2">
+            <p className="text-sm text-gray-600 dark:text-gray-300 leading-loose mt-2">
               　一人でも多くの方に学びの楽しさを伝えられるよう活動しています。
             </p>
           </div>
@@ -149,16 +149,16 @@ export const AboutView = () => {
         {teamMembersLoading && !hasAnyMembers && (
           <div
             data-testid="members-loading-skeleton"
-            className="bg-gray-50 p-5 rounded-xl border border-gray-100 animate-pulse space-y-4"
+            className="bg-gray-50 dark:bg-gray-800 p-5 rounded-xl border border-gray-100 dark:border-gray-700 animate-pulse space-y-4"
           >
-            <div className="h-5 bg-gray-200 rounded w-24 mb-3" />
+            <div className="h-5 bg-gray-200 dark:bg-gray-700 rounded w-24 mb-3" />
             <div className="space-y-2">
-              <div className="h-4 bg-gray-200 rounded w-16" />
-              <div className="h-4 bg-gray-200 rounded w-48" />
+              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-16" />
+              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-48" />
             </div>
             <div className="space-y-2 pt-2">
-              <div className="h-4 bg-gray-200 rounded w-16" />
-              <div className="h-4 bg-gray-200 rounded w-40" />
+              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-16" />
+              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-40" />
             </div>
           </div>
         )}
@@ -167,9 +167,9 @@ export const AboutView = () => {
         {(editors.length > 0 || writersList.length > 0) && (
           <div
             data-testid="writers-section"
-            className="bg-gray-50 p-5 rounded-xl border border-gray-100"
+            className="bg-gray-50 dark:bg-gray-800 p-5 rounded-xl border border-gray-100 dark:border-gray-700"
           >
-            <h3 className="font-bold text-gray-800 border-b-2 border-blue-200 pb-2 mb-3 inline-block">
+            <h3 className="font-bold text-gray-800 dark:text-gray-100 border-b-2 border-blue-200 dark:border-blue-600 pb-2 mb-3 inline-block">
               ライター
             </h3>
             {editors.length > 0 && (
@@ -177,13 +177,13 @@ export const AboutView = () => {
                 <span className="inline-block text-xs font-bold text-white bg-blue-500 px-2 py-0.5 rounded-full mb-2">
                   編集長
                 </span>
-                <ul className="text-sm text-gray-700 font-bold pl-1 space-y-1.5">
+                <ul className="text-sm text-gray-700 dark:text-gray-200 font-bold pl-1 space-y-1.5">
                   {editors.map((m) => (
                     <li key={`editor-${m.id}`} className="flex flex-wrap items-center">
                       <button
                         type="button"
                         onClick={() => navigate("profile", m.username || m.id)}
-                        className="hover:text-blue-600 hover:underline transition-colors text-left break-words"
+                        className="text-gray-800 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400 hover:underline transition-colors text-left break-words cursor-pointer"
                       >
                         {formatMemberName(m)}
                       </button>
@@ -195,16 +195,16 @@ export const AboutView = () => {
             )}
             {writersList.length > 0 && (
               <div>
-                <span className="inline-block text-xs font-bold text-white bg-gray-400 px-2 py-0.5 rounded-full mb-2">
+                <span className="inline-block text-xs font-bold text-white bg-gray-400 dark:bg-gray-600 px-2 py-0.5 rounded-full mb-2">
                   ライター
                 </span>
-                <ul className="text-sm text-gray-600 space-y-1.5 pl-1">
+                <ul className="text-sm text-gray-600 dark:text-gray-300 space-y-1.5 pl-1">
                   {writersList.map((m) => (
                     <li key={`writer-${m.id}`} className="flex flex-wrap items-center">
                       <button
                         type="button"
                         onClick={() => navigate("profile", m.username || m.id)}
-                        className="hover:text-blue-600 hover:underline transition-colors text-left break-words"
+                        className="text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 hover:underline transition-colors text-left break-words cursor-pointer"
                       >
                         {formatMemberName(m)}
                       </button>
@@ -217,7 +217,7 @@ export const AboutView = () => {
             <button
               type="button"
               onClick={() => navigate("writers")}
-              className="mt-3 text-sm text-blue-500 font-bold underline hover:text-blue-700 block"
+              className="mt-3 text-sm text-blue-500 dark:text-blue-400 font-bold underline hover:text-blue-700 dark:hover:text-blue-300 block cursor-pointer"
             >
               ＞ 編集者一覧へ
             </button>
@@ -229,18 +229,18 @@ export const AboutView = () => {
           {engineers.length > 0 && (
             <div
               data-testid="engineers-section"
-              className="bg-gray-50 p-5 rounded-xl border border-gray-100"
+              className="bg-gray-50 dark:bg-gray-800 p-5 rounded-xl border border-gray-100 dark:border-gray-700"
             >
-              <h3 className="font-bold text-gray-800 border-b-2 border-blue-200 pb-2 mb-3 inline-block">
+              <h3 className="font-bold text-gray-800 dark:text-gray-100 border-b-2 border-blue-200 dark:border-blue-600 pb-2 mb-3 inline-block">
                 エンジニア
               </h3>
-              <ul className="text-sm text-gray-600 space-y-1.5">
+              <ul className="text-sm text-gray-600 dark:text-gray-300 space-y-1.5">
                 {engineers.map((m) => (
                   <li key={`engineer-${m.id}`} className="flex flex-wrap items-center">
                     <button
                       type="button"
                       onClick={() => navigate("profile", m.username || m.id)}
-                      className="hover:text-blue-600 hover:underline transition-colors text-left break-words"
+                      className="text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 hover:underline transition-colors text-left break-words cursor-pointer"
                     >
                       ・{formatMemberName(m)}
                     </button>
@@ -256,18 +256,18 @@ export const AboutView = () => {
             <div
               key={role}
               data-testid={`role-section-${role}`}
-              className="bg-gray-50 p-5 rounded-xl border border-gray-100"
+              className="bg-gray-50 dark:bg-gray-800 p-5 rounded-xl border border-gray-100 dark:border-gray-700"
             >
-              <h3 className="font-bold text-gray-800 border-b-2 border-blue-200 pb-2 mb-3 inline-block">
+              <h3 className="font-bold text-gray-800 dark:text-gray-100 border-b-2 border-blue-200 dark:border-blue-600 pb-2 mb-3 inline-block">
                 {label}
               </h3>
-              <ul className="text-sm text-gray-600 space-y-1.5">
+              <ul className="text-sm text-gray-600 dark:text-gray-300 space-y-1.5">
                 {members.map((m) => (
                   <li key={`${role}-${m.id}`} className="flex flex-wrap items-center">
                     <button
                       type="button"
                       onClick={() => navigate("profile", m.username || m.id)}
-                      className="hover:text-blue-600 hover:underline transition-colors text-left break-words"
+                      className="text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 hover:underline transition-colors text-left break-words cursor-pointer"
                     >
                       ・{formatMemberName(m)}
                     </button>
@@ -283,9 +283,9 @@ export const AboutView = () => {
         {!teamMembersLoading && !hasAnyMembers && (
           <div
             data-testid="no-members-fallback"
-            className="bg-gray-50 p-5 rounded-xl border border-gray-100 text-center py-6"
+            className="bg-gray-50 dark:bg-gray-800 p-5 rounded-xl border border-gray-100 dark:border-gray-700 text-center py-6"
           >
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
               メンバー情報を読み込み中、または登録されていません
             </p>
           </div>
@@ -294,7 +294,7 @@ export const AboutView = () => {
         <button
           type="button"
           onClick={() => navigate("home")}
-          className="w-full py-3 bg-gray-100 font-bold rounded-xl text-gray-600 hover:bg-gray-200 cursor-pointer transition-colors"
+          className="w-full py-3 bg-gray-100 dark:bg-gray-800 font-bold rounded-xl text-gray-600 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 cursor-pointer transition-colors"
         >
           ホームへ戻る
         </button>

@@ -71,4 +71,16 @@ describe("sanitizeHtml", () => {
     expect(output).not.toContain("url(");
     expect(output).toContain("color: blue");
   });
+
+  it("strips black/dark inline text color and white inline background color for theme adaptability", () => {
+    const input =
+      '<span style="color: rgb(0, 0, 0)">Quest</span><span style="color: #000000">Qlub</span><span style="color: red; background-color: #ffffff">Alert</span>';
+    const output = sanitizeHtml(input);
+    // color: rgb(0, 0, 0) や #000000 は除去されて親のテーマカラーに追従
+    expect(output).not.toContain("color: rgb(0, 0, 0)");
+    expect(output).not.toContain("color: #000000");
+    // 赤などのカラーハイライトは保持され、白背景は除去される
+    expect(output).toContain("color: red");
+    expect(output).not.toContain("background-color");
+  });
 });

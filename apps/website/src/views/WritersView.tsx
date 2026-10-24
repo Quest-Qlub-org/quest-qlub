@@ -22,11 +22,11 @@ const WriterRow = ({
   onSelect: (usernameOrId: string) => void;
 }) => (
   <div
-    className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-xl m-2 cursor-pointer hover:bg-blue-50 transition-colors shadow-sm"
+    className="flex items-center justify-between p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/80 rounded-xl m-2 cursor-pointer hover:bg-blue-50 dark:hover:bg-gray-700/60 transition-colors shadow-sm"
     onClick={() => onSelect(w.username || w.id)}
   >
     <div className="flex items-center gap-4">
-      <div className="bg-gray-100 rounded-full border border-gray-200 overflow-hidden w-12 h-12 flex items-center justify-center shrink-0">
+      <div className="bg-gray-100 dark:bg-gray-700 rounded-full border border-gray-200 dark:border-gray-600 overflow-hidden w-12 h-12 flex items-center justify-center shrink-0">
         {w.avatar_url ? (
           <img src={w.avatar_url} className="w-12 h-12 object-cover" alt="" />
         ) : (
@@ -34,7 +34,7 @@ const WriterRow = ({
         )}
       </div>
       <div>
-        <p className="font-bold text-gray-800 text-base">
+        <p className="font-bold text-gray-800 dark:text-gray-100 text-base">
           {w.display_name ?? (w.username ? `@${w.username}` : "名称未設定")}
         </p>
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -43,10 +43,10 @@ const WriterRow = ({
               key={r}
               className={`text-xs font-bold ${
                 r === "editor"
-                  ? "text-purple-600"
+                  ? "text-purple-600 dark:text-purple-400"
                   : r === "engineer"
-                    ? "text-emerald-600"
-                    : "text-blue-500"
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : "text-blue-500 dark:text-blue-400"
               }`}
             >
               {getRoleLabel(r)}
@@ -63,10 +63,10 @@ const WriterRow = ({
             e.stopPropagation();
             onToggleFollow(w.id);
           }}
-          className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm ${
+          className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm cursor-pointer ${
             isFollowing
               ? "bg-blue-600 text-white hover:bg-blue-700"
-              : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-100"
+              : "bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
           }`}
         >
           {isFollowing ? (
@@ -82,7 +82,7 @@ const WriterRow = ({
           )}
         </button>
       )}
-      <span className="text-sm font-bold text-gray-500 hidden sm:flex items-center">
+      <span className="text-sm font-bold text-gray-500 dark:text-gray-400 hidden sm:flex items-center">
         記事一覧 <ChevronLeft className="w-4 h-4 rotate-180 ml-1" />
       </span>
     </div>
@@ -136,9 +136,9 @@ export const WritersView = () => {
 
   return (
     <div className="p-4 md:p-8 space-y-6 animate-in fade-in duration-300">
-      <div className="border-b border-gray-200 pb-3">
-        <h1 className="text-2xl font-bold text-gray-900">ライター一覧</h1>
-        <p className="text-xs text-gray-500 mt-1">
+      <div className="border-b border-gray-200 dark:border-gray-700 pb-3">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">ライター一覧</h1>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
           Quest Qlub で知識を発信するライター・編集長の一覧です
         </p>
       </div>
@@ -154,7 +154,9 @@ export const WritersView = () => {
         <>
           {editors.length > 0 && (
             <section>
-              <h2 className="text-sm font-bold text-gray-500 mb-2 pl-2">編集長</h2>
+              <h2 className="text-sm font-bold text-gray-500 dark:text-gray-400 mb-2 pl-2">
+                編集長
+              </h2>
               <div className="md:grid md:grid-cols-2 md:gap-2">
                 {editors.map((w) => (
                   <WriterRow
@@ -171,7 +173,9 @@ export const WritersView = () => {
           )}
 
           <section>
-            <h2 className="text-sm font-bold text-gray-500 mb-2 pl-2">ライター</h2>
+            <h2 className="text-sm font-bold text-gray-500 dark:text-gray-400 mb-2 pl-2">
+              ライター
+            </h2>
             <div className="md:grid md:grid-cols-2 md:gap-2">
               {writerList.length > 0 ? (
                 writerList.map((w) => (
@@ -185,8 +189,10 @@ export const WritersView = () => {
                   />
                 ))
               ) : (
-                <div className="col-span-2 text-center py-8 bg-white rounded-xl border border-gray-200">
-                  <p className="text-sm text-gray-400 font-medium">ライターがまだいません</p>
+                <div className="col-span-2 text-center py-8 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+                  <p className="text-sm text-gray-400 dark:text-gray-500 font-medium">
+                    ライターがまだいません
+                  </p>
                 </div>
               )}
             </div>
@@ -198,11 +204,11 @@ export const WritersView = () => {
               <button
                 onClick={() => void loadMoreWriters()}
                 disabled={loadingMoreWriters}
-                className="px-6 py-2.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 text-sm font-bold rounded-xl transition-all shadow-sm hover:border-gray-400 disabled:opacity-50 inline-flex items-center gap-2"
+                className="px-6 py-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-700 dark:text-gray-200 text-sm font-bold rounded-xl transition-all shadow-sm hover:border-gray-400 dark:hover:border-gray-600 disabled:opacity-50 inline-flex items-center gap-2 cursor-pointer"
               >
                 {loadingMoreWriters ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                    <Loader2 className="w-4 h-4 animate-spin text-blue-600 dark:text-blue-400" />
                     <span>読み込み中...</span>
                   </>
                 ) : (

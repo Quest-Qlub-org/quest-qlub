@@ -109,9 +109,9 @@ export function ContactView() {
 
   if (sent) {
     return (
-      <div className="p-4 sm:p-8 bg-white min-h-screen">
+      <div className="p-4 sm:p-8 bg-white dark:bg-gray-900 min-h-screen transition-colors">
         <div className="max-w-xl mx-auto text-center pt-16">
-          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <div className="w-16 h-16 bg-green-100 dark:bg-green-900/50 rounded-full flex items-center justify-center mx-auto mb-4">
             <svg
               className="w-8 h-8 text-green-500"
               fill="none"
@@ -126,13 +126,13 @@ export function ContactView() {
               />
             </svg>
           </div>
-          <h2 className="text-xl font-bold text-gray-800 mb-2">送信完了</h2>
-          <p className="text-sm text-gray-500 mb-8">
+          <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-2">送信完了</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-8">
             お問い合わせを受け付けました。返信までしばらくお待ちください。
           </p>
           <button
             onClick={() => nav(-1)}
-            className="px-6 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700"
+            className="px-6 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 cursor-pointer"
           >
             戻る
           </button>
@@ -142,12 +142,12 @@ export function ContactView() {
   }
 
   return (
-    <div className="animate-in fade-in duration-300 min-h-screen bg-gray-50">
+    <div className="animate-in fade-in duration-300 min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
       <div className="max-w-xl mx-auto px-4 py-8">
-        <div className="bg-green-600 rounded-2xl p-6 mb-6 text-white">
+        <div className="bg-green-600 dark:bg-green-800 rounded-2xl p-6 mb-6 text-white shadow-sm">
           <button
             onClick={() => nav(-1)}
-            className="flex items-center gap-1 text-green-100 hover:text-white text-sm mb-3"
+            className="flex items-center gap-1 text-green-100 hover:text-white text-sm mb-3 cursor-pointer"
           >
             <ChevronLeft className="w-4 h-4" />
             戻る
@@ -165,7 +165,7 @@ export function ContactView() {
           className="space-y-4"
         >
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1">
+            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">
               お名前 <span className="text-red-500">*</span>
             </label>
             <input
@@ -173,11 +173,11 @@ export function ContactView() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="例: 山田 太郎"
-              className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
             />
           </div>
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1">
+            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">
               メールアドレス <span className="text-red-500">*</span>
             </label>
             <input
@@ -185,11 +185,11 @@ export function ContactView() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="例: example@email.com"
-              className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
             />
           </div>
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1">
+            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">
               件名 <span className="text-red-500">*</span>
             </label>
             <input
@@ -197,11 +197,11 @@ export function ContactView() {
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               placeholder="例: 記事の内容について"
-              className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
             />
           </div>
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1">
+            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">
               内容 <span className="text-red-500">*</span>
             </label>
             <textarea
@@ -209,7 +209,7 @@ export function ContactView() {
               onChange={(e) => setBody(e.target.value)}
               rows={6}
               placeholder="お問い合わせ内容をご記入ください"
-              className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
+              className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
             />
           </div>
           {/* ボット対策用ハニーポットフィールド（人間には不可視） */}

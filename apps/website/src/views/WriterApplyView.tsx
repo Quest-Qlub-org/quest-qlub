@@ -104,24 +104,26 @@ export const WriterApplyView = () => {
   if (submitted) {
     return (
       <div className="p-4 md:p-8 max-w-xl mx-auto animate-in fade-in duration-300">
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 text-center space-y-4">
-          <div className="w-16 h-16 bg-green-50 text-green-600 rounded-full flex items-center justify-center mx-auto mb-2 border border-green-100">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-8 text-center space-y-4">
+          <div className="w-16 h-16 bg-green-50 dark:bg-green-900/40 text-green-600 dark:text-green-400 rounded-full flex items-center justify-center mx-auto mb-2 border border-green-100 dark:border-green-800">
             <CheckCircle className="w-8 h-8" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">ご応募ありがとうございます！</h1>
-          <p className="text-gray-600 text-sm leading-relaxed max-w-md mx-auto">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+            ご応募ありがとうございます！
+          </h1>
+          <p className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed max-w-md mx-auto">
             ライター応募を受け付けました。運営チームにて内容を確認の上、1〜3営業日以内にご連絡いたします。
           </p>
           <div className="pt-4 flex flex-col sm:flex-row gap-3 justify-center">
             <button
               onClick={() => navigate("/")}
-              className="px-6 py-2.5 bg-gray-900 text-white text-sm font-bold rounded-xl hover:bg-gray-800 transition-colors"
+              className="px-6 py-2.5 bg-gray-900 dark:bg-gray-700 text-white text-sm font-bold rounded-xl hover:bg-gray-800 dark:hover:bg-gray-600 transition-colors cursor-pointer"
             >
               トップへ戻る
             </button>
             <button
               onClick={() => navigate("/settings")}
-              className="px-6 py-2.5 bg-gray-100 text-gray-700 text-sm font-bold rounded-xl hover:bg-gray-200 transition-colors"
+              className="px-6 py-2.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-bold rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors cursor-pointer"
             >
               設定画面へ
             </button>
@@ -135,37 +137,39 @@ export const WriterApplyView = () => {
     <div className="p-4 md:p-8 max-w-xl mx-auto space-y-6 animate-in fade-in duration-300">
       <button
         onClick={() => navigate(-1)}
-        className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800 transition-colors font-medium"
+        className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 transition-colors font-medium cursor-pointer"
       >
         <ArrowLeft className="w-4 h-4" />
         <span>戻る</span>
       </button>
 
-      <div className="border-b border-gray-200 pb-4">
+      <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
         <div className="flex items-center gap-2.5 mb-2">
-          <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+          <div className="p-2 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 rounded-xl">
             <PenTool className="w-5 h-5" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">ライター応募フォーム</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+            ライター応募フォーム
+          </h1>
         </div>
-        <p className="text-xs text-gray-500 leading-relaxed">
+        <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
           Quest Qlub
           であなたの知識や経験を記事として発信しませんか？以下の項目をご記入の上ご応募ください。
         </p>
       </div>
 
       {error && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600 font-medium">
+        <div className="p-4 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl text-xs text-red-600 dark:text-red-400 font-medium">
           {error}
         </div>
       )}
 
       <form
         onSubmit={handleSubmit}
-        className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 md:p-8 space-y-5"
+        className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 md:p-8 space-y-5"
       >
         <div>
-          <label className="block text-xs font-bold text-gray-700 mb-1.5">
+          <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
             お名前・ペンネーム <span className="text-red-500">*</span>
           </label>
           <input
@@ -174,12 +178,12 @@ export const WriterApplyView = () => {
             placeholder="山田 太郎"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
 
         <div>
-          <label className="block text-xs font-bold text-gray-700 mb-1.5">
+          <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
             メールアドレス <span className="text-red-500">*</span>
           </label>
           <input
@@ -188,12 +192,12 @@ export const WriterApplyView = () => {
             placeholder="example@share-quest.org"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
 
         <div>
-          <label className="block text-xs font-bold text-gray-700 mb-1.5">
+          <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
             希望執筆ジャンル（複数選択可）
           </label>
           <div className="flex flex-wrap gap-2 pt-1">
@@ -202,10 +206,10 @@ export const WriterApplyView = () => {
                 key={genre}
                 type="button"
                 onClick={() => toggleGenre(genre)}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
                   genres.includes(genre)
                     ? "bg-blue-600 border-blue-600 text-white shadow-sm"
-                    : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"
+                    : "bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
                 }`}
               >
                 {genre}
@@ -215,7 +219,7 @@ export const WriterApplyView = () => {
         </div>
 
         <div>
-          <label className="block text-xs font-bold text-gray-700 mb-1.5">
+          <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
             ポートフォリオ・ブログ・過去記事URL（任意）
           </label>
           <input
@@ -223,12 +227,12 @@ export const WriterApplyView = () => {
             placeholder="https://github.com/..., https://zenn.dev/..."
             value={portfolio}
             onChange={(e) => setPortfolio(e.target.value)}
-            className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
 
         <div>
-          <label className="block text-xs font-bold text-gray-700 mb-1.5">
+          <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
             志望動機・書きたい記事のテーマ <span className="text-red-500">*</span>
           </label>
           <textarea
@@ -237,14 +241,14 @@ export const WriterApplyView = () => {
             placeholder="得意な技術領域や、Quest Qlubで発信したい内容について自由にご記入ください。"
             value={motivation}
             onChange={(e) => setMotivation(e.target.value)}
-            className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+            className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
           />
         </div>
 
         <button
           type="submit"
           disabled={submitting}
-          className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl transition-colors shadow-sm disabled:opacity-50 flex items-center justify-center gap-2"
+          className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl transition-colors shadow-sm disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
         >
           <Send className="w-4 h-4" />
           <span>{submitting ? "送信中..." : "応募を送信する"}</span>

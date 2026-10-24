@@ -19,6 +19,8 @@ export const SettingsView = () => {
     showToast,
     fontSize,
     setFontSize,
+    theme,
+    setTheme,
     authLoading,
   } = useApp();
 
@@ -33,7 +35,9 @@ export const SettingsView = () => {
     return (
       <div className="p-8 max-w-3xl mx-auto flex flex-col items-center justify-center min-h-[400px] gap-3">
         <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
-        <p className="text-sm text-gray-500 font-medium">アカウント情報を確認中...</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">
+          アカウント情報を確認中...
+        </p>
       </div>
     );
   }
@@ -50,17 +54,19 @@ export const SettingsView = () => {
 
   return (
     <div className="p-4 md:p-8 max-w-3xl mx-auto space-y-6 animate-in fade-in duration-300">
-      <div className="border-b border-gray-200 pb-3">
-        <h1 className="text-2xl font-bold text-gray-900">アカウント設定</h1>
-        <p className="text-xs text-gray-500 mt-1">
+      <div className="border-b border-gray-200 dark:border-gray-700 pb-3">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">アカウント設定</h1>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
           プロフィール、表示設定、セキュリティの確認と変更ができます
         </p>
       </div>
 
       {isGuest ? (
-        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-6 text-center space-y-3">
-          <p className="font-bold text-blue-900 text-base">ログインしていません</p>
-          <p className="text-xs text-blue-700 max-w-sm mx-auto">
+        <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-2xl p-6 text-center space-y-3">
+          <p className="font-bold text-blue-900 dark:text-blue-300 text-base">
+            ログインしていません
+          </p>
+          <p className="text-xs text-blue-700 dark:text-blue-400 max-w-sm mx-auto">
             ログインすると、プロフィール設定やお気に入り管理、ライター・編集長機能を利用できます。
           </p>
           <button
@@ -89,10 +95,12 @@ export const SettingsView = () => {
         </>
       )}
 
-      {/* 表示設定（フォントサイズなど） - 読者もゲストも利用可能 */}
+      {/* 表示設定（外観テーマ・フォントサイズなど） - 読者もゲストも利用可能 */}
       <AppearanceSettingsSection
         fontSize={fontSize}
         setFontSize={setFontSize}
+        theme={theme}
+        setTheme={setTheme}
         showToast={showToast}
       />
 
@@ -101,7 +109,7 @@ export const SettingsView = () => {
         <div className="pt-2">
           <button
             onClick={() => void handleSignOut()}
-            className="w-full py-3 px-4 bg-white border border-red-200 hover:bg-red-50 text-red-600 text-sm font-bold rounded-xl transition-colors flex items-center justify-center gap-2 shadow-sm"
+            className="w-full py-3 px-4 bg-white dark:bg-gray-800 border border-red-200 dark:border-red-900/50 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-600 dark:text-red-400 text-sm font-bold rounded-xl transition-colors flex items-center justify-center gap-2 shadow-sm"
           >
             <LogOut className="w-4 h-4" />
             <span>ログアウト</span>

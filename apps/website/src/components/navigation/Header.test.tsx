@@ -113,4 +113,17 @@ describe("Header navigation", () => {
 
     expect(getCurrentPath()).toBe("/");
   });
+
+  it("does not render theme toggle button in header", () => {
+    act(() => {
+      root!.render(
+        <MemoryRouter initialEntries={["/"]}>
+          <Header />
+        </MemoryRouter>,
+      );
+    });
+
+    const toggleBtn = container.querySelector('button[aria-label*="モードに切り替え"]');
+    expect(toggleBtn).toBeNull();
+  });
 });

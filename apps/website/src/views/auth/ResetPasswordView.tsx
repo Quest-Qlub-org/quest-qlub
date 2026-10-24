@@ -54,23 +54,23 @@ export const ResetPasswordView = () => {
 
   if (isAuthorized === null) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-sm text-gray-500 font-bold">確認中...</p>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center transition-colors">
+        <p className="text-sm text-gray-500 dark:text-gray-400 font-bold">確認中...</p>
       </div>
     );
   }
 
   if (isAuthorized === false) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 w-full max-w-sm text-center">
-          <h1 className="text-2xl font-bold text-red-600 mb-4">エラー</h1>
-          <p className="text-sm text-gray-600 mb-6 font-medium">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center p-4 transition-colors">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-8 w-full max-w-sm text-center">
+          <h1 className="text-2xl font-bold text-red-600 dark:text-red-400 mb-4">エラー</h1>
+          <p className="text-sm text-gray-600 dark:text-gray-300 mb-6 font-medium">
             無効なアクセス、またはリンクの有効期限が切れています。パスワード再設定メールのリンクから再度アクセスしてください。
           </p>
           <button
             onClick={() => navigate("login")}
-            className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700"
+            className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 cursor-pointer"
           >
             ログイン画面に戻る
           </button>
@@ -80,10 +80,12 @@ export const ResetPasswordView = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 w-full max-w-sm">
-        <h1 className="text-2xl font-bold text-center mb-2">新しいパスワードの設定</h1>
-        <p className="text-xs text-gray-500 text-center mb-6 font-medium">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center p-4 transition-colors">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-8 w-full max-w-sm">
+        <h1 className="text-2xl font-bold text-center mb-2 text-gray-900 dark:text-gray-100">
+          新しいパスワードの設定
+        </h1>
+        <p className="text-xs text-gray-500 dark:text-gray-400 text-center mb-6 font-medium">
           新しいパスワードを入力してください
         </p>
         {error && <p className="text-red-500 text-sm mb-4 text-center">{error}</p>}
@@ -93,19 +95,19 @@ export const ResetPasswordView = () => {
             placeholder="新しいパスワード（8文字以上）"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <input
             type="password"
             placeholder="新しいパスワード（確認）"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50"
+            className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50 cursor-pointer"
           >
             {loading ? "更新中..." : "パスワードを更新"}
           </button>

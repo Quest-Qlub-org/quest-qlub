@@ -148,9 +148,9 @@ export const MfaChallengeModal = ({
         role="dialog"
         aria-modal="true"
         aria-labelledby="mfa-challenge-title"
-        className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-sm overflow-hidden p-6 text-center"
+        className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-sm overflow-hidden p-6 text-center"
       >
-        <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+        <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center mx-auto mb-4">
           {mode === "backup" ? (
             <KeyRound className="w-6 h-6" />
           ) : (
@@ -158,17 +158,20 @@ export const MfaChallengeModal = ({
           )}
         </div>
 
-        <h2 id="mfa-challenge-title" className="text-xl font-bold text-gray-900 mb-1">
+        <h2
+          id="mfa-challenge-title"
+          className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-1"
+        >
           {mode === "backup" ? "バックアップコードでログイン" : "2段階認証の確認"}
         </h2>
-        <p className="text-xs text-gray-500 mb-5 leading-relaxed">
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-5 leading-relaxed">
           {mode === "backup"
             ? "保管しておいた8桁のバックアップコードを入力してください。ログイン完了後、2段階認証は自動で解除されます。"
             : "アカウントのセキュリティ保護のため、認証アプリに表示されている6桁のコードを入力してください。"}
         </p>
 
         {error && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600 flex items-start gap-2 mb-4 text-left">
+          <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl text-xs text-red-600 dark:text-red-400 flex items-start gap-2 mb-4 text-left">
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
             <span>{error}</span>
           </div>
@@ -184,26 +187,26 @@ export const MfaChallengeModal = ({
                 autoFocus
                 value={backupCode}
                 onChange={(e) => setBackupCode(e.target.value)}
-                className="w-full text-center font-mono text-lg tracking-wider uppercase border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full text-center font-mono text-lg tracking-wider uppercase border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
             <button
               type="submit"
               disabled={loading || !backupCode.trim()}
-              className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
+              className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm cursor-pointer"
             >
               {loading ? "検証中..." : "コードで認証してログイン"}
             </button>
 
-            <div className="pt-2 border-t border-gray-100 space-y-2">
+            <div className="pt-2 border-t border-gray-100 dark:border-gray-700 space-y-2">
               <button
                 type="button"
                 onClick={() => {
                   setMode("totp");
                   setError("");
                 }}
-                className="w-full text-xs text-blue-600 hover:underline font-bold"
+                className="w-full text-xs text-blue-600 dark:text-blue-400 hover:underline font-bold cursor-pointer"
               >
                 認証アプリの6桁コード入力に戻る
               </button>
@@ -211,7 +214,7 @@ export const MfaChallengeModal = ({
               <button
                 type="button"
                 onClick={() => void handleSignOut()}
-                className="w-full py-2 text-xs text-gray-400 hover:text-gray-600 font-bold flex items-center justify-center gap-1.5 transition-colors"
+                className="w-full py-2 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span>別のアカウントでログイン</span>
@@ -219,7 +222,7 @@ export const MfaChallengeModal = ({
             </div>
           </form>
         ) : fetchingFactor ? (
-          <div className="py-8 text-center text-gray-400 text-sm">
+          <div className="py-8 text-center text-gray-400 dark:text-gray-500 text-sm">
             <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
             認証設定を確認中...
           </div>
@@ -235,26 +238,26 @@ export const MfaChallengeModal = ({
                 autoFocus
                 value={verifyCode}
                 onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, ""))}
-                className="w-full text-center tracking-[0.4em] font-mono text-2xl border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full text-center tracking-[0.4em] font-mono text-2xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
             <button
               type="submit"
               disabled={loading || verifyCode.length !== 6 || !factorId}
-              className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
+              className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm cursor-pointer"
             >
               {loading ? "認証中..." : "認証して進む"}
             </button>
 
-            <div className="pt-2 border-t border-gray-100 space-y-2">
+            <div className="pt-2 border-t border-gray-100 dark:border-gray-700 space-y-2">
               <button
                 type="button"
                 onClick={() => {
                   setMode("backup");
                   setError("");
                 }}
-                className="w-full text-xs text-blue-600 hover:underline font-bold"
+                className="w-full text-xs text-blue-600 dark:text-blue-400 hover:underline font-bold cursor-pointer"
               >
                 認証アプリを使用できない場合（バックアップコード）
               </button>
@@ -262,7 +265,7 @@ export const MfaChallengeModal = ({
               <button
                 type="button"
                 onClick={() => void handleSignOut()}
-                className="w-full py-2 text-xs text-gray-400 hover:text-gray-600 font-bold flex items-center justify-center gap-1.5 transition-colors"
+                className="w-full py-2 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span>別のアカウントでログイン</span>

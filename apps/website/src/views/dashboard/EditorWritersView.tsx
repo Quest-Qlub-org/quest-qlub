@@ -262,27 +262,31 @@ export function EditorWritersView() {
 
   return (
     <div className="max-w-5xl mx-auto p-4 md:p-6 space-y-4 animate-in slide-in-from-right-8 duration-300">
-      <div className="-mx-4 md:mx-0 -mt-4 md:mt-0 px-4 md:rounded-xl bg-white border-b md:border border-gray-200 py-3 flex items-center gap-3 sticky top-0 z-10 shadow-sm mb-4">
+      <div className="-mx-4 md:mx-0 -mt-4 md:mt-0 px-4 md:rounded-xl bg-white dark:bg-gray-800 border-b md:border border-gray-200 dark:border-gray-700 py-3 flex items-center gap-3 sticky top-0 z-10 shadow-sm mb-4">
         <button
           type="button"
           onClick={() => nav(-1)}
-          className="p-2 bg-white rounded-full shadow-sm cursor-pointer hover:bg-gray-50"
+          className="p-2 bg-white dark:bg-gray-700 rounded-full shadow-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200"
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
-        <h2 className="text-lg font-bold text-purple-800">ライター・ロール管理</h2>
-        <span className="ml-auto text-xs text-gray-400">{allProfiles.length} アカウント</span>
+        <h2 className="text-lg font-bold text-purple-800 dark:text-purple-300">
+          ライター・ロール管理
+        </h2>
+        <span className="ml-auto text-xs text-gray-400 dark:text-gray-500">
+          {allProfiles.length} アカウント
+        </span>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm space-y-3">
-        <p className="font-bold text-gray-800 text-sm">メアドでライターに昇格</p>
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm space-y-3">
+        <p className="font-bold text-gray-800 dark:text-gray-100 text-sm">メアドでライターに昇格</p>
         <div className="flex flex-col sm:flex-row gap-2">
           <input
             type="email"
             placeholder="メールアドレス"
             value={newEmail}
             onChange={(e) => setNewEmail(e.target.value)}
-            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 min-w-0"
+            className="flex-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 min-w-0"
           />
           <button
             type="button"
@@ -297,21 +301,21 @@ export function EditorWritersView() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm space-y-2">
-        <p className="font-bold text-gray-800 text-sm">絞り込み</p>
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm space-y-2">
+        <p className="font-bold text-gray-800 dark:text-gray-100 text-sm">絞り込み</p>
         <div className="flex flex-col sm:flex-row gap-2">
           <input
             type="text"
             placeholder="名前・ID・メアドで検索"
             value={searchEmail}
             onChange={(e) => setSearchEmail(e.target.value)}
-            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 min-w-0"
+            className="flex-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 min-w-0"
           />
           <div className="flex gap-2">
             <select
               value={searchRole}
               onChange={(e) => setSearchRole(e.target.value)}
-              className="flex-1 sm:flex-initial border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
+              className="flex-1 sm:flex-initial border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
             >
               <option value="">すべてのロール</option>
               <option value="editor">編集長</option>
@@ -331,7 +335,7 @@ export function EditorWritersView() {
                   setSearchEmail("");
                   setSearchRole("");
                 }}
-                className="px-3 py-2 text-xs text-gray-500 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer shrink-0"
+                className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer shrink-0"
               >
                 クリア
               </button>
@@ -352,15 +356,17 @@ export function EditorWritersView() {
             return (
               <div
                 key={w.id}
-                className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3"
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-bold text-gray-800 text-sm truncate">
+                    <p className="font-bold text-gray-800 dark:text-gray-100 text-sm truncate">
                       {w.display_name ?? "（名前未設定）"}
                     </p>
                     {w.username && (
-                      <span className="text-xs text-gray-400 font-mono">@{w.username}</span>
+                      <span className="text-xs text-gray-400 dark:text-gray-500 font-mono">
+                        @{w.username}
+                      </span>
                     )}
                     {roles.map((r) => (
                       <span
@@ -371,7 +377,7 @@ export function EditorWritersView() {
                       </span>
                     ))}
                   </div>
-                  <p className="text-xs text-gray-400 truncate mt-0.5">
+                  <p className="text-xs text-gray-400 dark:text-gray-500 truncate mt-0.5">
                     {w.email ?? "メール非公開"}
                   </p>
 
@@ -387,7 +393,7 @@ export function EditorWritersView() {
                           className={`text-xs px-2.5 py-1 rounded-lg border font-bold transition-all cursor-pointer ${
                             active
                               ? `${getRoleBadgeClass(r)} ring-1 ring-offset-1`
-                              : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100 hover:text-gray-700"
+                              : "bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 hover:text-gray-700 dark:hover:text-gray-100"
                           }`}
                         >
                           {active ? `✓ ${getRoleLabel(r)}` : `+ ${getRoleLabel(r)}`}
@@ -425,7 +431,7 @@ export function EditorWritersView() {
                               void addCustomRole(w.id);
                             }
                           }}
-                          className="text-xs border border-purple-300 rounded-lg px-2 py-1 w-32 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                          className="text-xs border border-purple-300 dark:border-purple-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg px-2 py-1 w-32 focus:outline-none focus:ring-1 focus:ring-purple-500"
                         />
                         <button
                           type="button"
@@ -438,7 +444,7 @@ export function EditorWritersView() {
                         <button
                           type="button"
                           onClick={() => setOpenCustomInputId(null)}
-                          className="text-xs px-1.5 py-1 text-gray-400 hover:text-gray-600 cursor-pointer"
+                          className="text-xs px-1.5 py-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
                         >
                           <X className="w-3.5 h-3.5" />
                         </button>
@@ -448,7 +454,7 @@ export function EditorWritersView() {
                         type="button"
                         data-testid={`open-custom-role-${w.id}`}
                         onClick={() => setOpenCustomInputId(w.id)}
-                        className="text-xs px-2.5 py-1 rounded-lg border border-dashed border-gray-300 text-gray-500 hover:border-purple-400 hover:text-purple-600 font-bold transition-all cursor-pointer inline-flex items-center gap-1"
+                        className="text-xs px-2.5 py-1 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-purple-400 hover:text-purple-600 dark:hover:text-purple-400 font-bold transition-all cursor-pointer inline-flex items-center gap-1"
                       >
                         <Plus className="w-3 h-3" /> ロール追加
                       </button>
@@ -463,7 +469,7 @@ export function EditorWritersView() {
                     onChange={(e) =>
                       void changeRole(w.id, e.target.value as "viewer" | "writer" | "editor")
                     }
-                    className="text-sm border border-gray-200 rounded-lg px-2 py-1 focus:outline-none"
+                    className="text-sm border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg px-2 py-1 focus:outline-none"
                   >
                     <option value="viewer">閲覧者</option>
                     <option value="writer">ライター</option>

@@ -48,12 +48,12 @@ export function PrivacyView() {
     },
   ];
   return (
-    <div className="animate-in fade-in duration-300 min-h-screen bg-gray-50">
+    <div className="animate-in fade-in duration-300 min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
       <div className="max-w-3xl mx-auto px-4 py-8">
-        <div className="bg-blue-600 rounded-2xl p-6 mb-6 text-white">
+        <div className="bg-blue-600 dark:bg-blue-800 rounded-2xl p-6 mb-6 text-white shadow-sm">
           <button
             onClick={() => navigate(-1)}
-            className="flex items-center gap-1 text-blue-100 hover:text-white text-sm mb-3"
+            className="flex items-center gap-1 text-blue-100 hover:text-white text-sm mb-3 cursor-pointer"
           >
             <ChevronLeft className="w-4 h-4" />
             戻る
@@ -61,31 +61,34 @@ export function PrivacyView() {
           <h2 className="text-2xl font-bold">プライバシーポリシー</h2>
           <p className="text-blue-100 text-xs mt-1">最終更新日：2026年5月</p>
         </div>
-        <div className="space-y-5 text-sm text-gray-600 leading-relaxed">
+        <div className="space-y-5 text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
           <p>
             Quest
             Qlub（以下「当サービス」）は、ユーザーの個人情報を適切に管理・保護することを最優先に考えています。
           </p>
           {sections.map((s) => (
-            <div key={s.title} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-              <h3 className="font-bold text-gray-800 mb-2 text-sm">{s.title}</h3>
+            <div
+              key={s.title}
+              className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700"
+            >
+              <h3 className="font-bold text-gray-800 dark:text-gray-100 mb-2 text-sm">{s.title}</h3>
               {s.items ? (
-                <ul className="list-disc list-inside space-y-1 text-gray-600">
+                <ul className="list-disc list-inside space-y-1 text-gray-600 dark:text-gray-300">
                   {s.items.map((i) => (
                     <li key={i}>{i}</li>
                   ))}
                 </ul>
               ) : (
-                <p className="text-gray-600">{s.text}</p>
+                <p className="text-gray-600 dark:text-gray-300">{s.text}</p>
               )}
             </div>
           ))}
-          <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
-            <h3 className="font-bold text-gray-800 mb-1">お問い合わせ窓口</h3>
+          <div className="bg-blue-50 dark:bg-blue-950/40 rounded-xl p-4 border border-blue-100 dark:border-blue-900/60 text-blue-900 dark:text-blue-200">
+            <h3 className="font-bold text-gray-800 dark:text-gray-100 mb-1">お問い合わせ窓口</h3>
             <p>プライバシーに関するご質問はお問い合わせページからお気軽にどうぞ。</p>
             <button
               onClick={() => navigate("/contact")}
-              className="mt-2 px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700"
+              className="mt-2 px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 cursor-pointer"
             >
               お問い合わせはこちら
             </button>
