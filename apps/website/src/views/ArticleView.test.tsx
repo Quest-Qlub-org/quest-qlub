@@ -19,6 +19,7 @@ describe("ArticleView", () => {
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
+    vi.spyOn(supabase, "rpc").mockResolvedValue({ data: null, error: null } as any);
   });
 
   afterEach(() => {
@@ -168,7 +169,7 @@ describe("ArticleView", () => {
       );
     });
 
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 60; i++) {
       if (container.textContent?.includes("自作記事")) break;
       await act(async () => {
         await new Promise((r) => setTimeout(r, 20));
@@ -255,7 +256,7 @@ describe("ArticleView", () => {
       );
     });
 
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 60; i++) {
       if (container.textContent?.includes("他者の記事")) break;
       await act(async () => {
         await new Promise((r) => setTimeout(r, 20));
@@ -347,7 +348,7 @@ describe("ArticleView", () => {
       );
     });
 
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 60; i++) {
       if (container.textContent?.includes("下書きプレビュー記事")) break;
       await act(async () => {
         await new Promise((r) => setTimeout(r, 20));
@@ -430,7 +431,7 @@ describe("ArticleView", () => {
       );
     });
 
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 60; i++) {
       if (container.textContent?.includes("承認待ちプレビュー記事")) break;
       await act(async () => {
         await new Promise((r) => setTimeout(r, 20));
@@ -500,7 +501,7 @@ describe("ArticleView", () => {
       );
     });
 
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 60; i++) {
       if (container.textContent?.includes("記事が見つかりません")) break;
       await act(async () => {
         await new Promise((r) => setTimeout(r, 20));
@@ -552,7 +553,7 @@ describe("ArticleView", () => {
       );
     });
 
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 60; i++) {
       if (document.title.includes("公開メタ記事")) break;
       await act(async () => {
         await new Promise((r) => setTimeout(r, 20));

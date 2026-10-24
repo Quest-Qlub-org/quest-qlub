@@ -13,6 +13,7 @@ import {
   setLocalRolesOverride,
   enrichFallbackProfileRoles,
 } from "../../utils/roles";
+import { fetchProfilesListWithFallback } from "../../utils/profileQueries";
 import { updateMetaTags } from "../../utils/seo";
 
 export function EditorWritersView() {
@@ -51,27 +52,10 @@ export function EditorWritersView() {
       setAllProfiles((rpcData as Profile[]).map((p) => enrichFallbackProfileRoles(p)));
     } else {
       // 安全な公開カラムのみ取得するフォールバック
-      let profilesResult: Profile[] = [];
-      const { data: fallbackData, error: fbError } = await supabase
-        .from("profiles")
-        .select("id, role, roles, display_name, username, x_account, avatar_url, bio, created_at")
-        .order("role", { ascending: true });
-      if (!fbError && fallbackData) {
-        profilesResult = (fallbackData as unknown as Profile[]).map((p) =>
-          enrichFallbackProfileRoles(p),
-        );
-      } else if (fbError && (fbError.code === "42703" || fbError.message?.includes("roles"))) {
-        const retry = await supabase
-          .from("profiles")
-          .select("id, role, display_name, username, x_account, avatar_url, bio, created_at")
-          .order("role", { ascending: true });
-        if (!retry.error && retry.data) {
-          profilesResult = (retry.data as unknown as Profile[]).map((p) =>
-            enrichFallbackProfileRoles(p),
-          );
-        }
-      }
-      setAllProfiles(profilesResult);
+      const profilesResult = await fetchProfilesListWithFallback({
+        order: { column: "role", ascending: true },
+      });
+      setAllProfiles(profilesResult ?? []);
     }
     setLoading(false);
   };
