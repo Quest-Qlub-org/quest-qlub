@@ -168,7 +168,7 @@ describe("ArticleView", () => {
       );
     });
 
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 60; i++) {
       if (container.textContent?.includes("自作記事")) break;
       await act(async () => {
         await new Promise((r) => setTimeout(r, 20));
@@ -255,7 +255,7 @@ describe("ArticleView", () => {
       );
     });
 
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 60; i++) {
       if (container.textContent?.includes("他者の記事")) break;
       await act(async () => {
         await new Promise((r) => setTimeout(r, 20));

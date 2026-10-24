@@ -7,6 +7,7 @@ import { supabase } from "../supabase";
 import type { Article } from "../types";
 import { mapDbArticleToArticle } from "../types";
 import { updateMetaTags } from "../utils/seo";
+import { isArticlePubliclyVisible } from "../utils/scheduledArticles";
 
 export const FavoritesView = () => {
   const { articles, articlesLoading, favorites, navigate, userRole, authLoading } = useApp();
@@ -60,7 +61,7 @@ export const FavoritesView = () => {
 
   const allKnownArticles = [...articles, ...extraFavArticles];
   const favArticles = favorites
-    .map((favId) => allKnownArticles.find((a) => a.id === favId && a.status === "published"))
+    .map((favId) => allKnownArticles.find((a) => a.id === favId && isArticlePubliclyVisible(a)))
     .filter((a): a is Article => Boolean(a));
 
   const isLoading = authLoading || articlesLoading || fetchingExtra;

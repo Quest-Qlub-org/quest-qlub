@@ -31,6 +31,7 @@ import {
   isArticlePubliclyVisible,
   setLocalScheduledAt,
 } from "../utils/scheduledArticles";
+import { profileHasRole } from "../utils/roles";
 
 export const ArticleView = () => {
   const { id: paramId } = useParams<{ id: string }>();
@@ -261,7 +262,7 @@ export const ArticleView = () => {
     (profile?.id && profile.id === article.writerId) ||
     (currentUserId && currentUserId === article.writerId),
   );
-  const isEditor = userRole === "editor";
+  const isEditor = userRole === "editor" || profileHasRole(profile, "editor");
 
   if (!isArticlePubliclyVisible(article) && !isAuthor && !isEditor) {
     return (
@@ -290,11 +291,19 @@ export const ArticleView = () => {
         prev ? { ...prev, status: nextStatus, scheduledAt: null } : prev,
       );
       if (typeof setArticles === "function") {
-        setArticles((prev) =>
-          prev.map((a) =>
-            a.id === article.id ? { ...a, status: nextStatus, scheduledAt: null } : a,
-          ),
-        );
+        setArticles((prev) => {
+          const exists = prev.some((a) => a.id === article.id);
+          const updated: Article = { ...article, status: nextStatus, scheduledAt: null };
+          if (exists) {
+            return prev.map((a) =>
+              a.id === article.id ? { ...a, status: nextStatus, scheduledAt: null } : a,
+            );
+          }
+          if (nextStatus === "published") {
+            return [updated, ...prev];
+          }
+          return prev;
+        });
       }
       if (nextStatus === "published") {
         showToast("記事を公開しました");

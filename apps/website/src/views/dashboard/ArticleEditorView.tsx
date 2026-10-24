@@ -20,7 +20,7 @@ import { sanitizeHtml } from "../../utils/sanitize";
 import { useApp } from "../../context/AppContext";
 import { LogoIcon } from "../../components/icons/NavIcons";
 import { getThumbnailColor, THUMBNAIL_COLORS, mapDbArticleToArticle } from "../../types";
-import type { ArticleStatus } from "../../types";
+import type { Article, ArticleStatus } from "../../types";
 import {
   formatScheduledDateTime,
   getLocalScheduledAt,
@@ -80,6 +80,8 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
   } = useApp();
   const currentUserId = profile?.id ?? null;
   const editingArticle = editingId ? (articles.find((a) => a.id === editingId) ?? null) : null;
+  const [loadedArticle, setLoadedArticle] = useState<typeof editingArticle>(null);
+  const effectiveEditingArticle = editingArticle || loadedArticle;
 
   useEffect(() => {
     updateMetaTags({
@@ -135,6 +137,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
 
         if (isMounted && data && !error) {
           const mapped = mapDbArticleToArticle(data);
+          setLoadedArticle(mapped);
           setFormTitle(mapped.title ?? "");
           setFormContent(mapped.content ?? "");
           setFormColor(mapped.thumbnailColor ?? "blue");
@@ -164,6 +167,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
 
   useEffect(() => {
     if (!editingId) {
+      setLoadedArticle(null);
       setFormTitle("");
       setFormContent("");
       setFormColor("blue");
@@ -248,7 +252,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
       return;
     }
     setSaving(true);
-    const targetId = editingArticle?.id || autoSaveIdRef.current;
+    const targetId = editingId || effectiveEditingArticle?.id || autoSaveIdRef.current;
     const scheduledIso = toSafeIsoString(formScheduledAt);
     if (formScheduledAt.trim() && !scheduledIso) {
       showToast("有効な公開予約日時を入力してください");
@@ -280,7 +284,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
       if (nextStatus) {
         updatePayload.status = nextStatus;
       }
-      if (scheduledIso || editingArticle?.scheduledAt) {
+      if (scheduledIso || effectiveEditingArticle?.scheduledAt) {
         updatePayload.scheduled_at = scheduledIso;
       }
 
@@ -298,31 +302,47 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
 
       if (!error) {
         setLocalScheduledAt(targetId, scheduledIso);
+        const currentStatus = effectiveEditingArticle?.status ?? "draft";
         const resolvedStatus: ArticleStatus =
           nextStatus ??
-          (isFutureSchedule && editingArticle?.status === "published"
-            ? "scheduled"
-            : (editingArticle?.status ?? "draft"));
-        setArticles((prev) =>
-          prev.map((a) =>
-            a.id === targetId
-              ? {
-                  ...a,
-                  title: formTitle,
-                  content: formContent,
-                  summary: formSummary || undefined,
-                  tags,
-                  thumbnailColor: formColor,
-                  thumbnailUrl: thumbnailUrl,
-                  seriesId: formSeriesId || null,
-                  episodeNumber: formEpisodeNumber ? parseInt(formEpisodeNumber, 10) : null,
-                  commentsEnabled: formCommentsEnabled,
-                  scheduledAt: scheduledIso,
-                  status: resolvedStatus,
-                }
-              : a,
-          ),
+          (isFutureSchedule && currentStatus === "published" ? "scheduled" : currentStatus);
+
+        const updatedArticleItem: Article = {
+          id: targetId,
+          title: formTitle,
+          thumbnail: effectiveEditingArticle?.thumbnail ?? "",
+          content: formContent,
+          summary: formSummary || undefined,
+          tags,
+          thumbnailColor: formColor,
+          thumbnailUrl: thumbnailUrl,
+          seriesId: formSeriesId || null,
+          episodeNumber: formEpisodeNumber ? parseInt(formEpisodeNumber, 10) : null,
+          commentsEnabled: formCommentsEnabled,
+          scheduledAt: scheduledIso,
+          status: resolvedStatus,
+          writerId: effectiveEditingArticle?.writerId ?? currentUserId ?? "",
+          views: effectiveEditingArticle?.views ?? 0,
+          likes: effectiveEditingArticle?.likes ?? 0,
+          isRecommended: effectiveEditingArticle?.isRecommended ?? false,
+          isPopular: effectiveEditingArticle?.isPopular ?? false,
+          createdAt: effectiveEditingArticle?.createdAt,
+        };
+
+        setLoadedArticle((prev) =>
+          prev ? { ...prev, ...updatedArticleItem } : updatedArticleItem,
         );
+
+        setArticles((prev) => {
+          const exists = prev.some((a) => a.id === targetId);
+          if (exists) {
+            return prev.map((a) => (a.id === targetId ? { ...a, ...updatedArticleItem } : a));
+          }
+          if (resolvedStatus === "published") {
+            return [updatedArticleItem, ...prev];
+          }
+          return prev;
+        });
         setIsDirty(false);
         setLastSavedAt(
           new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }),
@@ -335,8 +355,8 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
           );
           navigate("writerDash");
         } else {
-          showToast(editingArticle ? "記事を更新しました" : "下書きを保存しました");
-          if (editingArticle) {
+          showToast(effectiveEditingArticle ? "記事を更新しました" : "下書きを保存しました");
+          if (effectiveEditingArticle) {
             navigate("writerDash");
           }
         }
@@ -593,7 +613,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
           </button>
           <div className="min-w-0">
             <h1 className="text-base md:text-lg font-bold text-gray-800 truncate">
-              {editingArticle ? "記事を編集" : "新規記事作成"}
+              {effectiveEditingArticle ? "記事を編集" : "新規記事作成"}
             </h1>
             <div className="flex items-center gap-1.5 text-[11px] text-gray-400">
               {saving ? (
@@ -640,9 +660,11 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
             className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 bg-blue-600 text-white text-xs md:text-sm font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50 shadow-xs transition-colors"
           >
             <Save className="w-4 h-4" />
-            <span>{saving ? "保存中..." : editingArticle ? "更新する" : "下書き保存"}</span>
+            <span>
+              {saving ? "保存中..." : effectiveEditingArticle ? "更新する" : "下書き保存"}
+            </span>
           </button>
-          {(!editingArticle || editingArticle.status === "draft") && (
+          {(!effectiveEditingArticle || effectiveEditingArticle.status === "draft") && (
             <button
               type="button"
               data-testid="editor-submit-btn"

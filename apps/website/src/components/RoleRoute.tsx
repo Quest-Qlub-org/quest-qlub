@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { AccessDeniedView } from "../views/dashboard/AccessDeniedView";
 import { SudoConfirmModal } from "./SudoConfirmModal";
+import { profileHasRole } from "../utils/roles";
 
 // メモリ内プライベートステート（ブラウザコンソールやDevToolsからの改ざんを完全防止）
 let inMemorySudoAuthorized = false;
@@ -30,7 +31,9 @@ interface RoleRouteProps {
 
 export function RoleRoute({ requiredRole, children }: RoleRouteProps) {
   const navigate = useNavigate();
-  const { user, userRole, authLoading, mfaChallengeRequired } = useAuth();
+  const { user, profile, userRole, authLoading, mfaChallengeRequired } = useAuth();
+  const isEditor = userRole === "editor" || profileHasRole(profile, "editor");
+  const isWriter = userRole === "writer" || profileHasRole(profile, "writer") || isEditor;
   const isSudoRequired = requiredRole === "writer" || requiredRole === "editor";
   const [sudoPassed, setSudoPassed] = useState<boolean>(
     () => !isSudoRequired || checkIsSudoActive(),
@@ -64,11 +67,11 @@ export function RoleRoute({ requiredRole, children }: RoleRouteProps) {
   }
 
   if (requiredRole === "editor") {
-    if (userRole !== "editor") {
+    if (!isEditor) {
       return <AccessDeniedView requiredRole="editor" />;
     }
   } else if (requiredRole === "writer") {
-    if (userRole !== "writer" && userRole !== "editor") {
+    if (!isWriter) {
       return <AccessDeniedView requiredRole="writer" />;
     }
   } else if (requiredRole === "authenticated") {
