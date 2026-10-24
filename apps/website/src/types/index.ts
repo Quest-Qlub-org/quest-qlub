@@ -24,6 +24,7 @@ export type Article = {
   summary?: string;
   seriesId?: string | null;
   episodeNumber?: number | null;
+  commentsEnabled?: boolean;
 };
 
 export interface ThumbnailColorOption {
@@ -79,6 +80,7 @@ export interface DbArticleRow {
   summary?: string | null;
   series_id?: string | null;
   episode_number?: number | null;
+  comments_enabled?: boolean | null;
   created_at?: string | null;
 }
 
@@ -100,5 +102,6 @@ export function mapDbArticleToArticle(a: DbArticleRow): Article {
     summary: a.summary ?? undefined,
     seriesId: a.series_id ?? null,
     episodeNumber: a.episode_number ?? null,
+    commentsEnabled: a.comments_enabled !== false,
   };
 }

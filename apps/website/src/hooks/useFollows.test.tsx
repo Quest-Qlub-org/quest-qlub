@@ -1,8 +1,14 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach, afterEach } from "vite-plus/test";
+/* eslint-disable @typescript-eslint/unbound-method */
+import { describe, it, expect, beforeEach, afterEach, vi } from "vite-plus/test";
 import { createRoot } from "react-dom/client";
 import { act } from "react";
-import { useFollows } from "./useFollows";
+import { useFollows, fetchFollowCounts, fetchFollowDetails } from "./useFollows";
+import * as AuthContextModule from "../context/AuthContext";
+import { supabase } from "../supabase";
+import { createTestProfile } from "../test/test-utils";
+
+(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
 let currentHook: ReturnType<typeof useFollows>;
 
@@ -11,50 +17,166 @@ function HookTester() {
   return null;
 }
 
-describe("useFollows hook", () => {
+describe("useFollows hook & follow privacy rules", () => {
   let container: HTMLDivElement;
+  let mockFollowsDb: { follower_id: string; following_id: string }[];
 
   beforeEach(() => {
     window.localStorage.clear();
     container = document.createElement("div");
     document.body.appendChild(container);
+
+    mockFollowsDb = [
+      { follower_id: "user-1", following_id: "writer-1" },
+      { follower_id: "user-2", following_id: "user-1" },
+    ];
+
+    vi.spyOn(supabase, "rpc").mockImplementation(((fnName: string, args: any) => {
+      if (fnName === "get_follow_counts") {
+        const targetId = args.target_user_id;
+        const followingCount = mockFollowsDb.filter((f) => f.follower_id === targetId).length;
+        const followersCount = mockFollowsDb.filter((f) => f.following_id === targetId).length;
+        return Promise.resolve({
+          data: [{ following_count: followingCount, followers_count: followersCount }],
+          error: null,
+        });
+      }
+      return Promise.resolve({ data: null, error: null });
+    }) as any);
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "user_follows") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockImplementation(async (col: string, val: string) => ({
+              data: mockFollowsDb.filter((r: any) => r[col] === val),
+              error: null,
+            })),
+          }),
+          insert: vi.fn().mockImplementation(async (payload: any) => {
+            mockFollowsDb.push({
+              follower_id: payload.follower_id,
+              following_id: payload.following_id,
+            });
+            return { error: null };
+          }),
+          delete: vi.fn().mockReturnValue({
+            eq: vi.fn().mockImplementation((col1: string, val1: string) => ({
+              eq: vi.fn().mockImplementation(async (col2: string, val2: string) => {
+                mockFollowsDb = mockFollowsDb.filter(
+                  (r: any) => !(r[col1] === val1 && r[col2] === val2),
+                );
+                return { error: null };
+              }),
+            })),
+          }),
+        } as any;
+      }
+      if (table === "profiles") {
+        return {
+          select: vi.fn().mockReturnValue({
+            in: vi.fn().mockImplementation(async (_col: string, ids: string[]) => ({
+              data: ids.map((id) =>
+                createTestProfile({ id, display_name: `プロフィール_${id}`, username: id }),
+              ),
+              error: null,
+            })),
+          }),
+        } as any;
+      }
+      return {} as any;
+    });
   });
 
   afterEach(() => {
     document.body.removeChild(container);
+    vi.restoreAllMocks();
   });
 
-  it("initializes with empty followed list and can toggle follow", () => {
+  it("blocks guest (unauthenticated) users from following and returns false", async () => {
+    vi.spyOn(AuthContextModule, "useAuth").mockReturnValue({
+      user: null,
+      profile: null,
+      setProfile: vi.fn(),
+      userRole: "guest",
+      setUserRole: vi.fn(),
+      authLoading: false,
+      mfaChallengeRequired: false,
+      setMfaChallengeRequired: vi.fn(),
+      refreshProfile: vi.fn(),
+    });
+
     const root = createRoot(container);
-    act(() => {
+    await act(async () => {
       root.render(<HookTester />);
     });
 
     expect(currentHook.followedIds).toEqual([]);
     expect(currentHook.isFollowing("writer-1")).toBe(false);
 
-    act(() => {
-      currentHook.toggleFollow("writer-1");
+    let result: boolean | undefined;
+    await act(async () => {
+      result = await currentHook.toggleFollow("writer-1");
     });
 
-    expect(currentHook.followedIds).toEqual(["writer-1"]);
+    expect(result).toBe(false);
+    expect(currentHook.followedIds).toEqual([]);
+    root.unmount();
+  });
+
+  it("loads followedIds from DB for authenticated user and toggles follow in DB", async () => {
+    vi.spyOn(AuthContextModule, "useAuth").mockReturnValue({
+      user: { id: "user-1", email: "u1@example.com" } as any,
+      profile: createTestProfile({ id: "user-1", role: "viewer" }),
+      setProfile: vi.fn(),
+      userRole: "viewer",
+      setUserRole: vi.fn(),
+      authLoading: false,
+      mfaChallengeRequired: false,
+      setMfaChallengeRequired: vi.fn(),
+      refreshProfile: vi.fn(),
+    });
+
+    const root = createRoot(container);
+    await act(async () => {
+      root.render(<HookTester />);
+      await Promise.resolve();
+    });
+
     expect(currentHook.isFollowing("writer-1")).toBe(true);
 
-    act(() => {
-      currentHook.toggleFollow("writer-1");
-    });
-
-    expect(currentHook.followedIds).toEqual([]);
-    expect(currentHook.isFollowing("writer-1")).toBe(false);
-  });
-
-  it("persists followed IDs from localStorage", () => {
-    window.localStorage.setItem("share_quest_followed_writers", JSON.stringify(["writer-2"]));
-    const root = createRoot(container);
-    act(() => {
-      root.render(<HookTester />);
+    // 新たに writer-2 をフォロー
+    await act(async () => {
+      await currentHook.toggleFollow("writer-2");
     });
 
     expect(currentHook.isFollowing("writer-2")).toBe(true);
+
+    // writer-1 のフォローを解除
+    await act(async () => {
+      await currentHook.toggleFollow("writer-1");
+    });
+
+    expect(currentHook.isFollowing("writer-1")).toBe(false);
+    root.unmount();
+  });
+
+  it("allows ANY user (including guests) to check follower and following counts of any account", async () => {
+    const counts = await fetchFollowCounts("user-1");
+    expect(counts).toEqual({ followingCount: 1, followersCount: 1 });
+  });
+
+  it("allows ONLY the account owner to fetch detailed following and followers profile lists", async () => {
+    // 1. 他人（または未ログイン）が user-1 の詳細リストを取得しようとした場合は拒否され空リストになること
+    const unauthorizedDetails = await fetchFollowDetails("user-1", "other-user-999");
+    expect(unauthorizedDetails.allowed).toBe(false);
+    expect(unauthorizedDetails.following).toEqual([]);
+    expect(unauthorizedDetails.followers).toEqual([]);
+
+    // 2. 本人（currentUserId === targetUserId）が取得した場合は詳細プロフィール一覧が返ること
+    const ownDetails = await fetchFollowDetails("user-1", "user-1");
+    expect(ownDetails.allowed).toBe(true);
+    expect(ownDetails.following.map((p) => p.id)).toEqual(["writer-1"]);
+    expect(ownDetails.followers.map((p) => p.id)).toEqual(["user-2"]);
   });
 });

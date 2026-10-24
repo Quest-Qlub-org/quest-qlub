@@ -1,6 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { Users, X } from "lucide-react";
 import { supabase } from "../../supabase";
 import type { Profile } from "../../supabase";
+import { fetchFollowCounts, fetchFollowDetails } from "../../hooks/useFollows";
+import { CustomUserIcon } from "../../components/icons/NavIcons";
 
 export function ProfileSettingsSection({
   profile,
@@ -19,6 +23,7 @@ export function ProfileSettingsSection({
         <h2 className="font-bold text-gray-900 text-sm">プロフィール設定</h2>
         <p className="text-xs text-gray-500 mt-0.5">記事やライター一覧に表示される公開情報です</p>
       </div>
+      <FollowManageSection profile={profile} />
       <AvatarUpload
         profile={profile}
         onUpdate={(url) => {
@@ -55,6 +60,162 @@ export function ProfileSettingsSection({
         setWriters={setWriters}
         showToast={showToast}
       />
+    </div>
+  );
+}
+
+function FollowManageSection({ profile }: { profile: Profile | null }) {
+  const navigate = useNavigate();
+  const [followingCount, setFollowingCount] = useState(0);
+  const [followersCount, setFollowersCount] = useState(0);
+  const [modalTab, setModalTab] = useState<"following" | "followers" | null>(null);
+  const [followingList, setFollowingList] = useState<Profile[]>([]);
+  const [followersList, setFollowersList] = useState<Profile[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!profile?.id) return;
+    void fetchFollowCounts(profile.id).then((c) => {
+      setFollowingCount(c.followingCount);
+      setFollowersCount(c.followersCount);
+    });
+  }, [profile?.id]);
+
+  const openModal = async (tab: "following" | "followers") => {
+    if (!profile?.id) return;
+    setModalTab(tab);
+    setLoading(true);
+    const res = await fetchFollowDetails(profile.id, profile.id);
+    if (res.allowed) {
+      setFollowingList(res.following);
+      setFollowersList(res.followers);
+    }
+    setLoading(false);
+  };
+
+  if (!profile) return null;
+
+  return (
+    <div className="p-4">
+      <p className="text-xs text-gray-500 mb-2 font-bold">
+        フォロー・フォロワー（詳細確認は本人のみ）
+      </p>
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => void openModal("following")}
+          className="flex-1 py-2.5 px-4 rounded-xl border border-gray-200 hover:bg-blue-50/50 hover:border-blue-200 transition-colors flex items-center justify-between"
+        >
+          <span className="text-xs font-bold text-gray-600">フォロー中</span>
+          <span className="text-sm font-extrabold text-blue-600">{followingCount}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => void openModal("followers")}
+          className="flex-1 py-2.5 px-4 rounded-xl border border-gray-200 hover:bg-blue-50/50 hover:border-blue-200 transition-colors flex items-center justify-between"
+        >
+          <span className="text-xs font-bold text-gray-600">フォロワー</span>
+          <span className="text-sm font-extrabold text-blue-600">{followersCount}</span>
+        </button>
+      </div>
+
+      {modalTab && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setModalTab(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <Users className="w-5 h-5 text-blue-600" />
+                <h4 className="font-bold text-gray-900 text-base">フォロー・フォロワー一覧</h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalTab(null)}
+                className="p-1.5 rounded-full hover:bg-gray-100 text-gray-500"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 border-b border-gray-100 text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => setModalTab("following")}
+                className={`py-3 text-center border-b-2 transition-colors ${
+                  modalTab === "following"
+                    ? "border-blue-600 text-blue-600 bg-blue-50/40"
+                    : "border-transparent text-gray-500 hover:text-gray-800"
+                }`}
+              >
+                フォロー中 ({followingList.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setModalTab("followers")}
+                className={`py-3 text-center border-b-2 transition-colors ${
+                  modalTab === "followers"
+                    ? "border-blue-600 text-blue-600 bg-blue-50/40"
+                    : "border-transparent text-gray-500 hover:text-gray-800"
+                }`}
+              >
+                フォロワー ({followersList.length})
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto space-y-2.5">
+              {loading ? (
+                <p className="text-xs text-gray-400 text-center py-8">読み込み中...</p>
+              ) : (modalTab === "following" ? followingList : followersList).length === 0 ? (
+                <p className="text-xs text-gray-400 text-center py-8">
+                  {modalTab === "following"
+                    ? "フォロー中のアカウントはありません"
+                    : "フォロワーはまだいません"}
+                </p>
+              ) : (
+                (modalTab === "following" ? followingList : followersList).map((item) => (
+                  <div
+                    key={item.id}
+                    onClick={() => {
+                      setModalTab(null);
+                      void navigate(`/writers/${item.username || item.id}`);
+                    }}
+                    className="flex items-center justify-between p-3 rounded-xl border border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-full bg-gray-100 border border-gray-200 overflow-hidden flex items-center justify-center shrink-0">
+                        {item.avatar_url ? (
+                          <img
+                            src={item.avatar_url}
+                            className="w-full h-full object-cover"
+                            alt=""
+                          />
+                        ) : (
+                          <CustomUserIcon className="w-5 h-5" />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-gray-800 truncate">
+                          {item.display_name || (item.username ? `@${item.username}` : "ユーザー")}
+                        </p>
+                        {item.username && (
+                          <p className="text-xs text-gray-400 truncate">@{item.username}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

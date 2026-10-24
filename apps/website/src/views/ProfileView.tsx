@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { LogoIcon, CustomUserIcon } from "../components/icons/NavIcons";
 import { ArticleCard } from "../components/ArticleCard";
-import { ChevronLeft, UserPlus, UserCheck, Loader2 } from "lucide-react";
-import { useFollows } from "../hooks/useFollows";
+import { ChevronLeft, UserPlus, UserCheck, Loader2, Users, X } from "lucide-react";
+import { useFollows, fetchFollowCounts, fetchFollowDetails } from "../hooks/useFollows";
 import { updateMetaTags, resetMetaTags } from "../utils/seo";
 import { supabase } from "../supabase";
 import type { Profile } from "../supabase";
@@ -13,9 +13,11 @@ import { mapDbArticleToArticle } from "../types";
 
 export const ProfileView = () => {
   const { username } = useParams<{ username: string }>();
-  const { writers, writersLoading, articles, navigate, viewParam, showToast } = useApp();
+  const { writers, writersLoading, articles, navigate, viewParam, showToast, profile, user } =
+    useApp();
   const { isFollowing, toggleFollow } = useFollows();
 
+  const currentUserId = profile?.id || user?.id || null;
   const targetIdentifier = username || viewParam;
   const cleanTarget = (targetIdentifier || "").replace(/^@/, "");
 
@@ -31,6 +33,22 @@ export const ProfileView = () => {
   const [writerArticles, setWriterArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(!cachedWriter);
   const [notFound, setNotFound] = useState(false);
+
+  // フォロー数・フォロワー数（誰でも閲覧可能）
+  const [followingCount, setFollowingCount] = useState(0);
+  const [followersCount, setFollowersCount] = useState(0);
+
+  // 詳細アカウント一覧モーダル（本人のみ閲覧可能）
+  const [followModalTab, setFollowModalTab] = useState<"following" | "followers" | null>(null);
+  const [followingList, setFollowingList] = useState<Profile[]>([]);
+  const [followersList, setFollowersList] = useState<Profile[]>([]);
+  const [loadingFollowDetails, setLoadingFollowDetails] = useState(false);
+
+  const loadCounts = useCallback(async (userId: string) => {
+    const counts = await fetchFollowCounts(userId);
+    setFollowingCount(counts.followingCount);
+    setFollowersCount(counts.followersCount);
+  }, []);
 
   useEffect(() => {
     if (!targetIdentifier) {
@@ -79,12 +97,14 @@ export const ProfileView = () => {
           setNotFound(false);
         }
 
-        // ライターの公開記事を単体取得
+        // ライターの公開記事とフォローカウントを取得
         if (profileData) {
+          void loadCounts(profileData.id);
+
           const { data: artsData } = await supabase
             .from("articles")
             .select(
-              "id, title, thumbnail, thumbnail_url, thumbnail_color, writer_id, views, likes, tags, is_recommended, is_popular, status, summary, series_id, episode_number, created_at",
+              "id, title, thumbnail, thumbnail_url, thumbnail_color, writer_id, views, likes, tags, is_recommended, is_popular, status, summary, series_id, episode_number, comments_enabled, created_at",
             )
             .eq("writer_id", profileData.id)
             .eq("status", "published")
@@ -115,11 +135,24 @@ export const ProfileView = () => {
     return () => {
       isMounted = false;
     };
-  }, [targetIdentifier, cleanTarget, cachedWriter]);
+  }, [targetIdentifier, cleanTarget, cachedWriter, loadCounts]);
 
   const cleanUsername = (writer?.username || "").replace(/^@/, "");
   const xAccount = (writer?.x_account || "").replace(/^@/, "");
   const following = writer ? isFollowing(writer.id) : false;
+  const isOwnProfile = Boolean(writer && currentUserId && writer.id === currentUserId);
+
+  const handleOpenFollowModal = async (tab: "following" | "followers") => {
+    if (!writer || !isOwnProfile) return;
+    setFollowModalTab(tab);
+    setLoadingFollowDetails(true);
+    const details = await fetchFollowDetails(writer.id, currentUserId);
+    if (details.allowed) {
+      setFollowingList(details.following);
+      setFollowersList(details.followers);
+    }
+    setLoadingFollowDetails(false);
+  };
 
   useEffect(() => {
     if (!writer) return;
@@ -185,33 +218,86 @@ export const ProfileView = () => {
         </h2>
         <div className="flex items-center justify-center gap-2 mb-3">
           <span className="inline-block px-3 py-1 bg-white/20 rounded-full text-sm font-bold backdrop-blur-sm">
-            {writer.role === "editor" ? "編集長" : "ライター"}
+            {writer.role === "editor" ? "編集長" : writer.role === "writer" ? "ライター" : "読者"}
           </span>
-          <button
-            type="button"
-            onClick={() => {
-              toggleFollow(writer.id);
-              showToast(following ? "フォローを解除しました" : "ライターをフォローしました");
-            }}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-bold transition-all shadow-sm ${
-              following
-                ? "bg-white text-blue-700 hover:bg-blue-50"
-                : "bg-blue-600 border border-white/50 text-white hover:bg-blue-500"
-            }`}
-          >
-            {following ? (
-              <>
-                <UserCheck className="w-3.5 h-3.5" />
-                <span>フォロー中</span>
-              </>
-            ) : (
-              <>
-                <UserPlus className="w-3.5 h-3.5" />
-                <span>フォロー</span>
-              </>
-            )}
-          </button>
+          {!isOwnProfile && (
+            <button
+              type="button"
+              onClick={async () => {
+                const wasFollowing = following;
+                const ok = await toggleFollow(writer.id);
+                if (!ok) {
+                  showToast("フォローするにはログインが必要です");
+                  navigate("login");
+                  return;
+                }
+                setFollowersCount((c) => (wasFollowing ? Math.max(0, c - 1) : c + 1));
+                showToast(wasFollowing ? "フォローを解除しました" : "ライターをフォローしました");
+              }}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-bold transition-all shadow-sm ${
+                following
+                  ? "bg-white text-blue-700 hover:bg-blue-50"
+                  : "bg-blue-600 border border-white/50 text-white hover:bg-blue-500"
+              }`}
+            >
+              {following ? (
+                <>
+                  <UserCheck className="w-3.5 h-3.5" />
+                  <span>フォロー中</span>
+                </>
+              ) : (
+                <>
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>フォロー</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
+
+        {/* フォロー中・フォロワー数（誰でもカウントは確認可能、詳細一覧は本人のみクリック可能） */}
+        <div className="flex items-center justify-center gap-4 my-3">
+          {isOwnProfile ? (
+            <>
+              <button
+                type="button"
+                data-testid="open-following-list"
+                onClick={() => void handleOpenFollowModal("following")}
+                className="px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 transition-colors text-xs font-bold flex items-center gap-1.5"
+              >
+                <span className="text-sm font-extrabold">{followingCount}</span>
+                <span className="text-white/90">フォロー中</span>
+              </button>
+              <button
+                type="button"
+                data-testid="open-followers-list"
+                onClick={() => void handleOpenFollowModal("followers")}
+                className="px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 transition-colors text-xs font-bold flex items-center gap-1.5"
+              >
+                <span className="text-sm font-extrabold">{followersCount}</span>
+                <span className="text-white/90">フォロワー</span>
+              </button>
+            </>
+          ) : (
+            <>
+              <div
+                data-testid="public-following-count"
+                className="px-3 py-1.5 rounded-xl bg-white/10 text-xs font-bold flex items-center gap-1.5 select-none"
+              >
+                <span className="text-sm font-extrabold">{followingCount}</span>
+                <span className="text-white/90">フォロー中</span>
+              </div>
+              <div
+                data-testid="public-followers-count"
+                className="px-3 py-1.5 rounded-xl bg-white/10 text-xs font-bold flex items-center gap-1.5 select-none"
+              >
+                <span className="text-sm font-extrabold">{followersCount}</span>
+                <span className="text-white/90">フォロワー</span>
+              </div>
+            </>
+          )}
+        </div>
+
         {xAccount && (
           <div className="mt-2">
             <a
@@ -253,8 +339,105 @@ export const ProfileView = () => {
           </div>
         </section>
       </div>
+
+      {/* 本人専用：フォロー中・フォロワー詳細一覧モーダル */}
+      {isOwnProfile && followModalTab && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setFollowModalTab(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <Users className="w-5 h-5 text-blue-600" />
+                <h4 className="font-bold text-gray-900 text-base">フォロー・フォロワー管理</h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFollowModalTab(null)}
+                className="p-1.5 rounded-full hover:bg-gray-100 text-gray-500"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 border-b border-gray-100 text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => setFollowModalTab("following")}
+                className={`py-3 text-center border-b-2 transition-colors ${
+                  followModalTab === "following"
+                    ? "border-blue-600 text-blue-600 bg-blue-50/40"
+                    : "border-transparent text-gray-500 hover:text-gray-800"
+                }`}
+              >
+                フォロー中 ({followingList.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFollowModalTab("followers")}
+                className={`py-3 text-center border-b-2 transition-colors ${
+                  followModalTab === "followers"
+                    ? "border-blue-600 text-blue-600 bg-blue-50/40"
+                    : "border-transparent text-gray-500 hover:text-gray-800"
+                }`}
+              >
+                フォロワー ({followersList.length})
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto space-y-2.5">
+              {loadingFollowDetails ? (
+                <p className="text-xs text-gray-400 text-center py-8">読み込み中...</p>
+              ) : (followModalTab === "following" ? followingList : followersList).length === 0 ? (
+                <p className="text-xs text-gray-400 text-center py-8">
+                  {followModalTab === "following"
+                    ? "フォロー中のアカウントはありません"
+                    : "フォロワーはまだいません"}
+                </p>
+              ) : (
+                (followModalTab === "following" ? followingList : followersList).map((item) => (
+                  <div
+                    key={item.id}
+                    onClick={() => {
+                      setFollowModalTab(null);
+                      navigate("profile", item.username || item.id);
+                    }}
+                    className="flex items-center justify-between p-3 rounded-xl border border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-full bg-gray-100 border border-gray-200 overflow-hidden flex items-center justify-center shrink-0">
+                        {item.avatar_url ? (
+                          <img
+                            src={item.avatar_url}
+                            className="w-full h-full object-cover"
+                            alt=""
+                          />
+                        ) : (
+                          <CustomUserIcon className="w-6 h-6" />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-gray-800 truncate">
+                          {item.display_name || (item.username ? `@${item.username}` : "ユーザー")}
+                        </p>
+                        {item.username && (
+                          <p className="text-xs text-gray-400 truncate">@{item.username}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
-
-// --- FavoritesView ---

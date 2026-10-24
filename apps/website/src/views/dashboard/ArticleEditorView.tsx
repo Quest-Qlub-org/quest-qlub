@@ -60,6 +60,9 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
     editingArticle?.episodeNumber?.toString() ?? "",
   );
   const [formSummary, setFormSummary] = useState(editingArticle?.summary ?? "");
+  const [formCommentsEnabled, setFormCommentsEnabled] = useState<boolean>(
+    editingArticle?.commentsEnabled !== false,
+  );
   const [tagInput, setTagInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
@@ -98,6 +101,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
           setFormEpisodeNumber(mapped.episodeNumber?.toString() ?? "");
           setThumbnailUrl(mapped.thumbnailUrl ?? null);
           setFormSummary(mapped.summary ?? "");
+          setFormCommentsEnabled(mapped.commentsEnabled !== false);
           setIsDirty(false);
         }
       } catch (e) {
@@ -123,6 +127,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
       setFormEpisodeNumber("");
       setThumbnailUrl(null);
       setFormSummary("");
+      setFormCommentsEnabled(true);
       setTagInput("");
       setSaving(false);
       setShowPreview(false);
@@ -211,6 +216,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
           thumbnail_url: thumbnailUrl,
           series_id: formSeriesId || null,
           episode_number: formEpisodeNumber ? parseInt(formEpisodeNumber, 10) : null,
+          comments_enabled: formCommentsEnabled,
         })
         .eq("id", targetId);
       if (!error) {
@@ -227,6 +233,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                   thumbnailUrl: thumbnailUrl,
                   seriesId: formSeriesId || null,
                   episodeNumber: formEpisodeNumber ? parseInt(formEpisodeNumber, 10) : null,
+                  commentsEnabled: formCommentsEnabled,
                 }
               : a,
           ),
@@ -261,6 +268,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
           is_popular: false,
           series_id: formSeriesId || null,
           episode_number: formEpisodeNumber ? parseInt(formEpisodeNumber, 10) : null,
+          comments_enabled: formCommentsEnabled,
         })
         .select()
         .single();
@@ -284,6 +292,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
             summary: formSummary || undefined,
             seriesId: formSeriesId || null,
             episodeNumber: formEpisodeNumber ? parseInt(formEpisodeNumber, 10) : null,
+            commentsEnabled: formCommentsEnabled,
           },
           ...prev,
         ]);
@@ -345,6 +354,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
             thumbnail_url: thumbnailUrl,
             series_id: formSeriesId || null,
             episode_number: formEpisodeNumber ? parseInt(formEpisodeNumber, 10) : null,
+            comments_enabled: formCommentsEnabled,
           })
           .eq("id", autoSaveIdRef.current);
       } else {
@@ -365,6 +375,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
             is_popular: false,
             series_id: formSeriesId || null,
             episode_number: formEpisodeNumber ? parseInt(formEpisodeNumber, 10) : null,
+            comments_enabled: formCommentsEnabled,
           })
           .select()
           .single();
@@ -388,6 +399,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
               summary: formSummary || undefined,
               seriesId: formSeriesId || null,
               episodeNumber: formEpisodeNumber ? parseInt(formEpisodeNumber, 10) : null,
+              commentsEnabled: formCommentsEnabled,
             },
             ...prev,
           ]);
@@ -409,6 +421,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
     thumbnailUrl,
     formSeriesId,
     formEpisodeNumber,
+    formCommentsEnabled,
     isDirty,
   ]);
 
@@ -811,6 +824,29 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                               />
                             </div>
                           )}
+                        </div>
+
+                        {/* コメント機能のオン/オフ設定 */}
+                        <div className="pt-2 border-t border-gray-100">
+                          <label className="flex items-center justify-between cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors p-3 rounded-xl border border-gray-200">
+                            <div>
+                              <p className="text-xs font-bold text-gray-700">コメント機能</p>
+                              <p className="text-[11px] text-gray-500">
+                                {formCommentsEnabled
+                                  ? "オン（読者からのコメントを受け付け・表示します）"
+                                  : "オフ（ライターと編集長以外にコメント欄を非表示にします）"}
+                              </p>
+                            </div>
+                            <input
+                              type="checkbox"
+                              checked={formCommentsEnabled}
+                              onChange={(e) => {
+                                setFormCommentsEnabled(e.target.checked);
+                                setIsDirty(true);
+                              }}
+                              className="w-4 h-4 accent-blue-600 rounded cursor-pointer"
+                            />
+                          </label>
                         </div>
                       </div>
                     </div>

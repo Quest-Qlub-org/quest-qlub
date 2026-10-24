@@ -72,7 +72,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       let res = await supabase
         .from("articles")
         .select(
-          "id, title, thumbnail, thumbnail_url, thumbnail_color, writer_id, views, likes, tags, is_recommended, is_popular, status, summary, series_id, episode_number, created_at",
+          "id, title, thumbnail, thumbnail_url, thumbnail_color, writer_id, views, likes, tags, is_recommended, is_popular, status, summary, series_id, episode_number, comments_enabled, created_at",
         )
         .eq("status", "published")
         .order("created_at", { ascending: false })
@@ -85,7 +85,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         res = await supabase
           .from("articles")
           .select(
-            "id, title, thumbnail, thumbnail_url, thumbnail_color, writer_id, views, likes, tags, is_recommended, is_popular, status, summary, series_id, episode_number, created_at",
+            "id, title, thumbnail, thumbnail_url, thumbnail_color, writer_id, views, likes, tags, is_recommended, is_popular, status, summary, series_id, episode_number, comments_enabled, created_at",
           )
           .eq("status", "published")
           .order("created_at", { ascending: false })
@@ -112,7 +112,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       const { data, error } = await supabase
         .from("articles")
         .select(
-          "id, title, thumbnail, thumbnail_url, thumbnail_color, writer_id, views, likes, tags, is_recommended, is_popular, status, summary, series_id, episode_number, created_at",
+          "id, title, thumbnail, thumbnail_url, thumbnail_color, writer_id, views, likes, tags, is_recommended, is_popular, status, summary, series_id, episode_number, comments_enabled, created_at",
         )
         .eq("status", "published")
         .order("created_at", { ascending: false })

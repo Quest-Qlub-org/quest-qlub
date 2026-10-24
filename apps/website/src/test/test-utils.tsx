@@ -31,6 +31,7 @@ export function createTestArticle(overrides?: Partial<Article>): Article {
     content: "<p>テスト記事の本文です。</p>",
     seriesId: null,
     episodeNumber: null,
+    commentsEnabled: true,
     ...overrides,
   };
 }

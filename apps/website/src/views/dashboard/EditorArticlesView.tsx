@@ -1,14 +1,14 @@
 import { sanitizeHtml } from "../../utils/sanitize";
 import { useState, useEffect } from "react";
 import { supabase } from "../../supabase";
-import { ChevronLeft, X } from "lucide-react";
+import { ChevronLeft, X, MessageSquare, EyeOff } from "lucide-react";
 import type { Article, ArticleStatus } from "../../types";
 import { mapDbArticleToArticle, ARTICLE_STATUS_CONFIG } from "../../types";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
 
 export function EditorArticlesView() {
-  const { getFontSizeClass } = useApp();
+  const { getFontSizeClass, showToast, setArticles: setGlobalArticles } = useApp();
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
   const [previewArticle, setPreviewArticle] = useState<Article | null>(null);
@@ -31,6 +31,25 @@ export function EditorArticlesView() {
     if (!error) setArticles(articles.filter((a) => a.id !== id));
   };
 
+  const handleToggleComments = async (article: Article) => {
+    const nextEnabled = !(article.commentsEnabled !== false);
+    const { error } = await supabase
+      .from("articles")
+      .update({ comments_enabled: nextEnabled })
+      .eq("id", article.id);
+    if (!error) {
+      setArticles((prev) =>
+        prev.map((a) => (a.id === article.id ? { ...a, commentsEnabled: nextEnabled } : a)),
+      );
+      setGlobalArticles((prev) =>
+        prev.map((a) => (a.id === article.id ? { ...a, commentsEnabled: nextEnabled } : a)),
+      );
+      showToast(nextEnabled ? "コメント機能をオンにしました" : "コメント機能をオフにしました");
+    } else {
+      showToast("コメント設定の更新に失敗しました");
+    }
+  };
+
   const getStatusConfig = (s: string) =>
     ARTICLE_STATUS_CONFIG[s as ArticleStatus] ?? ARTICLE_STATUS_CONFIG.draft;
 
@@ -49,28 +68,61 @@ export function EditorArticlesView() {
           {articles.length === 0 ? (
             <p className="text-gray-400 text-sm text-center py-8">記事がありません</p>
           ) : (
-            articles.map((a) => (
-              <div key={a.id} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-                <div className="flex items-start justify-between gap-2">
-                  <button className="flex-1 min-w-0 text-left" onClick={() => setPreviewArticle(a)}>
-                    <p className="font-bold text-gray-800 text-sm truncate hover:text-blue-600">
-                      {a.title}
-                    </p>
-                    <span
-                      className={`text-xs font-bold px-2 py-0.5 rounded-full mt-1 inline-block ${getStatusConfig(a.status).badgeClass}`}
+            articles.map((a) => {
+              const isCommentsOn = a.commentsEnabled !== false;
+              return (
+                <div
+                  key={a.id}
+                  className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <button
+                      className="flex-1 min-w-0 text-left"
+                      onClick={() => setPreviewArticle(a)}
                     >
-                      {getStatusConfig(a.status).label}
-                    </span>
-                  </button>
-                  <button
-                    onClick={() => handleDelete(a.id)}
-                    className="p-2 text-red-400 hover:bg-red-50 rounded-lg flex-shrink-0"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+                      <p className="font-bold text-gray-800 text-sm truncate hover:text-blue-600">
+                        {a.title}
+                      </p>
+                      <span
+                        className={`text-xs font-bold px-2 py-0.5 rounded-full mt-1 inline-block ${getStatusConfig(a.status).badgeClass}`}
+                      >
+                        {getStatusConfig(a.status).label}
+                      </span>
+                    </button>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => void handleToggleComments(a)}
+                        className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-colors ${
+                          isCommentsOn
+                            ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
+                            : "bg-gray-100 text-gray-500 border-gray-300 hover:bg-gray-200"
+                        }`}
+                        title="この記事のコメント機能のオン/オフを切り替え"
+                      >
+                        {isCommentsOn ? (
+                          <>
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            <span>コメントON</span>
+                          </>
+                        ) : (
+                          <>
+                            <EyeOff className="w-3.5 h-3.5" />
+                            <span>コメントOFF</span>
+                          </>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => handleDelete(a.id)}
+                        className="p-2 text-red-400 hover:bg-red-50 rounded-lg"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       )}

@@ -72,6 +72,13 @@ DB の `supabase_migrations.schema_migrations` に記録済みのバージョン
     - `article_comments` テーブル定義・RLSポリシー（閲覧・投稿・削除）の作成。
     - `articles` の UPDATE / DELETE ポリシーに `profiles.role IN ('writer', 'editor')` の存在チェックを追加し、降格された元ライターによる不正更新・削除を遮断。
 
+- `20261018010000_implement_comments_and_follows.sql`（未適用・次回デプロイ）
+  - **コメント機能・フォロー機能のDB化と権限・プライバシー強化**:
+    - `articles.comments_enabled` 列の追加（ライター・編集長による記事ごとのコメントオン/オフ制御、オフ時はライター・編集長以外の過去コメント閲覧も遮断）。
+    - `article_comments` への `is_pinned`（ライターのみ・最大3件トリガー検証）および `updated_at` 追加、ログイン必須化。
+    - `comment_edit_history` テーブルと自動履歴記録トリガーの追加（全ユーザーが編集履歴を閲覧可能）。
+    - `user_follows` テーブルの作成、全ユーザー公開用カウント集計RPC `get_follow_counts(uuid)`、および本人限定の詳細一覧SELECT RLSポリシーの設定。
+
 ## セキュリティ強化（コード・Edge Function）
 
 - **S4**: `send-contact-email` の CORS 許可リストを厳格化。任意の `*.vercel.app`

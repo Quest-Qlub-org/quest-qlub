@@ -311,14 +311,16 @@ export const ArticleView = () => {
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={(e) => {
+                onClick={async (e) => {
                   e.stopPropagation();
-                  toggleFollow(writer.id);
-                  showToast(
-                    isFollowing(writer.id)
-                      ? "フォローを解除しました"
-                      : "ライターをフォローしました",
-                  );
+                  const wasFollowing = isFollowing(writer.id);
+                  const ok = await toggleFollow(writer.id);
+                  if (!ok) {
+                    showToast("フォローするにはログインが必要です");
+                    void navigate("/login");
+                    return;
+                  }
+                  showToast(wasFollowing ? "フォローを解除しました" : "ライターをフォローしました");
                 }}
                 className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm ${
                   isFollowing(writer.id)
@@ -394,7 +396,27 @@ export const ArticleView = () => {
           </div>
         </div>
 
-        <ArticleComments articleId={article.id} />
+        <ArticleComments
+          articleId={article.id}
+          writerId={article.writerId}
+          commentsEnabled={article.commentsEnabled !== false}
+          onToggleCommentsEnabled={async (nextEnabled) => {
+            const { error } = await supabase
+              .from("articles")
+              .update({ comments_enabled: nextEnabled })
+              .eq("id", article.id);
+            if (!error) {
+              setDetailedArticle((prev) =>
+                prev ? { ...prev, commentsEnabled: nextEnabled } : prev,
+              );
+              showToast(
+                nextEnabled ? "コメント機能をオンにしました" : "コメント機能をオフにしました",
+              );
+            } else {
+              showToast("コメント設定の更新に失敗しました");
+            }
+          }}
+        />
       </div>
     </div>
   );

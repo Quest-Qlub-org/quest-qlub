@@ -81,9 +81,15 @@ export const WritersView = () => {
   } = useApp();
   const { isFollowing, toggleFollow } = useFollows();
 
-  const handleToggleFollow = (id: string) => {
-    toggleFollow(id);
-    showToast(isFollowing(id) ? "フォローを解除しました" : "ライターをフォローしました");
+  const handleToggleFollow = async (id: string) => {
+    const wasFollowing = isFollowing(id);
+    const ok = await toggleFollow(id);
+    if (!ok) {
+      showToast("フォローするにはログインが必要です");
+      navigate("login");
+      return;
+    }
+    showToast(wasFollowing ? "フォローを解除しました" : "ライターをフォローしました");
   };
 
   const editors = writers.filter((w) => w.role === "editor");
