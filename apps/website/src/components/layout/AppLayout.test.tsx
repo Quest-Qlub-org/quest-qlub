@@ -164,4 +164,33 @@ describe("AppLayout Root-level MFA Barrier", () => {
 
     unmount();
   });
+
+  it("renders official X link targeting https://x.com/QuestQlub", () => {
+    vi.spyOn(AuthContextModule, "useAuth").mockReturnValue({
+      userRole: "viewer",
+      authLoading: false,
+      user: null,
+      profile: null,
+      setProfile: vi.fn(),
+      setUserRole: vi.fn(),
+      mfaChallengeRequired: false,
+      setMfaChallengeRequired: mockSetMfaChallengeRequired,
+      refreshProfile: vi.fn(),
+    } as any);
+
+    const { container, unmount } = renderWithRouter(
+      <Routes>
+        <Route element={<AppLayout />}>
+          <Route path="/" element={<div>テストコンテンツ</div>} />
+        </Route>
+      </Routes>,
+      { route: "/" },
+    );
+
+    const xLink = container.querySelector('a[href="https://x.com/QuestQlub"]');
+    expect(xLink).not.toBeNull();
+    expect(xLink?.textContent).toContain("公式X (@QuestQlub)");
+
+    unmount();
+  });
 });

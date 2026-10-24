@@ -142,12 +142,12 @@ export function AppLayout() {
                 <div className="flex flex-col gap-2 col-span-2 sm:col-span-1">
                   <p className="font-bold text-gray-700">公式SNS</p>
                   <a
-                    href="https://x.com/SHARE_Quest_Off"
+                    href="https://x.com/QuestQlub"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="hover:text-blue-600 transition-colors flex items-center gap-1"
                   >
-                    <span>公式X (@SHARE_Quest_Off)</span>
+                    <span>公式X (@QuestQlub)</span>
                   </a>
                   <button
                     onClick={() => navigate("/writer-apply")}

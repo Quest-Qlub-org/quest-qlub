@@ -579,7 +579,7 @@ export const ArticleView = () => {
                 window.open(
                   `https://twitter.com/intent/tweet?text=${encodeURIComponent(
                     `${article.title} | ${writer?.display_name ?? "Quest Qlub"} From Quest Qlub`,
-                  )}&url=${encodeURIComponent(articleUrl)}&via=SHARE_Quest_Off`,
+                  )}&url=${encodeURIComponent(articleUrl)}&via=QuestQlub`,
                   "_blank",
                 )
               }
