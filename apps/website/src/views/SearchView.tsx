@@ -6,6 +6,8 @@ import { MOCK_TAGS } from "../types";
 import { ArticleCard } from "../components/ArticleCard";
 import { X } from "lucide-react";
 import { parseSearchKeywords, matchKeywords } from "../utils/normalizeJapanese";
+import { isArticlePubliclyVisible } from "../utils/scheduledArticles";
+import { profileHasRole } from "../utils/roles";
 
 export const SearchView = () => {
   const { articles, writers } = useApp();
@@ -31,7 +33,7 @@ export const SearchView = () => {
   }, [urlQ]);
 
   const displayTags = useMemo(() => {
-    const publishedArticles = articles.filter((a) => a.status === "published");
+    const publishedArticles = articles.filter((a) => isArticlePubliclyVisible(a));
     const allTags = Array.from(new Set(publishedArticles.flatMap((a) => a.tags ?? []))).filter(
       Boolean,
     );
@@ -42,7 +44,7 @@ export const SearchView = () => {
 
   const results = useMemo(() => {
     return articles.filter((a) => {
-      if (a.status !== "published") return false;
+      if (!isArticlePubliclyVisible(a)) return false;
 
       if (queryKeywords.length > 0) {
         const writer = writers.find((w) => w.id === a.writerId);
@@ -101,19 +103,25 @@ export const SearchView = () => {
     }
   };
 
-  const hasFilter = keyword || selectedTags.length > 0 || selectedWriterIds.length > 0;
+  const hasFilter = Boolean(keyword || selectedTags.length > 0 || selectedWriterIds.length > 0);
 
   return (
     <div className="p-4 md:p-8 space-y-6 animate-in fade-in duration-300">
-      <div className="md:grid md:grid-cols-[280px_1fr] md:gap-6 md:items-start space-y-4 md:space-y-0">
-        <div className="space-y-4">
+      <div
+        className={
+          hasFilter
+            ? "md:grid md:grid-cols-[300px_1fr] md:gap-6 md:items-start space-y-4 md:space-y-0"
+            : "max-w-3xl mx-auto space-y-4"
+        }
+      >
+        <div className="space-y-4 min-w-0">
           <div className="relative">
             <input
               type="text"
               placeholder="キーワードで検索"
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
-              className="w-full pl-12 pr-4 py-4 bg-white border-2 border-gray-200 rounded-xl focus:border-blue-500 transition-all outline-none font-bold text-gray-700 shadow-sm"
+              className="w-full pl-12 pr-10 py-4 bg-white border-2 border-gray-200 rounded-xl focus:border-blue-500 transition-all outline-none font-bold text-gray-700 shadow-sm"
             />
             <div className="absolute left-3 top-3.5">
               <CustomSearchIcon className="w-7 h-7" />
@@ -143,9 +151,15 @@ export const SearchView = () => {
           </section>
           <section className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
             <h3 className="text-sm font-bold text-gray-500 mb-3 border-b pb-2">ライターでしぼる</h3>
-            <div className="grid grid-cols-2 gap-2">
+            <div
+              className={`grid gap-2 ${
+                hasFilter
+                  ? "grid-cols-2 sm:grid-cols-3 md:grid-cols-1"
+                  : "grid-cols-2 sm:grid-cols-3"
+              }`}
+            >
               {writers
-                .filter((w) => w.role === "writer" || w.role === "editor")
+                .filter((w) => profileHasRole(w, "writer") || profileHasRole(w, "editor"))
                 .sort((a, b) => {
                   const rank = (w: typeof a) => {
                     const dName = w.display_name ?? "";
@@ -155,7 +169,7 @@ export const SearchView = () => {
                       dName.includes("編集部")
                     )
                       return 0;
-                    if (w.role === "editor") return 1;
+                    if (profileHasRole(w, "editor")) return 1;
                     return 2;
                   };
                   const ra = rank(a),
@@ -167,16 +181,16 @@ export const SearchView = () => {
                   <button
                     key={w.id}
                     onClick={() => toggleWriter(w.id)}
-                    className={`flex items-center gap-2 p-2 border rounded-lg text-left transition-colors ${selectedWriterIds.includes(w.id) ? "bg-blue-50 border-blue-400" : "bg-gray-50 border-gray-200 hover:bg-blue-50 hover:border-blue-200"}`}
+                    className={`flex items-center gap-2 p-2.5 border rounded-lg text-left transition-colors min-w-0 ${selectedWriterIds.includes(w.id) ? "bg-blue-50 border-blue-400" : "bg-gray-50 border-gray-200 hover:bg-blue-50 hover:border-blue-200"}`}
                   >
                     {w.avatar_url ? (
                       <img
                         src={w.avatar_url}
-                        className="w-6 h-6 rounded-full object-cover"
+                        className="w-6 h-6 rounded-full object-cover shrink-0"
                         alt=""
                       />
                     ) : (
-                      <CustomUserIcon className="w-6 h-6" />
+                      <CustomUserIcon className="w-6 h-6 shrink-0" />
                     )}
                     <span className="text-sm font-bold text-gray-700 truncate">
                       {w.display_name ?? (w.username ? `@${w.username}` : "名称未設定")}
@@ -195,15 +209,15 @@ export const SearchView = () => {
             </button>
           )}
         </div>
-        <div>
+        <div className="min-w-0">
           {hasFilter && (
             <div>
               <div className="mb-3">
                 <p className="font-bold text-gray-700">検索結果 ({results.length}件)</p>
               </div>
-              <div className="space-y-3">
+              <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
                 {results.length === 0 ? (
-                  <p className="text-gray-500 text-center py-8 bg-white rounded-xl border">
+                  <p className="text-gray-500 text-center py-8 bg-white rounded-xl border lg:col-span-2">
                     該当する記事が見つかりませんでした
                   </p>
                 ) : (

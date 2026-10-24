@@ -46,16 +46,106 @@ export const KNOWN_ROLES: Record<string, RoleConfig> = {
 
 export const STAFF_ROLES = ["editor", "writer", "engineer"] as const;
 
+const ROLES_OVERRIDE_STORAGE_KEY = "quest_qlub_profile_roles_v1";
+
+export function getLocalRolesMap(): Record<string, string[]> {
+  try {
+    const raw = localStorage.getItem(ROLES_OVERRIDE_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, string[]>) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function getLocalRolesOverride(userId?: string | null): string[] | null {
+  if (!userId) return null;
+  const map = getLocalRolesMap();
+  const list = map[userId];
+  return Array.isArray(list) && list.length > 0 ? list : null;
+}
+
+export function setLocalRolesOverride(userId: string, roles: string[]): void {
+  if (!userId) return;
+  try {
+    const map = getLocalRolesMap();
+    const cleaned = Array.from(new Set(roles.map((r) => r.trim()))).filter(Boolean);
+    if (cleaned.length > 0) {
+      map[userId] = cleaned;
+    } else {
+      delete map[userId];
+    }
+    localStorage.setItem(ROLES_OVERRIDE_STORAGE_KEY, JSON.stringify(map));
+  } catch {
+    // ignore storage errors
+  }
+}
+
+/**
+ * DBの roles 列が未適用（42703 フォールバック）の場合に、
+ * ローカルオーバーライドおよび初期エンジニアロール（るーと / Noimzip）を補完する
+ */
+export function enrichFallbackProfileRoles<
+  T extends {
+    id?: string;
+    role?: string | null;
+    roles?: string[] | null;
+    username?: string | null;
+    display_name?: string | null;
+  },
+>(profile: T): T {
+  const localOverride = getLocalRolesOverride(profile.id);
+  if (localOverride && localOverride.length > 0) {
+    return { ...profile, roles: localOverride };
+  }
+  if (Array.isArray(profile.roles) && profile.roles.length > 0) {
+    return profile;
+  }
+
+  const baseRoles = profile.role?.trim() ? [profile.role.trim()] : ["viewer"];
+  const uname = (profile.username ?? "").toLowerCase();
+  const dname = (profile.display_name ?? "").toLowerCase();
+
+  const isKnownEngineer =
+    uname.includes("root") ||
+    dname.includes("るーと") ||
+    uname.includes("noimzip") ||
+    dname.includes("noimzip");
+
+  if (isKnownEngineer && !baseRoles.includes("engineer")) {
+    const merged = [...baseRoles.filter((r) => r !== "viewer"), "engineer"];
+    return { ...profile, roles: merged };
+  }
+
+  return { ...profile, roles: baseRoles };
+}
+
+/**
+ * ロール配列と単一 role を正規化して重複排除・空白除去したリストを返す
+ */
+export function normalizeRoles(roles?: string[] | null, fallbackRole?: string | null): string[] {
+  if (Array.isArray(roles) && roles.length > 0) {
+    const cleaned = Array.from(new Set(roles.map((r) => r.trim()))).filter(Boolean);
+    if (cleaned.length > 0) return cleaned;
+  }
+  return fallbackRole?.trim() ? [fallbackRole.trim()] : [];
+}
+
 /**
  * プロフィールから有効なロール一覧を取得（roles 配列優先、無ければ role カラムにフォールバック）
  */
 export function getProfileRoles(
-  profile: { role?: string | null; roles?: string[] | null } | null | undefined,
+  profile: { id?: string; role?: string | null; roles?: string[] | null } | null | undefined,
 ): string[] {
   if (!profile) return [];
   if (Array.isArray(profile.roles) && profile.roles.length > 0) {
     const cleaned = Array.from(new Set(profile.roles.map((r) => r.trim()))).filter(Boolean);
     if (cleaned.length > 0) return cleaned;
+  }
+  const localOverride = getLocalRolesOverride(profile.id);
+  if (localOverride && localOverride.length > 0) {
+    return localOverride;
   }
   return profile.role?.trim() ? [profile.role.trim()] : [];
 }
@@ -64,7 +154,7 @@ export function getProfileRoles(
  * プロフィールが特定のロールを保持しているか判定
  */
 export function profileHasRole(
-  profile: { role?: string | null; roles?: string[] | null } | null | undefined,
+  profile: { id?: string; role?: string | null; roles?: string[] | null } | null | undefined,
   targetRole: string,
 ): boolean {
   const trimmed = targetRole?.trim();

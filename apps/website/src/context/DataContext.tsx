@@ -3,7 +3,15 @@ import { supabase } from "../supabase";
 import type { Profile } from "../supabase";
 import type { Article, Series } from "../types";
 import { mapDbArticleToArticle } from "../types";
-import { getProfileRoles, isStaffRole } from "../utils/roles";
+import {
+  enrichFallbackProfileRoles,
+  getLocalRolesOverride,
+  getProfileRoles,
+  isStaffRole,
+  normalizeRoles,
+} from "../utils/roles";
+import { applySeriesOverrides } from "../utils/seriesOverrides";
+import { getLocalScheduledAt, isArticlePubliclyVisible } from "../utils/scheduledArticles";
 import { useAuth } from "./AuthContext";
 import { useUI } from "./UIContext";
 
@@ -13,6 +21,25 @@ const WRITER_PAGE_SIZE = 12;
 // 安全な記事一覧取得フィールド（巨大な本文 content を除外し、実DBで確実に存在するカラムのみ）
 export const ARTICLE_LIST_FIELDS =
   "id, title, thumbnail, thumbnail_url, thumbnail_color, writer_id, views, likes, tags, is_recommended, is_popular, status, summary, series_id, episode_number, created_at";
+
+function applyProfileRoleOverrides(profile: Profile): Profile {
+  const localOverride = getLocalRolesOverride(profile.id);
+  if (localOverride && localOverride.length > 0) {
+    return {
+      ...profile,
+      roles: normalizeRoles(localOverride, profile.role),
+    };
+  }
+  return profile;
+}
+
+function enrichMappedArticleSchedule(article: Article): Article {
+  const localSched = getLocalScheduledAt(article.id);
+  if (!article.scheduledAt && localSched) {
+    return { ...article, scheduledAt: localSched };
+  }
+  return article;
+}
 
 export interface DataContextType {
   // Articles
@@ -83,6 +110,18 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const fetchArticles = useCallback(async () => {
     setArticlesLoading(true);
     try {
+      // 予約日時が到来した記事の自動公開RPC（未適用環境ではサイレントに無視・非ブロッキング）
+      try {
+        const rpcFn = (supabase as unknown as { rpc?: (fn: string) => Promise<unknown> }).rpc;
+        if (typeof rpcFn === "function") {
+          void Promise.resolve(rpcFn.call(supabase, "publish_due_scheduled_articles")).catch(
+            () => {},
+          );
+        }
+      } catch {
+        // ignore in mock/legacy environments
+      }
+
       let res = await supabase
         .from("articles")
         .select(ARTICLE_LIST_FIELDS)
@@ -103,7 +142,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (!res.error && res.data) {
-        setArticles(res.data.map((item) => mapDbArticleToArticle(item)));
+        const mapped = res.data
+          .map((item) => enrichMappedArticleSchedule(mapDbArticleToArticle(item)))
+          .filter((article) => isArticlePubliclyVisible(article));
+        setArticles(mapped);
         setHasMoreArticles(res.data.length === ARTICLE_PAGE_SIZE);
       }
     } catch (e) {
@@ -128,7 +170,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
       if (!error && data) {
         if (data.length > 0) {
-          const newArticles = data.map((item) => mapDbArticleToArticle(item));
+          const newArticles = data
+            .map((item) => enrichMappedArticleSchedule(mapDbArticleToArticle(item)))
+            .filter((article) => isArticlePubliclyVisible(article));
           setArticles((prev) => [...prev, ...newArticles]);
         }
         setHasMoreArticles(data.length === ARTICLE_PAGE_SIZE);
@@ -159,10 +203,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           .order("created_at", { ascending: false })
           .range(0, WRITER_PAGE_SIZE - 1);
         if (!fallbackRes.error && fallbackRes.data) {
-          writerRows = fallbackRes.data as unknown as Profile[];
+          writerRows = (fallbackRes.data as unknown as Profile[]).map(enrichFallbackProfileRoles);
         }
       } else if (!res.error && res.data) {
-        writerRows = res.data as unknown as Profile[];
+        writerRows = (res.data as unknown as Profile[]).map(applyProfileRoleOverrides);
       }
 
       if (writerRows) {
@@ -198,10 +242,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           .order("created_at", { ascending: false })
           .range(start, end);
         if (!fallbackRes.error && fallbackRes.data) {
-          newRows = fallbackRes.data as unknown as Profile[];
+          newRows = (fallbackRes.data as unknown as Profile[]).map(enrichFallbackProfileRoles);
         }
       } else if (!res.error && res.data) {
-        newRows = res.data as unknown as Profile[];
+        newRows = (res.data as unknown as Profile[]).map(applyProfileRoleOverrides);
       }
 
       if (newRows) {
@@ -232,10 +276,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           .select("id, role, display_name, username, x_account, avatar_url, bio, created_at")
           .order("created_at", { ascending: true });
         if (!fallbackRes.error && fallbackRes.data) {
-          memberRows = fallbackRes.data as unknown as Profile[];
+          memberRows = (fallbackRes.data as unknown as Profile[]).map(enrichFallbackProfileRoles);
         }
       } else if (!res.error && res.data) {
-        memberRows = res.data as unknown as Profile[];
+        memberRows = (res.data as unknown as Profile[]).map(applyProfileRoleOverrides);
       }
 
       if (memberRows) {
@@ -260,14 +304,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         res = await supabase.from("series").select("*");
       }
       if (!res.error && res.data) {
-        setSeriesList(
-          res.data.map((s) => ({
-            id: s.id,
-            title: s.title,
-            description: s.description ?? null,
-            writerId: s.writer_id,
-          })),
-        );
+        const mapped = res.data.map((s) => ({
+          id: s.id,
+          title: s.title,
+          description: s.description ?? null,
+          writerId: s.writer_id,
+        }));
+        setSeriesList(applySeriesOverrides(mapped));
       }
     } catch (e) {
       console.error("Failed to fetch series", e);
@@ -312,6 +355,59 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       isMounted = false;
     };
   }, [fetchArticles, fetchWriters, fetchTeamMembers, fetchSeries, authLoading]);
+
+  // プロフィール・ロール変更時の自動同期（Supabase Realtime & ブラウザカスタムイベント）
+  useEffect(() => {
+    const handleRolesUpdated = () => {
+      void fetchTeamMembers();
+      void fetchWriters();
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("quest_qlub_roles_updated", handleRolesUpdated);
+    }
+
+    let realtimeChannel: { unsubscribe?: () => void } | null = null;
+    try {
+      const sbAny = supabase as unknown as {
+        channel?: (name: string) => {
+          on?: (
+            type: string,
+            filter: Record<string, string>,
+            callback: () => void,
+          ) => { subscribe?: () => { unsubscribe?: () => void } };
+        };
+        removeChannel?: (ch: unknown) => void;
+      };
+      if (typeof sbAny.channel === "function") {
+        const ch = sbAny.channel("public:profiles:team_sync");
+        if (ch && typeof ch.on === "function") {
+          const sub = ch.on(
+            "postgres_changes",
+            { event: "*", schema: "public", table: "profiles" },
+            () => {
+              void fetchTeamMembers();
+              void fetchWriters();
+            },
+          );
+          if (sub && typeof sub.subscribe === "function") {
+            realtimeChannel = sub.subscribe();
+          }
+        }
+      }
+    } catch {
+      // Realtime unavailable in test/mock environments
+    }
+
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("quest_qlub_roles_updated", handleRolesUpdated);
+      }
+      if (realtimeChannel && typeof realtimeChannel.unsubscribe === "function") {
+        realtimeChannel.unsubscribe();
+      }
+    };
+  }, [fetchTeamMembers, fetchWriters]);
 
   // ユーザーお気に入りロード
   useEffect(() => {

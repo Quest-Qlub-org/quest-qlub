@@ -34,6 +34,7 @@ export interface AppContextType {
   writers: Profile[];
   setWriters: React.Dispatch<React.SetStateAction<Profile[]>>;
   writersLoading: boolean;
+  refreshWriters: () => Promise<void>;
   hasMoreWriters: boolean;
   loadingMoreWriters: boolean;
   loadMoreWriters: () => Promise<void>;
@@ -44,6 +45,7 @@ export interface AppContextType {
   articles: Article[];
   setArticles: React.Dispatch<React.SetStateAction<Article[]>>;
   articlesLoading: boolean;
+  refreshArticles: () => Promise<void>;
   hasMoreArticles: boolean;
   loadingMoreArticles: boolean;
   loadMoreArticles: () => Promise<void>;
@@ -141,6 +143,7 @@ export function useApp(): AppContextType {
     writers: data.writers,
     setWriters: data.setWriters,
     writersLoading: data.writersLoading,
+    refreshWriters: data.refreshWriters,
     hasMoreWriters: data.hasMoreWriters,
     loadingMoreWriters: data.loadingMoreWriters,
     loadMoreWriters: data.loadMoreWriters,
@@ -152,6 +155,7 @@ export function useApp(): AppContextType {
     articles: data.articles,
     setArticles: data.setArticles,
     articlesLoading: data.articlesLoading,
+    refreshArticles: data.refreshArticles,
     hasMoreArticles: data.hasMoreArticles,
     loadingMoreArticles: data.loadingMoreArticles,
     loadMoreArticles: data.loadMoreArticles,

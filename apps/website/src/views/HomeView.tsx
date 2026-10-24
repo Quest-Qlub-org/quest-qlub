@@ -7,6 +7,7 @@ import { ArticleCard } from "../components/ArticleCard";
 import { ArticleCardSkeleton } from "../components/Skeleton";
 import { Loader2, Users } from "lucide-react";
 import { useFollows } from "../hooks/useFollows";
+import { isArticlePubliclyVisible } from "../utils/scheduledArticles";
 
 export const HomeView = () => {
   const {
@@ -19,7 +20,7 @@ export const HomeView = () => {
   } = useApp();
   const { followedIds } = useFollows();
 
-  const published = articles.filter((a) => a.status === "published");
+  const published = articles.filter(isArticlePubliclyVisible);
   const recommended = published.filter((a) => a.isRecommended);
   const popular = published.filter((a) => a.isPopular);
   const followedArticles = published.filter((a) => followedIds.includes(a.writerId));

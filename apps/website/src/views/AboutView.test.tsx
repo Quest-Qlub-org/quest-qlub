@@ -22,6 +22,7 @@ vi.mock("../context/AppContext", () => ({
 describe("AboutView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
     mockTeamMembers = [];
     mockTeamMembersLoading = false;
   });
@@ -29,6 +30,56 @@ describe("AboutView", () => {
   it("calls refreshTeamMembers on mount", () => {
     const { unmount } = renderWithRouter(<AboutView />);
     expect(mockRefreshTeamMembers).toHaveBeenCalled();
+    unmount();
+  });
+
+  it("auto-refreshes teamMembers on window focus and quest_qlub_roles_updated event", () => {
+    const { unmount } = renderWithRouter(<AboutView />);
+    mockRefreshTeamMembers.mockClear();
+
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    expect(mockRefreshTeamMembers).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      window.dispatchEvent(new Event("quest_qlub_roles_updated"));
+    });
+    expect(mockRefreshTeamMembers).toHaveBeenCalledTimes(2);
+
+    unmount();
+  });
+
+  it("enriches fallback engineer roles for Noimzip and るーと when DB roles column is not yet applied", () => {
+    mockTeamMembers = [
+      createTestProfile({
+        id: "usr-noimzip-fallback",
+        display_name: "Noimzip",
+        username: "noimzip",
+        role: "editor",
+        roles: undefined,
+      }),
+      createTestProfile({
+        id: "usr-root-fallback",
+        display_name: "るーと　-Root-",
+        username: "root",
+        role: "writer",
+        roles: undefined,
+      }),
+    ];
+
+    const { container, unmount } = renderWithRouter(<AboutView />);
+
+    const engineerSection = container.querySelector('[data-testid="engineers-section"]');
+    expect(engineerSection).not.toBeNull();
+    expect(engineerSection?.textContent).toContain("Noimzip");
+    expect(engineerSection?.textContent).toContain("るーと　-Root-");
+
+    const writersSection = container.querySelector('[data-testid="writers-section"]');
+    expect(writersSection).not.toBeNull();
+    expect(writersSection?.textContent).toContain("Noimzip");
+    expect(writersSection?.textContent).toContain("るーと　-Root-");
+
     unmount();
   });
 

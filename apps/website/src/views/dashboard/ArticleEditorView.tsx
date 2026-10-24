@@ -11,6 +11,8 @@ import {
   SlidersHorizontal,
   Image as ImageIcon,
   Tag,
+  Clock,
+  Send,
 } from "lucide-react";
 import RichTextEditor from "../../components/RichTextEditor";
 import { supabase } from "../../supabase";
@@ -18,6 +20,16 @@ import { sanitizeHtml } from "../../utils/sanitize";
 import { useApp } from "../../context/AppContext";
 import { LogoIcon } from "../../components/icons/NavIcons";
 import { getThumbnailColor, THUMBNAIL_COLORS, mapDbArticleToArticle } from "../../types";
+import type { ArticleStatus } from "../../types";
+import {
+  formatScheduledDateTime,
+  getLocalScheduledAt,
+  isArticleScheduledFuture,
+  setLocalScheduledAt,
+  toDatetimeLocalValue,
+  toSafeIsoString,
+} from "../../utils/scheduledArticles";
+import { profileHasRole } from "../../utils/roles";
 
 export const ArticleEditorTabs = ({
   settingsPanel,
@@ -38,11 +50,12 @@ export interface ArticleEditorPageProps {
   editingId: string | null;
 }
 
-const isCommentsEnabledSchemaError = (err: unknown): boolean => {
+const isOptionalColumnSchemaError = (err: unknown): boolean => {
   const e = err as { code?: string; message?: string } | null;
   return (
     e?.code === "42703" ||
-    (typeof e?.message === "string" && e.message.includes("comments_enabled"))
+    (typeof e?.message === "string" &&
+      (e.message.includes("comments_enabled") || e.message.includes("scheduled_at")))
   );
 };
 
@@ -54,8 +67,16 @@ const ALLOWED_IMAGE_TYPES: Record<string, string> = {
 };
 
 export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
-  const { articles, setArticles, seriesList, profile, showToast, navigate, getFontSizeClass } =
-    useApp();
+  const {
+    articles,
+    setArticles,
+    seriesList,
+    profile,
+    userRole,
+    showToast,
+    navigate,
+    getFontSizeClass,
+  } = useApp();
   const currentUserId = profile?.id ?? null;
   const editingArticle = editingId ? (articles.find((a) => a.id === editingId) ?? null) : null;
 
@@ -70,6 +91,11 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
   const [formSummary, setFormSummary] = useState(editingArticle?.summary ?? "");
   const [formCommentsEnabled, setFormCommentsEnabled] = useState<boolean>(
     editingArticle?.commentsEnabled !== false,
+  );
+  const [formScheduledAt, setFormScheduledAt] = useState<string>(
+    toDatetimeLocalValue(
+      editingArticle?.scheduledAt ?? (editingId ? getLocalScheduledAt(editingId) : null),
+    ),
   );
   const [tagInput, setTagInput] = useState("");
   const [saving, setSaving] = useState(false);
@@ -110,6 +136,9 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
           setThumbnailUrl(mapped.thumbnailUrl ?? null);
           setFormSummary(mapped.summary ?? "");
           setFormCommentsEnabled(mapped.commentsEnabled !== false);
+          setFormScheduledAt(
+            toDatetimeLocalValue(mapped.scheduledAt ?? getLocalScheduledAt(mapped.id)),
+          );
           setIsDirty(false);
         }
       } catch (e) {
@@ -136,6 +165,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
       setThumbnailUrl(null);
       setFormSummary("");
       setFormCommentsEnabled(true);
+      setFormScheduledAt("");
       setTagInput("");
       setSaving(false);
       setShowPreview(false);
@@ -204,15 +234,30 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
     setIsDirty(true);
   };
 
-  const handleSave = async () => {
+  const handleSave = async (submitForReview = false) => {
     if (!formTitle.trim()) {
       showToast("タイトルを入力してください");
       return;
     }
     setSaving(true);
     const targetId = editingArticle?.id || autoSaveIdRef.current;
+    const scheduledIso = toSafeIsoString(formScheduledAt);
+    if (formScheduledAt.trim() && !scheduledIso) {
+      showToast("有効な公開予約日時を入力してください");
+      setSaving(false);
+      return;
+    }
+    const isFutureSchedule = isArticleScheduledFuture(scheduledIso);
+
+    const isEditor = userRole === "editor" || profileHasRole(profile, "editor");
 
     if (targetId) {
+      const nextStatus: ArticleStatus | undefined = submitForReview
+        ? isEditor && isFutureSchedule
+          ? "scheduled"
+          : "pending"
+        : undefined;
+
       const updatePayload: Record<string, unknown> = {
         title: formTitle,
         content: formContent,
@@ -224,17 +269,32 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
         episode_number: formEpisodeNumber ? parseInt(formEpisodeNumber, 10) : null,
         comments_enabled: formCommentsEnabled,
       };
+      if (nextStatus) {
+        updatePayload.status = nextStatus;
+      }
+      if (scheduledIso || editingArticle?.scheduledAt) {
+        updatePayload.scheduled_at = scheduledIso;
+      }
 
       let { error } = await supabase.from("articles").update(updatePayload).eq("id", targetId);
 
-      // comments_enabled 列未存在時は除外して自動再試行
-      if (error && isCommentsEnabledSchemaError(error)) {
-        const { comments_enabled: _, ...safePayload } = updatePayload;
+      // comments_enabled / scheduled_at 列未存在時は除外して自動再試行
+      if (error && isOptionalColumnSchemaError(error)) {
+        const { comments_enabled: _c, scheduled_at: _s, ...safePayload } = updatePayload;
+        if (safePayload.status === "scheduled") {
+          safePayload.status = "published";
+        }
         const retryRes = await supabase.from("articles").update(safePayload).eq("id", targetId);
         error = retryRes.error;
       }
 
       if (!error) {
+        setLocalScheduledAt(targetId, scheduledIso);
+        const resolvedStatus: ArticleStatus =
+          nextStatus ??
+          (isFutureSchedule && editingArticle?.status === "published"
+            ? "scheduled"
+            : (editingArticle?.status ?? "draft"));
         setArticles((prev) =>
           prev.map((a) =>
             a.id === targetId
@@ -249,6 +309,8 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                   seriesId: formSeriesId || null,
                   episodeNumber: formEpisodeNumber ? parseInt(formEpisodeNumber, 10) : null,
                   commentsEnabled: formCommentsEnabled,
+                  scheduledAt: scheduledIso,
+                  status: resolvedStatus,
                 }
               : a,
           ),
@@ -257,15 +319,30 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
         setLastSavedAt(
           new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }),
         );
-        showToast(editingArticle ? "記事を更新しました" : "下書きを保存しました");
-        if (editingArticle) {
+        if (submitForReview) {
+          showToast(
+            scheduledIso
+              ? `公開予約（${formatScheduledDateTime(scheduledIso)}）で申請しました`
+              : "投稿申請しました",
+          );
           navigate("writerDash");
+        } else {
+          showToast(editingArticle ? "記事を更新しました" : "下書きを保存しました");
+          if (editingArticle) {
+            navigate("writerDash");
+          }
         }
       } else {
         console.error("記事更新エラー:", error);
         showToast("エラーが発生しました。もう一度お試しください。");
       }
     } else {
+      const initialStatus: ArticleStatus = submitForReview
+        ? isEditor && isFutureSchedule
+          ? "scheduled"
+          : "pending"
+        : "draft";
+
       const insertPayload: Record<string, unknown> = {
         title: formTitle,
         content: formContent,
@@ -274,7 +351,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
         thumbnail_color: formColor,
         thumbnail_url: thumbnailUrl,
         writer_id: currentUserId,
-        status: "draft",
+        status: initialStatus,
         views: 0,
         likes: 0,
         is_recommended: false,
@@ -283,18 +360,25 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
         episode_number: formEpisodeNumber ? parseInt(formEpisodeNumber, 10) : null,
         comments_enabled: formCommentsEnabled,
       };
+      if (scheduledIso) {
+        insertPayload.scheduled_at = scheduledIso;
+      }
 
       let { data, error } = await supabase.from("articles").insert(insertPayload).select().single();
 
-      // comments_enabled 列未存在時は除外して自動再試行
-      if (error && isCommentsEnabledSchemaError(error)) {
-        const { comments_enabled: _, ...safePayload } = insertPayload;
+      // comments_enabled / scheduled_at 列未存在時は除外して自動再試行
+      if (error && isOptionalColumnSchemaError(error)) {
+        const { comments_enabled: _c, scheduled_at: _s, ...safePayload } = insertPayload;
+        if (safePayload.status === "scheduled") {
+          safePayload.status = "published";
+        }
         const retryRes = await supabase.from("articles").insert(safePayload).select().single();
         data = retryRes.data;
         error = retryRes.error;
       }
       if (!error && data) {
         autoSaveIdRef.current = data.id;
+        setLocalScheduledAt(data.id, scheduledIso);
         setArticles((prev) => [
           {
             id: data.id,
@@ -308,12 +392,13 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
             tags,
             isRecommended: false,
             isPopular: false,
-            status: "draft",
+            status: initialStatus,
             content: formContent,
             summary: formSummary || undefined,
             seriesId: formSeriesId || null,
             episodeNumber: formEpisodeNumber ? parseInt(formEpisodeNumber, 10) : null,
             commentsEnabled: formCommentsEnabled,
+            scheduledAt: scheduledIso,
           },
           ...prev,
         ]);
@@ -321,7 +406,16 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
         setLastSavedAt(
           new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }),
         );
-        showToast("下書きを保存しました");
+        if (submitForReview) {
+          showToast(
+            scheduledIso
+              ? `公開予約（${formatScheduledDateTime(scheduledIso)}）で申請しました`
+              : "投稿申請しました",
+          );
+          navigate("writerDash");
+        } else {
+          showToast("下書きを保存しました");
+        }
       } else {
         console.error("下書き保存エラー:", error);
         showToast("エラーが発生しました。もう一度お試しください。");
@@ -379,7 +473,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
           .from("articles")
           .update(updatePayload)
           .eq("id", autoSaveIdRef.current);
-        if (error && isCommentsEnabledSchemaError(error)) {
+        if (error && isOptionalColumnSchemaError(error)) {
           const { comments_enabled: _, ...safePayload } = updatePayload;
           await supabase.from("articles").update(safePayload).eq("id", autoSaveIdRef.current);
         }
@@ -406,7 +500,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
           .insert(insertPayload)
           .select()
           .single();
-        if (error && isCommentsEnabledSchemaError(error)) {
+        if (error && isOptionalColumnSchemaError(error)) {
           const { comments_enabled: _, ...safePayload } = insertPayload;
           const retryRes = await supabase.from("articles").insert(safePayload).select().single();
           data = retryRes.data;
@@ -471,8 +565,8 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* エディタ上部アクションバー */}
-      <div className="bg-white/95 backdrop-blur border-b border-gray-200 px-4 py-2.5 flex items-center justify-between sticky top-[52px] z-30 shadow-xs">
-        <div className="flex items-center gap-3 min-w-0">
+      <div className="bg-white/95 backdrop-blur border-b border-gray-200 px-3 sm:px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 sticky top-[52px] z-30 shadow-xs">
+        <div className="flex items-center gap-2.5 min-w-0">
           <button
             type="button"
             onClick={() => {
@@ -503,13 +597,13 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                   <Check className="w-3 h-3" /> {lastSavedAt} に保存済み
                 </span>
               ) : (
-                <span>タイトル入力で5秒ごとに自動保存</span>
+                <span className="hidden sm:inline">タイトル入力で5秒ごとに自動保存</span>
               )}
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-auto">
           <button
             type="button"
             onClick={() => setShowPreview(!showPreview)}
@@ -533,13 +627,25 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
           </button>
           <button
             type="button"
-            onClick={() => void handleSave()}
+            onClick={() => void handleSave(false)}
             disabled={saving}
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-xs md:text-sm font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50 shadow-xs transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 bg-blue-600 text-white text-xs md:text-sm font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50 shadow-xs transition-colors"
           >
             <Save className="w-4 h-4" />
             <span>{saving ? "保存中..." : editingArticle ? "更新する" : "下書き保存"}</span>
           </button>
+          {(!editingArticle || editingArticle.status === "draft") && (
+            <button
+              type="button"
+              data-testid="editor-submit-btn"
+              onClick={() => void handleSave(true)}
+              disabled={saving}
+              className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 bg-purple-600 text-white text-xs md:text-sm font-bold rounded-xl hover:bg-purple-700 disabled:opacity-50 shadow-xs transition-colors"
+            >
+              {formScheduledAt ? <Clock className="w-4 h-4" /> : <Send className="w-4 h-4" />}
+              <span>{formScheduledAt ? "予約投稿申請" : "投稿申請"}</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -879,6 +985,47 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                               className="w-4 h-4 accent-blue-600 rounded cursor-pointer"
                             />
                           </label>
+                        </div>
+
+                        {/* 予約投稿日時設定 (#54-3) */}
+                        <div className="pt-2 border-t border-gray-100">
+                          <div className="bg-purple-50/60 p-3 rounded-xl border border-purple-200 space-y-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <label
+                                htmlFor="schedule-datetime-input"
+                                className="text-xs font-bold text-purple-900 flex items-center gap-1.5"
+                              >
+                                <Clock className="w-3.5 h-3.5 text-purple-600" />
+                                <span>公開予約日時（任意）</span>
+                              </label>
+                              {formScheduledAt && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setFormScheduledAt("");
+                                    setIsDirty(true);
+                                  }}
+                                  className="text-[11px] text-purple-600 hover:underline font-bold"
+                                >
+                                  予約を解除
+                                </button>
+                              )}
+                            </div>
+                            <input
+                              id="schedule-datetime-input"
+                              type="datetime-local"
+                              data-testid="schedule-datetime-input"
+                              value={formScheduledAt}
+                              onChange={(e) => {
+                                setFormScheduledAt(e.target.value);
+                                setIsDirty(true);
+                              }}
+                              className="w-full border border-purple-200 rounded-lg px-3 py-1.5 text-xs bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-400"
+                            />
+                            <p className="text-[11px] text-purple-700 leading-relaxed">
+                              日時を指定すると、指定日時に達するまで一般読者には非表示となり、予定時刻に自動公開されます。
+                            </p>
+                          </div>
                         </div>
                       </div>
                     </div>

@@ -4,6 +4,8 @@ import { ChevronLeft } from "lucide-react";
 import type { Article } from "../../types";
 import { mapDbArticleToArticle } from "../../types";
 import { useNavigate } from "react-router-dom";
+import { isArticlePubliclyVisible, enrichArticleWithSchedule } from "../../utils/scheduledArticles";
+
 export function EditorRecommendView() {
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
@@ -15,7 +17,14 @@ export function EditorRecommendView() {
       .select("*")
       .eq("status", "published")
       .then(({ data }) => {
-        if (data) setArticles(data.map(mapDbArticleToArticle));
+        if (data) {
+          setArticles(
+            data
+              .map(mapDbArticleToArticle)
+              .map(enrichArticleWithSchedule)
+              .filter(isArticlePubliclyVisible),
+          );
+        }
         setLoading(false);
       });
   }, []);
@@ -40,8 +49,8 @@ export function EditorRecommendView() {
   };
 
   return (
-    <div className="p-4 space-y-4 animate-in slide-in-from-right-8 duration-300">
-      <div className="-mx-4 -mt-4 px-4 bg-white border-b border-gray-200 py-3 flex items-center gap-3 sticky top-0 z-10 shadow-sm mb-4">
+    <div className="max-w-5xl mx-auto p-4 md:p-6 space-y-4 animate-in slide-in-from-right-8 duration-300">
+      <div className="-mx-4 md:mx-0 -mt-4 md:mt-0 px-4 md:px-5 md:rounded-2xl md:border bg-white border-b border-gray-200 py-3 flex items-center gap-3 sticky top-0 z-10 shadow-sm mb-4">
         <button onClick={() => nav(-1)} className="p-2 bg-white rounded-full shadow-sm">
           <ChevronLeft className="w-5 h-5" />
         </button>
@@ -56,10 +65,10 @@ export function EditorRecommendView() {
           <p className="text-gray-400 text-sm mt-1">記事が公開されると、ここで設定できます</p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3 md:grid md:grid-cols-2 md:gap-4 md:space-y-0">
           {articles.map((a) => (
             <div key={a.id} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-              <p className="font-bold text-gray-800 text-sm mb-3">{a.title}</p>
+              <p className="font-bold text-gray-800 text-sm mb-3 break-words">{a.title}</p>
               <div className="flex gap-2">
                 <button
                   onClick={() => toggle(a.id, "is_recommended", a.isRecommended)}

@@ -159,3 +159,30 @@
 .article-content .custom-frame-body {
   color: #374151; /* text-gray-700 */
 }
+
+/* Strict Responsive Content Rules (#54-7) */
+.article-content {
+  overflow-wrap: break-word;
+  word-break: break-word;
+  max-width: 100%;
+}
+.article-content table {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+.article-content iframe,
+.article-content video {
+  max-width: 100%;
+}
+
+/* Hide Scrollbar Utility for Horizontal Tab/Tag Lists */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}

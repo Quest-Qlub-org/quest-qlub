@@ -6,6 +6,12 @@ import type { Profile } from "../../supabase";
 import { fetchFollowCounts, fetchFollowDetails } from "../../hooks/useFollows";
 import { CustomUserIcon } from "../../components/icons/NavIcons";
 
+function notifyProfileUpdated() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("quest_qlub_roles_updated"));
+  }
+}
+
 export function ProfileSettingsSection({
   profile,
   setProfile,
@@ -33,6 +39,7 @@ export function ProfileSettingsSection({
               ws.map((w) => (w.id === profile.id ? { ...w, avatar_url: url } : w)),
             );
           }
+          notifyProfileUpdated();
           showToast("アイコン画像を更新しました");
         }}
       />
@@ -337,6 +344,7 @@ function DisplayNameEdit({
       if (setWriters) {
         setWriters((ws) => ws.map((w) => (w.id === profile.id ? { ...w, display_name: name } : w)));
       }
+      notifyProfileUpdated();
       setEditing(false);
       showToast("表示名を更新しました");
     }
@@ -432,6 +440,7 @@ function UsernameEdit({
           ws.map((w) => (w.id === profile.id ? { ...w, username: cleanUname } : w)),
         );
       }
+      notifyProfileUpdated();
       setEditing(false);
       showToast("ユーザー名を更新しました");
     }

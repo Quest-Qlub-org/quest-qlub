@@ -265,4 +265,26 @@ describe("SearchView", () => {
     expect(container.textContent).toContain("楽しい数学の世界");
     expect(container.textContent).not.toContain("歴史の謎");
   });
+
+  it("includes multi-role members having writer or editor in roles array in the writer filter", () => {
+    const multiRoleWriter = createTestProfile({
+      id: "multi-writer",
+      display_name: "マルチロールライター",
+      role: "viewer",
+      roles: ["viewer", "writer"],
+    });
+    const regularViewer = createTestProfile({
+      id: "regular-viewer",
+      display_name: "ただの読者",
+      role: "viewer",
+      roles: ["viewer"],
+    });
+
+    setupAppMock({ articles: [], writers: [multiRoleWriter, regularViewer] });
+
+    renderSearchView();
+
+    expect(container.textContent).toContain("マルチロールライター");
+    expect(container.textContent).not.toContain("ただの読者");
+  });
 });

@@ -3,9 +3,20 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { getThumbnailColor, ARTICLE_STATUS_CONFIG } from "../types";
 import { mapDbArticleToArticle } from "../types";
-import type { Article, Series } from "../types";
+import type { Article, ArticleStatus, Series } from "../types";
 import { LogoIcon, CustomUserIcon, CustomStarIcon } from "../components/icons/NavIcons";
-import { ChevronLeft, Share2, Eye, Loader2, UserPlus, UserCheck, Calendar } from "lucide-react";
+import {
+  ChevronLeft,
+  Share2,
+  Eye,
+  Loader2,
+  UserPlus,
+  UserCheck,
+  Calendar,
+  Check,
+  Edit3,
+  Clock,
+} from "lucide-react";
 import { sanitizeHtml } from "../utils/sanitize";
 import { supabase } from "../supabase";
 import type { Profile } from "../supabase";
@@ -13,12 +24,20 @@ import { ArticleComments } from "../components/ArticleComments";
 import { useFollows } from "../hooks/useFollows";
 import { updateMetaTags, resetMetaTags, generateArticleJsonLd } from "../utils/seo";
 import { formatArticleDate } from "../utils/date";
+import {
+  formatScheduledDateTime,
+  getEffectiveArticleStatus,
+  getLocalScheduledAt,
+  isArticlePubliclyVisible,
+  setLocalScheduledAt,
+} from "../utils/scheduledArticles";
 
 export const ArticleView = () => {
   const { id: paramId } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const {
     articles,
+    setArticles,
     writers,
     favorites,
     toggleFavorite,
@@ -26,6 +45,9 @@ export const ArticleView = () => {
     getFontSizeClass,
     viewParam,
     seriesList,
+    userRole,
+    profile,
+    navigate: appNavigate,
   } = useApp();
   const { isFollowing, toggleFollow, isAuthenticated, currentUserId } = useFollows();
 
@@ -74,17 +96,24 @@ export const ArticleView = () => {
           if (!cachedArticle) setNotFound(true);
         } else {
           const mapped = mapDbArticleToArticle(data);
-          setDetailedArticle(mapped);
+          const localSched = getLocalScheduledAt(mapped.id);
+          const scheduledAt = mapped.scheduledAt ?? localSched ?? null;
+          const enriched: Article = {
+            ...mapped,
+            scheduledAt,
+            status: getEffectiveArticleStatus({ ...mapped, scheduledAt }),
+          };
+          setDetailedArticle(enriched);
           setNotFound(false);
 
           // ライター情報の単体フェッチ（writersキャッシュに無い場合のフォールバック）
-          if (mapped.writerId) {
-            const cachedW = writers.find((w) => w.id === mapped.writerId);
+          if (enriched.writerId) {
+            const cachedW = writers.find((w) => w.id === enriched.writerId);
             if (!cachedW) {
               const { data: wData } = await supabase
                 .from("profiles")
                 .select("id, role, display_name, username, x_account, avatar_url, bio, created_at")
-                .eq("id", mapped.writerId)
+                .eq("id", enriched.writerId)
                 .maybeSingle();
               if (isMounted && wData) {
                 setWriterFallback(wData);
@@ -93,13 +122,13 @@ export const ArticleView = () => {
           }
 
           // 連載情報の単体フェッチ
-          if (mapped.seriesId) {
-            const cachedS = seriesList.find((s) => s.id === mapped.seriesId);
+          if (enriched.seriesId) {
+            const cachedS = seriesList.find((s) => s.id === enriched.seriesId);
             if (!cachedS) {
               const { data: sData } = await supabase
                 .from("series")
                 .select("*")
-                .eq("id", mapped.seriesId)
+                .eq("id", enriched.seriesId)
                 .maybeSingle();
               if (isMounted && sData) {
                 setSeriesFallback({
@@ -113,7 +142,7 @@ export const ArticleView = () => {
           }
 
           // 閲覧数インクリメント（公開済み記事のみ）
-          if (mapped.status === "published") {
+          if (enriched.status === "published") {
             try {
               await supabase.rpc("increment_views", { p_article_id: articleId });
             } catch {
@@ -135,7 +164,18 @@ export const ArticleView = () => {
     };
   }, [articleId]);
 
-  const article = detailedArticle || cachedArticle;
+  const rawArticle = detailedArticle || cachedArticle;
+  const article = rawArticle
+    ? (() => {
+        const localSched = getLocalScheduledAt(rawArticle.id);
+        const scheduledAt = rawArticle.scheduledAt ?? localSched ?? null;
+        return {
+          ...rawArticle,
+          scheduledAt,
+          status: getEffectiveArticleStatus({ ...rawArticle, scheduledAt }),
+        };
+      })()
+    : undefined;
 
   // Issue #25 & #46: 個別記事のOGP・SEOメタタグ・JSON-LD構造化データの動的適用
   useEffect(() => {
@@ -204,6 +244,56 @@ export const ArticleView = () => {
   const isFav = favorites.includes(article.id);
   const articleUrl = `${window.location.origin}/articles/${article.id}`;
   const color = getThumbnailColor(article.thumbnailColor ?? null);
+  const isAuthor = Boolean(
+    (profile?.id && profile.id === article.writerId) ||
+    (currentUserId && currentUserId === article.writerId),
+  );
+  const isEditor = userRole === "editor";
+
+  if (!isArticlePubliclyVisible(article) && !isAuthor && !isEditor) {
+    return (
+      <div className="p-12 text-center space-y-4">
+        <p className="text-gray-500 text-base font-bold">記事が見つかりません</p>
+        <button
+          onClick={() => navigate("/")}
+          className="px-5 py-2.5 bg-gray-900 text-white text-xs font-bold rounded-xl hover:bg-gray-800 transition-colors"
+        >
+          トップへ戻る
+        </button>
+      </div>
+    );
+  }
+
+  const handleQuickStatusChange = async (nextStatus: ArticleStatus) => {
+    const { error } = await supabase
+      .from("articles")
+      .update({ status: nextStatus })
+      .eq("id", article.id);
+    if (!error) {
+      if (nextStatus === "published" || nextStatus === "draft") {
+        setLocalScheduledAt(article.id, null);
+      }
+      setDetailedArticle((prev) =>
+        prev ? { ...prev, status: nextStatus, scheduledAt: null } : prev,
+      );
+      if (typeof setArticles === "function") {
+        setArticles((prev) =>
+          prev.map((a) =>
+            a.id === article.id ? { ...a, status: nextStatus, scheduledAt: null } : a,
+          ),
+        );
+      }
+      if (nextStatus === "published") {
+        showToast("記事を公開しました");
+      } else if (nextStatus === "pending") {
+        showToast("投稿申請しました");
+      } else {
+        showToast("下書きに戻しました");
+      }
+    } else {
+      showToast("エラーが発生しました。もう一度お試しください。");
+    }
+  };
 
   return (
     <div className="animate-in slide-in-from-right-8 duration-300 bg-white min-h-screen">
@@ -218,15 +308,88 @@ export const ArticleView = () => {
       </div>
 
       {article.status !== "published" && (
-        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 text-center text-amber-800 text-xs font-bold flex items-center justify-center gap-2">
-          <span className="px-2 py-0.5 rounded bg-amber-200 text-amber-900 font-extrabold text-[10px]">
-            PREVIEW
-          </span>
-          <span>
-            【プレビュー表示中】ステータス:{" "}
-            {ARTICLE_STATUS_CONFIG[article.status]?.label ?? article.status}
-            （一般には公開されていません）
-          </span>
+        <div
+          data-testid="article-preview-banner"
+          className="bg-amber-50 border-b border-amber-200 px-4 py-3 text-amber-800 text-xs font-bold flex flex-col sm:flex-row items-center justify-between gap-2 max-w-full"
+        >
+          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+            <span className="px-2 py-0.5 rounded bg-amber-200 text-amber-900 font-extrabold text-[10px]">
+              PREVIEW
+            </span>
+            <span>
+              【プレビュー表示中】ステータス:{" "}
+              {ARTICLE_STATUS_CONFIG[article.status]?.label ?? article.status}
+              （一般には公開されていません）
+            </span>
+            {formatScheduledDateTime(article.scheduledAt) && (
+              <span className="inline-flex items-center gap-1 text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full">
+                <Clock className="w-3 h-3" /> 公開予定:{" "}
+                {formatScheduledDateTime(article.scheduledAt)}
+              </span>
+            )}
+          </div>
+
+          {/* プレビュー画面上でその場で操作できるアクションボタン (#54-12) */}
+          {(isEditor || isAuthor) && (
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {(isAuthor || isEditor) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (typeof appNavigate === "function") {
+                      appNavigate("writerEdit", article.id);
+                    } else {
+                      void navigate(`/dashboard/writer/edit/${article.id}`);
+                    }
+                  }}
+                  className="px-2.5 py-1.5 bg-white text-gray-700 border border-amber-300 rounded-lg hover:bg-gray-50 inline-flex items-center gap-1 cursor-pointer"
+                >
+                  <Edit3 className="w-3.5 h-3.5" /> 編集する
+                </button>
+              )}
+              {isAuthor && article.status === "draft" && (
+                <button
+                  type="button"
+                  onClick={() => void handleQuickStatusChange("pending")}
+                  className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer"
+                >
+                  投稿申請する
+                </button>
+              )}
+              {isAuthor && !isEditor && article.status === "pending" && (
+                <button
+                  type="button"
+                  data-testid="preview-banner-withdraw-btn"
+                  onClick={() => void handleQuickStatusChange("draft")}
+                  className="px-3 py-1.5 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-100 cursor-pointer"
+                >
+                  申請取消
+                </button>
+              )}
+              {isEditor && (
+                <>
+                  <button
+                    type="button"
+                    data-testid="preview-banner-approve-btn"
+                    onClick={() => void handleQuickStatusChange("published")}
+                    className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 inline-flex items-center gap-1 shadow-sm cursor-pointer"
+                  >
+                    <Check className="w-3.5 h-3.5" /> 許可 (公開)
+                  </button>
+                  {article.status !== "draft" && (
+                    <button
+                      type="button"
+                      data-testid="preview-banner-reject-btn"
+                      onClick={() => void handleQuickStatusChange("draft")}
+                      className="px-3 py-1.5 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-100 cursor-pointer"
+                    >
+                      差し戻し
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </div>
       )}
 

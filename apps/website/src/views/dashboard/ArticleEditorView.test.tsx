@@ -33,6 +33,7 @@ describe("ArticleEditorView schema resilience", () => {
     document.body.appendChild(container);
     root = createRoot(container);
     vi.clearAllMocks();
+    localStorage.clear();
   });
 
   afterEach(() => {
@@ -224,5 +225,153 @@ describe("ArticleEditorView schema resilience", () => {
     // 最終的に更新成功トーストが表示されたこと
     expect(mockShowToast).toHaveBeenCalledWith("記事を更新しました");
     expect(mockNavigate).toHaveBeenCalledWith("writerDash");
+  });
+
+  it("supports scheduled publishing with schedule-datetime-input and editor-submit-btn", async () => {
+    const insertedPayloads: any[] = [];
+    const insertMock = vi.fn((payload: any) => {
+      insertedPayloads.push(payload);
+      return {
+        select: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({
+            data: {
+              id: "art-scheduled-1",
+              title: payload.title,
+              writer_id: payload.writer_id,
+              status: payload.status,
+              scheduled_at: payload.scheduled_at,
+            },
+            error: null,
+          }),
+        }),
+      };
+    });
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") {
+        return {
+          insert: insertMock,
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+            }),
+          }),
+        } as any;
+      }
+      return {} as any;
+    });
+
+    const mockEditor = createTestProfile({ id: "ed-1", role: "editor" });
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      articles: [],
+      setArticles: mockSetArticles,
+      seriesList: [],
+      profile: mockEditor,
+      user: { id: "ed-1" } as any,
+      showToast: mockShowToast,
+      navigate: mockNavigate,
+      getFontSizeClass: () => "text-base",
+    } as any);
+
+    await act(async () => {
+      root!.render(<ArticleEditorPage editingId={null} />);
+    });
+
+    // タイトル入力
+    const titleInput = container.querySelector(
+      'input[placeholder="読者の目を引くタイトルを入力..."]',
+    ) as HTMLInputElement;
+    act(() => {
+      setNativeValue(titleInput, "未来の公開予約記事");
+    });
+
+    // 予約日時入力
+    const schedInput = container.querySelector(
+      '[data-testid="schedule-datetime-input"]',
+    ) as HTMLInputElement;
+    expect(schedInput).not.toBeNull();
+    act(() => {
+      setNativeValue(schedInput, "2099-12-31T15:30");
+    });
+
+    // 「予約投稿申請」ボタン（editor-submit-btn）をクリック
+    const submitBtn = container.querySelector(
+      '[data-testid="editor-submit-btn"]',
+    ) as HTMLButtonElement;
+    expect(submitBtn).not.toBeNull();
+    expect(submitBtn.textContent).toContain("予約投稿申請");
+
+    await act(async () => {
+      submitBtn.click();
+    });
+
+    expect(insertedPayloads.length).toBe(1);
+    expect(insertedPayloads[0].status).toBe("scheduled");
+    expect(typeof insertedPayloads[0].scheduled_at).toBe("string");
+    expect(mockShowToast).toHaveBeenCalledWith(expect.stringContaining("公開予約（"));
+  });
+
+  it("shows toast warning when invalid schedule datetime is entered", async () => {
+    const insertMock = vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        single: vi.fn().mockResolvedValue({ data: null, error: null }),
+      }),
+    });
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") {
+        return {
+          insert: insertMock,
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+            }),
+          }),
+        } as any;
+      }
+      return {} as any;
+    });
+
+    const mockProfile = createTestProfile({ id: "writer-1", role: "writer" });
+
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      articles: [],
+      setArticles: mockSetArticles,
+      seriesList: [],
+      profile: mockProfile,
+      userRole: "writer",
+      user: { id: "writer-1" } as any,
+      showToast: mockShowToast,
+      navigate: mockNavigate,
+      getFontSizeClass: () => "text-base",
+    } as any);
+
+    await act(async () => {
+      root!.render(<ArticleEditorPage editingId={null} />);
+    });
+
+    const titleInput = container.querySelector(
+      'input[placeholder="読者の目を引くタイトルを入力..."]',
+    ) as HTMLInputElement;
+    act(() => {
+      setNativeValue(titleInput, "テスト記事");
+    });
+
+    const schedInput = container.querySelector(
+      '[data-testid="schedule-datetime-input"]',
+    ) as HTMLInputElement;
+    act(() => {
+      schedInput.type = "text";
+      setNativeValue(schedInput, "invalid-date-string");
+    });
+
+    const submitBtn = container.querySelector(
+      '[data-testid="editor-submit-btn"]',
+    ) as HTMLButtonElement;
+    await act(async () => {
+      submitBtn.click();
+    });
+
+    expect(mockShowToast).toHaveBeenCalledWith("有効な公開予約日時を入力してください");
+    expect(insertMock).not.toHaveBeenCalled();
   });
 });

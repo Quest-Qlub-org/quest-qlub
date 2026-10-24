@@ -15,7 +15,7 @@ export interface ContactMessage {
 }
 
 export function EditorApplicationsView() {
-  const { showToast } = useApp();
+  const { showToast, refreshTeamMembers, refreshWriters } = useApp();
   const [messages, setMessages] = useState<ContactMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterMode, setFilterMode] = useState<"applications" | "all">("applications");
@@ -55,6 +55,15 @@ export function EditorApplicationsView() {
         target_email: email.trim(),
       });
       if (!error) {
+        if (typeof refreshTeamMembers === "function") {
+          void refreshTeamMembers();
+        }
+        if (typeof refreshWriters === "function") {
+          void refreshWriters();
+        }
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new Event("quest_qlub_roles_updated"));
+        }
         showToast(`${email} をライターに昇格しました`);
       } else {
         showToast("昇格に失敗しました: " + error.message);
@@ -84,8 +93,8 @@ export function EditorApplicationsView() {
   const applicationCount = messages.filter((m) => m.subject?.includes("ライター応募")).length;
 
   return (
-    <div className="p-4 space-y-4 animate-in slide-in-from-right-8 duration-300">
-      <div className="-mx-4 -mt-4 px-4 bg-white border-b border-gray-200 py-3 flex items-center gap-3 sticky top-0 z-10 shadow-sm mb-4">
+    <div className="max-w-5xl mx-auto p-4 md:p-6 space-y-4 animate-in slide-in-from-right-8 duration-300">
+      <div className="-mx-4 md:mx-0 -mt-4 md:mt-0 px-4 md:rounded-xl bg-white border-b md:border border-gray-200 py-3 flex items-center gap-3 sticky top-0 z-10 shadow-sm mb-4">
         <button onClick={() => nav(-1)} className="p-2 bg-white rounded-full shadow-sm">
           <ChevronLeft className="w-5 h-5" />
         </button>

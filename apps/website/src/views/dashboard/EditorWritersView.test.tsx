@@ -2,22 +2,25 @@
 import { describe, it, expect, vi, beforeEach } from "vite-plus/test";
 import { act } from "react";
 import { EditorWritersView } from "./EditorWritersView";
-import { renderWithRouter, createTestProfile } from "../../test/test-utils";
+import { renderWithRouter, createTestProfile, setNativeValue } from "../../test/test-utils";
 import { supabase } from "../../supabase";
 
 const mockShowToast = vi.fn();
 const mockRefreshTeamMembers = vi.fn();
+const mockRefreshWriters = vi.fn();
 
 vi.mock("../../context/AppContext", () => ({
   useApp: () => ({
     showToast: mockShowToast,
     refreshTeamMembers: mockRefreshTeamMembers,
+    refreshWriters: mockRefreshWriters,
   }),
 }));
 
 describe("EditorWritersView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
   });
 
   it("renders profile list with multi-role badges and allows toggling roles", async () => {
@@ -224,6 +227,137 @@ describe("EditorWritersView", () => {
     // エンジニアのみ表示されること
     expect(container.textContent).toContain("Noimzip");
     expect(container.textContent).not.toContain("東雲");
+
+    unmount();
+  });
+
+  it("allows adding a custom role and persists it immediately", async () => {
+    const mockProfiles = [
+      createTestProfile({
+        id: "usr-custom",
+        display_name: "デザイナーA",
+        username: "designer_a",
+        role: "writer",
+        roles: ["writer"],
+      }),
+    ];
+
+    const rpcSpy = vi.spyOn(supabase, "rpc").mockImplementation(((fn: string) => {
+      if (fn === "admin_get_all_profiles") {
+        return Promise.resolve({ data: mockProfiles, error: null });
+      }
+      if (fn === "admin_set_user_roles") {
+        return Promise.resolve({ data: null, error: null });
+      }
+      return Promise.resolve({ data: null, error: null });
+    }) as any);
+
+    let renderResult!: ReturnType<typeof renderWithRouter>;
+    await act(async () => {
+      renderResult = renderWithRouter(<EditorWritersView />);
+    });
+    const { container, unmount } = renderResult;
+
+    const openCustomBtn = container.querySelector(
+      '[data-testid="open-custom-role-usr-custom"]',
+    ) as HTMLButtonElement;
+    expect(openCustomBtn).not.toBeNull();
+
+    act(() => {
+      openCustomBtn.click();
+    });
+
+    const customInput = container.querySelector(
+      '[data-testid="custom-role-input-usr-custom"]',
+    ) as HTMLInputElement;
+    expect(customInput).not.toBeNull();
+
+    act(() => {
+      setNativeValue(customInput, "デザイナー");
+    });
+
+    const submitCustomBtn = container.querySelector(
+      '[data-testid="custom-role-submit-usr-custom"]',
+    ) as HTMLButtonElement;
+    expect(submitCustomBtn).not.toBeNull();
+
+    await act(async () => {
+      submitCustomBtn.click();
+    });
+
+    expect(rpcSpy).toHaveBeenCalledWith("admin_set_user_roles", {
+      target_user_id: "usr-custom",
+      new_roles: ["writer", "デザイナー"],
+    });
+    expect(mockShowToast).toHaveBeenCalledWith("ロール（デザイナー）を追加しました");
+    expect(mockRefreshTeamMembers).toHaveBeenCalled();
+
+    unmount();
+  });
+
+  it("prevents demoting the last remaining editor account via dropdown and toggle", async () => {
+    const mockProfiles = [
+      createTestProfile({
+        id: "usr-sole-editor",
+        display_name: "唯一の編集長",
+        username: "sole_editor",
+        role: "editor",
+        roles: ["editor"],
+      }),
+      createTestProfile({
+        id: "usr-writer",
+        display_name: "ライターB",
+        username: "writer_b",
+        role: "writer",
+        roles: ["writer"],
+      }),
+    ];
+
+    const rpcSpy = vi.spyOn(supabase, "rpc").mockImplementation(((fn: string) => {
+      if (fn === "admin_get_all_profiles") {
+        return Promise.resolve({ data: mockProfiles, error: null });
+      }
+      return Promise.resolve({ data: null, error: null });
+    }) as any);
+
+    let renderResult!: ReturnType<typeof renderWithRouter>;
+    await act(async () => {
+      renderResult = renderWithRouter(<EditorWritersView />);
+    });
+    const { container, unmount } = renderResult;
+
+    // 唯一の編集長のロールセレクトを「writer」に変更しようとする
+    const select = container.querySelector(
+      '[data-testid="role-select-usr-sole-editor"]',
+    ) as HTMLSelectElement;
+    expect(select).not.toBeNull();
+
+    await act(async () => {
+      select.value = "writer";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    expect(mockShowToast).toHaveBeenCalledWith(
+      "最後の編集長アカウントを降格することはできません。",
+    );
+    expect(rpcSpy).not.toHaveBeenCalledWith("admin_set_user_roles", expect.anything());
+
+    mockShowToast.mockClear();
+
+    // 唯一の編集長から「✓ 編集長」トグルボタンを押して編集長を外そうとする
+    const editorToggleBtn = Array.from(container.querySelectorAll("button")).find(
+      (btn: HTMLButtonElement) => btn.textContent?.includes("✓ 編集長"),
+    );
+    expect(editorToggleBtn).toBeDefined();
+
+    await act(async () => {
+      editorToggleBtn?.click();
+    });
+
+    expect(mockShowToast).toHaveBeenCalledWith(
+      "最後の編集長アカウントを降格することはできません。",
+    );
+    expect(rpcSpy).not.toHaveBeenCalledWith("admin_set_user_roles", expect.anything());
 
     unmount();
   });

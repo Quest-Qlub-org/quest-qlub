@@ -169,4 +169,93 @@ describe("WriterDashboard", () => {
     expect(mockUpdate).toHaveBeenCalledWith({ status: "draft" });
     expect(mockShowToast).toHaveBeenCalledWith("記事を非公開（下書き）に戻しました");
   });
+
+  it("opens inline preview modal and allows withdrawing a pending article", async () => {
+    const mockShowToast = vi.fn();
+    const mockProfile = createTestProfile({ id: "w-1", role: "writer" });
+    const mockUpdate = vi.fn().mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    });
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") {
+        return {
+          select: vi.fn((fields: string) => {
+            if (fields === "*") {
+              return {
+                eq: vi.fn().mockReturnValue({
+                  maybeSingle: vi.fn().mockResolvedValue({
+                    data: { content: "<p>申請中の記事プレビュー本文</p>" },
+                    error: null,
+                  }),
+                }),
+              };
+            }
+            return {
+              eq: vi.fn().mockReturnValue({
+                order: vi.fn().mockResolvedValue({
+                  data: [
+                    {
+                      id: "art-pending-w1",
+                      title: "審査申請中の記事",
+                      status: "pending",
+                      writer_id: "w-1",
+                      views: 0,
+                      likes: 0,
+                      created_at: new Date().toISOString(),
+                    },
+                  ],
+                  error: null,
+                }),
+              }),
+            };
+          }),
+          update: mockUpdate,
+        } as any;
+      }
+      return {} as any;
+    });
+
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      profile: mockProfile,
+      articles: [],
+      setArticles: vi.fn(),
+      showToast: mockShowToast,
+      navigate: vi.fn(),
+      authLoading: false,
+    } as any);
+
+    const { container } = renderWithRouter(<WriterDashboard />);
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const inlinePreviewBtn = container.querySelector(
+      '[data-testid="writer-inline-preview-art-pending-w1"]',
+    ) as HTMLButtonElement;
+    expect(inlinePreviewBtn).not.toBeNull();
+
+    await act(async () => {
+      inlinePreviewBtn.click();
+    });
+
+    const modal = container.querySelector('[data-testid="writer-inline-preview-modal"]');
+    expect(modal).not.toBeNull();
+    expect(modal?.textContent).toContain("申請中の記事プレビュー本文");
+
+    // 申請取消ボタンをクリック
+    const withdrawBtn = container.querySelector(
+      '[data-testid="withdraw-pending-art-pending-w1"]',
+    ) as HTMLButtonElement;
+    expect(withdrawBtn).not.toBeNull();
+
+    await act(async () => {
+      withdrawBtn.click();
+    });
+
+    expect(mockUpdate).toHaveBeenCalledWith({ status: "draft" });
+    expect(mockShowToast).toHaveBeenCalledWith("投稿申請を取り消し、下書きに戻しました");
+  });
 });

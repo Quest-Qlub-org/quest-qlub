@@ -93,8 +93,19 @@ DB の `supabase_migrations.schema_migrations` に記録済みのバージョン
     - `check_is_editor()` 関数およびトリガー `prevent_self_role_escalation`, `enforce_profile_initial_role` を更新し、`roles` 配列による権限昇格の不正試行を DB トリガー層で防御。
   - **クライアント側スキーマ耐障害性（Graceful Degradation）**:
     - `roles` カラムが DB 未適用の環境（42703 エラー）でも、`AuthContext`, `DataContext` (`fetchWriters`, `loadMoreWriters`, `fetchTeamMembers`), `ProfileView`, `EditorWritersView` のすべてで自動除外リトライと単一 `role` カラムへのフォールバック（`getProfileRoles`）を整備。
-    - `admin_set_user_roles` RPC が未定義（42883 エラー）の場合でも、`EditorWritersView` が即座に従来の `admin_change_user_role` へ自動フォールバック。
-    - `/about`（`AboutView`）では、ハードコードされていたメンバー一覧を廃止し、取得したロール情報から「編集長」「ライター」「エンジニア」「その他カスタムロール」へ動的分類して自動反映。複数ロールを持つメンバー（例: ライター兼エンジニアの「るーと」）は該当するすべてのセクションへ重複して自動掲載される。
+    - `admin_set_user_roles` RPC が未定義（42883 エラー）の場合でも、`EditorWritersView` が即座に従来の `admin_change_user_role` へ自動フォールバックし、さらにローカルオーバーライド（`setLocalRolesOverride`）およびカスタムイベント（`quest_qlub_roles_updated`）と Supabase Realtime 購読によって `/about` へ即座に複数ロール・カスタムロールを反映。
+    - `/about`（`AboutView`）では、ハードコードされていたメンバー一覧を廃止し、取得したロール情報から「編集長」「ライター」「エンジニア」「その他カスタムロール」へ動的分類して自動反映。複数ロールを持つメンバー（例: ライター兼エンジニアの「るーと」、編集長兼エンジニアの「Noimzip」）は該当するすべてのセクションへ重複して自動掲載される。
+
+- `20261024120000_fix_series_edit_and_scheduled_articles.sql`（未適用・次回デプロイ / Issue #54）
+  - **連載（`series`）編集権限の修復（Issue #54-10）**:
+    - `public.series` テーブルに対する `authenticated` の `SELECT, INSERT, UPDATE, DELETE` 権限および `anon` の `SELECT` 権限を明示的に GRANT。
+    - `writer_id`（`text`/`uuid` 型の差異を吸収するため `(writer_id)::text = (auth.uid())::text`）と `profiles.roles` 配列も考慮した `series_insert_own_or_editor`, `series_update_own_or_editor`, `series_delete_own_or_editor` RLS ポリシーを再構築し、0件更新（サイレント失敗）や権限拒否を根本解消。
+    - フロントエンド側（`WriterSeriesPage.tsx` + `utils/seriesOverrides.ts`）では DB マイグレーション未適用時でも連載の編集・新規作成・削除および記事の割り当て・話数変更が維持されるローカル永続化フォールバックを整備。
+  - **予約投稿（`scheduled_at` / `status = 'scheduled'`）の実装（Issue #54-3）**:
+    - `public.articles` に `scheduled_at TIMESTAMPTZ DEFAULT NULL` 列およびインデックス `articles_scheduled_at_idx` を追加。
+    - 予約日時が到来した記事を自動公開する `publish_due_scheduled_articles()` RPC（`SECURITY DEFINER`）を追加。
+    - `enforce_article_update_rules()` トリガーおよび `articles_select_published` RLS ポリシーを更新し、公開予約記事（`status = 'scheduled'` または未来の `scheduled_at`）が予約時刻到来前に一般公開されないよう保護。
+    - クライアント側（`utils/scheduledArticles.ts`）にも 42703 カラム未存在時の自動除外リトライと `localStorage` フォールバック（`quest_qlub_scheduled_articles_v1`）を実装。
 
 ## セキュリティ強化（コード・Edge Function）
 

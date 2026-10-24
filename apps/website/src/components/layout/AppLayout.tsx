@@ -46,13 +46,13 @@ export function AppLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20 sm:pb-10 text-gray-800 font-sans selection:bg-blue-200 flex flex-col justify-between">
+    <div className="min-h-screen bg-gray-50 pb-20 sm:pb-10 text-gray-800 font-sans selection:bg-blue-200 flex flex-col justify-between overflow-x-hidden">
       <div>
         <EnvironmentBanner />
         {!hideHeader && <Header />}
         {!hideHeader && <MobileNav />}
 
-        <main className="max-w-6xl mx-auto flex-1 w-full">
+        <main className="max-w-6xl mx-auto flex-1 w-full min-w-0">
           <Suspense
             fallback={
               <div className="flex items-center justify-center min-h-[50vh]">
@@ -167,12 +167,12 @@ export function AppLayout() {
       )}
 
       {toastMessage && (
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-gray-900/90 backdrop-blur text-white px-6 py-3 rounded-full shadow-2xl z-50 animate-in slide-in-from-bottom-5 fade-in duration-300 flex items-center gap-3 text-sm font-bold whitespace-nowrap">
-          <span>{toastMessage}</span>
+        <div className="fixed bottom-20 sm:bottom-8 left-1/2 -translate-x-1/2 max-w-[calc(100vw-2rem)] bg-gray-900/90 backdrop-blur text-white px-5 py-3 rounded-2xl sm:rounded-full shadow-2xl z-[60] animate-in slide-in-from-bottom-5 fade-in duration-300 flex items-center gap-3 text-xs sm:text-sm font-bold break-words">
+          <span className="min-w-0 break-words">{toastMessage}</span>
           <button
             onClick={hideToast}
             aria-label="通知を閉じる"
-            className="p-1 rounded-full hover:bg-gray-700 transition-colors"
+            className="p-1 rounded-full hover:bg-gray-700 transition-colors shrink-0"
           >
             <X className="w-4 h-4" />
           </button>

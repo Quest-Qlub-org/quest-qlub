@@ -1,3 +1,5 @@
+import { getLocalScheduledAt } from "../utils/scheduledArticles";
+
 export type Series = {
   id: string;
   title: string;
@@ -5,7 +7,7 @@ export type Series = {
   writerId: string;
 };
 
-export type ArticleStatus = "draft" | "pending" | "published";
+export type ArticleStatus = "draft" | "pending" | "scheduled" | "published";
 
 export type Article = {
   id: string;
@@ -26,6 +28,7 @@ export type Article = {
   episodeNumber?: number | null;
   commentsEnabled?: boolean;
   createdAt?: string | null;
+  scheduledAt?: string | null;
 };
 
 export interface ThumbnailColorOption {
@@ -53,6 +56,10 @@ export const ARTICLE_STATUS_CONFIG: Record<ArticleStatus, { label: string; badge
   published: {
     label: "公開中",
     badgeClass: "bg-green-100 text-green-700",
+  },
+  scheduled: {
+    label: "公開予約",
+    badgeClass: "bg-purple-100 text-purple-700",
   },
   pending: {
     label: "承認待ち",
@@ -83,9 +90,11 @@ export interface DbArticleRow {
   episode_number?: number | null;
   comments_enabled?: boolean | null;
   created_at?: string | null;
+  scheduled_at?: string | null;
 }
 
 export function mapDbArticleToArticle(a: DbArticleRow): Article {
+  const scheduledAt = a.scheduled_at ?? getLocalScheduledAt(a.id) ?? null;
   return {
     id: a.id,
     title: a.title,
@@ -105,5 +114,6 @@ export function mapDbArticleToArticle(a: DbArticleRow): Article {
     episodeNumber: a.episode_number ?? null,
     commentsEnabled: a.comments_enabled !== false,
     createdAt: a.created_at ?? null,
+    scheduledAt,
   };
 }

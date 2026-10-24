@@ -370,4 +370,144 @@ describe("ArticleView", () => {
 
     expect(container.textContent).toContain("検索ビュー");
   });
+
+  it("allows author to withdraw pending article and editor to approve from preview banner", async () => {
+    const pendingArticle = {
+      id: "art-pending-action",
+      title: "承認待ちプレビュー記事",
+      writer_id: "author-1",
+      status: "pending",
+      content: "<p>プレビュー本文</p>",
+      summary: "要約テキスト",
+      created_at: "2026-10-24T12:00:00Z",
+    };
+
+    const updateMock = vi.fn().mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    });
+
+    const createQueryChain = (data: any = null) => {
+      const promise = Promise.resolve({ data: data ? [data] : [], error: null });
+      const chain: any = Object.assign(promise, {
+        select: vi.fn(() => chain),
+        eq: vi.fn(() => chain),
+        in: vi.fn(() => chain),
+        order: vi.fn(() => chain),
+        range: vi.fn(() => Promise.resolve({ data: [], error: null })),
+        maybeSingle: vi.fn(() => Promise.resolve({ data, error: null })),
+        single: vi.fn(() => Promise.resolve({ data, error: null })),
+      });
+      return chain;
+    };
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") {
+        const chain = createQueryChain(pendingArticle);
+        chain.update = updateMock;
+        return chain;
+      }
+      return createQueryChain(null);
+    });
+
+    vi.spyOn(useFollowsModule, "useFollows").mockReturnValue({
+      followedIds: [],
+      isFollowing: vi.fn(() => false),
+      toggleFollow: vi.fn(async () => true),
+      isAuthenticated: true,
+      currentUserId: "author-1",
+      loading: false,
+    });
+
+    await act(async () => {
+      root!.render(
+        <MemoryRouter initialEntries={["/articles/art-pending-action"]}>
+          <AppProviders>
+            <Routes>
+              <Route path="/articles/:id" element={<ArticleView />} />
+            </Routes>
+          </AppProviders>
+        </MemoryRouter>,
+      );
+    });
+
+    for (let i = 0; i < 30; i++) {
+      if (container.textContent?.includes("承認待ちプレビュー記事")) break;
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 20));
+      });
+    }
+
+    // 著者として「申請取消」ボタンをクリック
+    const withdrawBtn = container.querySelector(
+      '[data-testid="preview-banner-withdraw-btn"]',
+    ) as HTMLButtonElement;
+    expect(withdrawBtn).not.toBeNull();
+
+    await act(async () => {
+      withdrawBtn.click();
+      await Promise.resolve();
+    });
+
+    expect(updateMock).toHaveBeenCalledWith({ status: "draft" });
+  });
+
+  it("blocks non-author non-editor viewer from accessing unpublished draft article", async () => {
+    const draftArticle = {
+      id: "art-secret-draft",
+      title: "非公開シークレット記事",
+      writer_id: "other-writer",
+      status: "draft",
+      content: "<p>秘密の本文</p>",
+      created_at: "2026-10-24T12:00:00Z",
+    };
+
+    const createQueryChain = (data: any = null) => {
+      const promise = Promise.resolve({ data: data ? [data] : [], error: null });
+      const chain: any = Object.assign(promise, {
+        select: vi.fn(() => chain),
+        eq: vi.fn(() => chain),
+        in: vi.fn(() => chain),
+        order: vi.fn(() => chain),
+        range: vi.fn(() => Promise.resolve({ data: [], error: null })),
+        maybeSingle: vi.fn(() => Promise.resolve({ data, error: null })),
+      });
+      return chain;
+    };
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") return createQueryChain(draftArticle);
+      return createQueryChain(null);
+    });
+
+    vi.spyOn(useFollowsModule, "useFollows").mockReturnValue({
+      followedIds: [],
+      isFollowing: vi.fn(() => false),
+      toggleFollow: vi.fn(async () => true),
+      isAuthenticated: true,
+      currentUserId: "unrelated-viewer",
+      loading: false,
+    });
+
+    await act(async () => {
+      root!.render(
+        <MemoryRouter initialEntries={["/articles/art-secret-draft"]}>
+          <AppProviders>
+            <Routes>
+              <Route path="/articles/:id" element={<ArticleView />} />
+            </Routes>
+          </AppProviders>
+        </MemoryRouter>,
+      );
+    });
+
+    for (let i = 0; i < 30; i++) {
+      if (container.textContent?.includes("記事が見つかりません")) break;
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 20));
+      });
+    }
+
+    expect(container.textContent).toContain("記事が見つかりません");
+    expect(container.textContent).not.toContain("秘密の本文");
+  });
 });
