@@ -37,6 +37,40 @@ export interface CommentHistoryItem {
   editedAt: string;
 }
 
+const COMMENTS_STORAGE_PREFIX = "quest_qlub_comments_";
+
+export function getLocalComments(articleId: string): CommentItem[] {
+  try {
+    const raw = localStorage.getItem(`${COMMENTS_STORAGE_PREFIX}${articleId}`);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function setLocalComments(articleId: string, comments: CommentItem[]): void {
+  try {
+    localStorage.setItem(`${COMMENTS_STORAGE_PREFIX}${articleId}`, JSON.stringify(comments));
+  } catch {
+    // ignore
+  }
+}
+
+export function isCommentsSchemaError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const err = error as { code?: string; message?: string };
+  return (
+    err.code === "PGRST205" ||
+    err.code === "42P01" ||
+    err.code === "42703" ||
+    (typeof err.message === "string" &&
+      (err.message.includes("article_comments") ||
+        err.message.includes("comments_enabled") ||
+        err.message.includes("Could not find the table") ||
+        err.message.includes("schema cache")))
+  );
+}
+
 interface ArticleCommentsProps {
   articleId: string;
   writerId?: string;
@@ -58,6 +92,7 @@ export function ArticleComments({
   const [content, setContent] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [isFallbackMode, setIsFallbackMode] = useState(false);
 
   // インライン編集用ステート
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
@@ -114,9 +149,23 @@ export function ArticleComments({
           updatedAt: d.updated_at || d.created_at,
         }));
         setComments(sortComments(loaded));
+        setLocalComments(articleId, loaded);
+        setIsFallbackMode(false);
+      } else if (fetchErr) {
+        const local = getLocalComments(articleId);
+        if (local.length > 0) {
+          setComments(sortComments(local));
+        }
+        if (isCommentsSchemaError(fetchErr)) {
+          setIsFallbackMode(true);
+        }
       }
     } catch {
-      // ignore
+      const local = getLocalComments(articleId);
+      if (local.length > 0) {
+        setComments(sortComments(local));
+      }
+      setIsFallbackMode(true);
     }
   }, [articleId, canViewComments, sortComments]);
 
@@ -161,21 +210,35 @@ export function ArticleComments({
 
       const res =
         typeof (insertQuery as any).select === "function"
-          ? await (insertQuery as any).select().single()
+          ? await (insertQuery as any).select().maybeSingle()
           : await insertQuery;
 
+      const nowIso = new Date().toISOString();
+
       if (res?.error) {
-        setError(
-          (res.error as { code?: string; message?: string })?.code === "PGRST205" ||
-            res.error?.message?.includes("article_comments")
-            ? "データベース更新準備中のため、現在コメントを投稿できません"
-            : "コメントの送信に失敗しました",
-        );
+        if (isCommentsSchemaError(res.error)) {
+          const newComment: CommentItem = {
+            id: `local_comment_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+            articleId,
+            authorName: displayAuthorName,
+            authorId: currentUserId,
+            content: trimmedContent,
+            isPinned: false,
+            createdAt: nowIso,
+            updatedAt: nowIso,
+          };
+          const nextComments = sortComments([...comments, newComment]);
+          setComments(nextComments);
+          setLocalComments(articleId, nextComments);
+          setContent("");
+          setIsFallbackMode(true);
+          return;
+        }
+        setError("コメントの送信に失敗しました");
         return;
       }
 
       const inserted = res?.data;
-      const nowIso = new Date().toISOString();
       const newComment: CommentItem = {
         id: inserted?.id || `comment_${Date.now()}`,
         articleId,
@@ -187,10 +250,28 @@ export function ArticleComments({
         updatedAt: inserted?.updated_at || inserted?.created_at || nowIso,
       };
 
-      setComments((prev) => sortComments([...prev, newComment]));
+      const nextComments = sortComments([...comments, newComment]);
+      setComments(nextComments);
+      setLocalComments(articleId, nextComments);
       setContent("");
+      setIsFallbackMode(false);
     } catch {
-      setError("コメントの送信に失敗しました");
+      const nowIso = new Date().toISOString();
+      const newComment: CommentItem = {
+        id: `local_comment_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        articleId,
+        authorName: displayAuthorName,
+        authorId: currentUserId,
+        content: trimmedContent,
+        isPinned: false,
+        createdAt: nowIso,
+        updatedAt: nowIso,
+      };
+      const nextComments = sortComments([...comments, newComment]);
+      setComments(nextComments);
+      setLocalComments(articleId, nextComments);
+      setContent("");
+      setIsFallbackMode(true);
     } finally {
       setSubmitting(false);
     }
@@ -217,15 +298,33 @@ export function ArticleComments({
         .eq("id", comment.id);
 
       if (pinErr) {
+        if (isCommentsSchemaError(pinErr) || comment.id.startsWith("local_")) {
+          const nextComments = sortComments(
+            comments.map((c) => (c.id === comment.id ? { ...c, isPinned: nextPinned } : c)),
+          );
+          setComments(nextComments);
+          setLocalComments(articleId, nextComments);
+          return;
+        }
         setError(pinErr.message || "ピン留めの更新に失敗しました");
         return;
       }
 
-      setComments((prev) =>
-        sortComments(prev.map((c) => (c.id === comment.id ? { ...c, isPinned: nextPinned } : c))),
+      const nextComments = sortComments(
+        comments.map((c) => (c.id === comment.id ? { ...c, isPinned: nextPinned } : c)),
       );
+      setComments(nextComments);
+      setLocalComments(articleId, nextComments);
     } catch {
-      setError("ピン留めの更新に失敗しました");
+      if (comment.id.startsWith("local_") || isFallbackMode) {
+        const nextComments = sortComments(
+          comments.map((c) => (c.id === comment.id ? { ...c, isPinned: nextPinned } : c)),
+        );
+        setComments(nextComments);
+        setLocalComments(articleId, nextComments);
+      } else {
+        setError("ピン留めの更新に失敗しました");
+      }
     }
   };
 
@@ -242,13 +341,27 @@ export function ArticleComments({
         .eq("id", comment.id);
 
       if (delErr) {
+        if (isCommentsSchemaError(delErr) || comment.id.startsWith("local_")) {
+          const nextComments = comments.filter((c) => c.id !== comment.id);
+          setComments(nextComments);
+          setLocalComments(articleId, nextComments);
+          return;
+        }
         setError("コメントの削除に失敗しました");
         return;
       }
 
-      setComments((prev) => prev.filter((c) => c.id !== comment.id));
+      const nextComments = comments.filter((c) => c.id !== comment.id);
+      setComments(nextComments);
+      setLocalComments(articleId, nextComments);
     } catch {
-      setError("コメントの削除に失敗しました");
+      if (comment.id.startsWith("local_") || isFallbackMode) {
+        const nextComments = comments.filter((c) => c.id !== comment.id);
+        setComments(nextComments);
+        setLocalComments(articleId, nextComments);
+      } else {
+        setError("コメントの削除に失敗しました");
+      }
     }
   };
 
@@ -285,16 +398,37 @@ export function ArticleComments({
         .eq("id", comment.id);
 
       if (updateErr) {
+        if (isCommentsSchemaError(updateErr) || comment.id.startsWith("local_")) {
+          const nextComments = comments.map((c) =>
+            c.id === comment.id ? { ...c, content: trimmed, updatedAt: nowIso } : c,
+          );
+          setComments(nextComments);
+          setLocalComments(articleId, nextComments);
+          setEditingCommentId(null);
+          return;
+        }
         setError("コメントの編集に失敗しました");
         return;
       }
 
-      setComments((prev) =>
-        prev.map((c) => (c.id === comment.id ? { ...c, content: trimmed, updatedAt: nowIso } : c)),
+      const nextComments = comments.map((c) =>
+        c.id === comment.id ? { ...c, content: trimmed, updatedAt: nowIso } : c,
       );
+      setComments(nextComments);
+      setLocalComments(articleId, nextComments);
       setEditingCommentId(null);
     } catch {
-      setError("コメントの編集に失敗しました");
+      if (comment.id.startsWith("local_") || isFallbackMode) {
+        const nowIso = new Date().toISOString();
+        const nextComments = comments.map((c) =>
+          c.id === comment.id ? { ...c, content: trimmed, updatedAt: nowIso } : c,
+        );
+        setComments(nextComments);
+        setLocalComments(articleId, nextComments);
+        setEditingCommentId(null);
+      } else {
+        setError("コメントの編集に失敗しました");
+      }
     }
   };
 
@@ -391,6 +525,14 @@ export function ArticleComments({
           <EyeOff className="w-4 h-4 shrink-0 text-amber-600" />
           <span>
             現在この記事のコメント機能はオフになっています。一般読者には過去のコメントも含めて非表示になっており、ライターと編集長のみが確認できます。
+          </span>
+        </div>
+      )}
+
+      {isFallbackMode && (
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700 flex items-center gap-2">
+          <span>
+            ℹ️ 現在ローカル保存モードでコメントを保持しています（ページを更新しても保持されます）。
           </span>
         </div>
       )}

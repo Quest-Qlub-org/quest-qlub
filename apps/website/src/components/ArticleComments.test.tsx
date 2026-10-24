@@ -378,4 +378,86 @@ describe("ArticleComments (DB-backed, Auth-required, Role permissions, Pinning &
 
     unmount();
   });
+
+  it("gracefully falls back to localStorage when article_comments table has schema drift (PGRST205), persisting comments across remounts", async () => {
+    mockAuth("viewer", "viewer-fallback-1", "フォールバック太郎");
+    const schemaError = {
+      code: "PGRST205",
+      message: "Could not find the table 'public.article_comments' in the schema cache",
+    };
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "article_comments") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              order: vi.fn().mockReturnValue({
+                order: vi.fn().mockResolvedValue({
+                  data: null,
+                  error: schemaError,
+                }),
+              }),
+            }),
+          }),
+          insert: vi.fn().mockReturnValue({
+            select: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: null,
+                error: schemaError,
+              }),
+            }),
+          }),
+          delete: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({
+              data: null,
+              error: schemaError,
+            }),
+          }),
+        } as any;
+      }
+      return {} as any;
+    });
+
+    const { container, unmount } = renderWithRouter(
+      <ArticleComments articleId="art-drift-99" writerId="writer-99" commentsEnabled={true} />,
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const textarea = container.querySelector("textarea") as HTMLTextAreaElement;
+    expect(textarea).not.toBeNull();
+    setNativeValue(textarea, "ローカル保存テストコメント");
+
+    const submitBtn = container.querySelector('button[type="submit"]') as HTMLButtonElement;
+    expect(submitBtn).not.toBeNull();
+
+    await act(async () => {
+      submitBtn.click();
+      await Promise.resolve();
+    });
+
+    // コメントがUIに表示され、localStorage に保存されていること
+    expect(container.textContent).toContain("ローカル保存テストコメント");
+    expect(localStorage.getItem("quest_qlub_comments_art-drift-99")).toContain(
+      "ローカル保存テストコメント",
+    );
+
+    // 画面再読み込み（アンマウント＆再マウント）後もコメントが消えずに保持されること
+    unmount();
+
+    const { container: container2, unmount: unmount2 } = renderWithRouter(
+      <ArticleComments articleId="art-drift-99" writerId="writer-99" commentsEnabled={true} />,
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container2.textContent).toContain("ローカル保存テストコメント");
+    expect(container2.textContent).toContain("ローカル保存モード");
+
+    unmount2();
+  });
 });
