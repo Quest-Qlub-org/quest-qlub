@@ -14,6 +14,36 @@ export interface FollowDetailsResult {
   followers: Profile[];
 }
 
+const FALLBACK_STORAGE_KEY_PREFIX = "quest_qlub_user_follows_";
+
+export const isUserFollowsSchemaError = (err: unknown): boolean => {
+  const e = err as { code?: string; message?: string } | null;
+  return (
+    e?.code === "PGRST205" ||
+    e?.code === "42P01" ||
+    (typeof e?.message === "string" && e.message.includes("user_follows"))
+  );
+};
+
+export const getLocalFollows = (userId: string): string[] => {
+  if (!userId || typeof window === "undefined" || !window.localStorage) return [];
+  try {
+    const raw = window.localStorage.getItem(`${FALLBACK_STORAGE_KEY_PREFIX}${userId}`);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+
+export const setLocalFollows = (userId: string, ids: string[]): void => {
+  if (!userId || typeof window === "undefined" || !window.localStorage) return;
+  try {
+    window.localStorage.setItem(`${FALLBACK_STORAGE_KEY_PREFIX}${userId}`, JSON.stringify(ids));
+  } catch {
+    // ignore
+  }
+};
+
 /**
  * すべてのアカウントのフォロー数・フォロワー数を誰でも取得できる関数
  */
@@ -35,7 +65,9 @@ export async function fetchFollowCounts(targetUserId: string): Promise<FollowCou
   } catch {
     // ignore
   }
-  return { followingCount: 0, followersCount: 0 };
+  // フォールバック: 対象アカウントのローカル保存値があればそれを反映
+  const local = getLocalFollows(targetUserId);
+  return { followingCount: local.length, followersCount: 0 };
 }
 
 /**
@@ -56,8 +88,16 @@ export async function fetchFollowDetails(
       supabase.from("user_follows").select("follower_id").eq("following_id", targetUserId),
     ]);
 
-    const followingIds: string[] = (followingRes.data || []).map((r: any) => r.following_id);
+    let followingIds: string[] = (followingRes.data || []).map((r: any) => r.following_id);
     const followerIds: string[] = (followersRes.data || []).map((r: any) => r.follower_id);
+
+    if (
+      followingIds.length === 0 &&
+      followingRes.error &&
+      isUserFollowsSchemaError(followingRes.error)
+    ) {
+      followingIds = getLocalFollows(targetUserId);
+    }
 
     const [followingProfilesRes, followerProfilesRes] = await Promise.all([
       followingIds.length > 0
@@ -107,7 +147,12 @@ export function useFollows() {
       .then(({ data, error }) => {
         if (!isMounted) return;
         if (!error && data) {
-          setFollowedIds(data.map((r: any) => r.following_id));
+          const ids = data.map((r: any) => r.following_id);
+          setFollowedIds(ids);
+          setLocalFollows(currentUserId, ids);
+        } else if (error && isUserFollowsSchemaError(error)) {
+          const localIds = getLocalFollows(currentUserId);
+          setFollowedIds(localIds);
         }
         setLoading(false);
       });
@@ -132,8 +177,12 @@ export function useFollows() {
       }
 
       const currentlyFollowing = followedIds.includes(writerId);
+      const nextFollowedIds = currentlyFollowing
+        ? followedIds.filter((id) => id !== writerId)
+        : [...followedIds, writerId];
+
       if (currentlyFollowing) {
-        setFollowedIds((prev) => prev.filter((id) => id !== writerId));
+        setFollowedIds(nextFollowedIds);
         try {
           const { error } = await supabase
             .from("user_follows")
@@ -141,30 +190,39 @@ export function useFollows() {
             .eq("follower_id", currentUserId)
             .eq("following_id", writerId);
           if (error) {
-            setFollowedIds((prev) => [...prev, writerId]);
+            if (isUserFollowsSchemaError(error)) {
+              setLocalFollows(currentUserId, nextFollowedIds);
+              return true;
+            }
+            setFollowedIds(followedIds);
             return false;
           }
         } catch {
-          setFollowedIds((prev) => [...prev, writerId]);
+          setFollowedIds(followedIds);
           return false;
         }
       } else {
-        setFollowedIds((prev) => [...prev, writerId]);
+        setFollowedIds(nextFollowedIds);
         try {
           const { error } = await supabase.from("user_follows").insert({
             follower_id: currentUserId,
             following_id: writerId,
           });
           if (error) {
-            setFollowedIds((prev) => prev.filter((id) => id !== writerId));
+            if (isUserFollowsSchemaError(error)) {
+              setLocalFollows(currentUserId, nextFollowedIds);
+              return true;
+            }
+            setFollowedIds(followedIds);
             return false;
           }
         } catch {
-          setFollowedIds((prev) => prev.filter((id) => id !== writerId));
+          setFollowedIds(followedIds);
           return false;
         }
       }
 
+      setLocalFollows(currentUserId, nextFollowedIds);
       return true;
     },
     [isAuthenticated, currentUserId, followedIds],

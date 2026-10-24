@@ -4,6 +4,7 @@ import { supabase } from "../../supabase";
 import { LogoIcon } from "../../components/icons/NavIcons";
 import { getThumbnailColor, ARTICLE_STATUS_CONFIG, mapDbArticleToArticle } from "../../types";
 import type { Article, ArticleStatus } from "../../types";
+import { ARTICLE_LIST_FIELDS } from "../../context/DataContext";
 import { ChevronLeft, Plus, Edit3, Loader2 } from "lucide-react";
 
 export const WriterDashboard = () => {
@@ -21,9 +22,7 @@ export const WriterDashboard = () => {
     try {
       const { data, error } = await supabase
         .from("articles")
-        .select(
-          "id, title, thumbnail, thumbnail_url, thumbnail_color, writer_id, views, likes, tags, is_recommended, is_popular, status, summary, series_id, episode_number, comments_enabled, created_at",
-        )
+        .select(ARTICLE_LIST_FIELDS)
         .eq("writer_id", profile.id)
         .order("created_at", { ascending: false });
 

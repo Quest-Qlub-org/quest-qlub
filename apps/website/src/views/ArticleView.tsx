@@ -26,7 +26,7 @@ export const ArticleView = () => {
     viewParam,
     seriesList,
   } = useApp();
-  const { isFollowing, toggleFollow } = useFollows();
+  const { isFollowing, toggleFollow, isAuthenticated, currentUserId } = useFollows();
 
   const articleId = paramId || viewParam;
 
@@ -309,37 +309,49 @@ export const ArticleView = () => {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={async (e) => {
-                  e.stopPropagation();
-                  const wasFollowing = isFollowing(writer.id);
-                  const ok = await toggleFollow(writer.id);
-                  if (!ok) {
-                    showToast("フォローするにはログインが必要です");
-                    void navigate("/login");
-                    return;
-                  }
-                  showToast(wasFollowing ? "フォローを解除しました" : "ライターをフォローしました");
-                }}
-                className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm ${
-                  isFollowing(writer.id)
-                    ? "bg-blue-600 text-white hover:bg-blue-700"
-                    : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-100"
-                }`}
-              >
-                {isFollowing(writer.id) ? (
-                  <>
-                    <UserCheck className="w-3.5 h-3.5" />
-                    <span>フォロー中</span>
-                  </>
-                ) : (
-                  <>
-                    <UserPlus className="w-3.5 h-3.5" />
-                    <span>フォロー</span>
-                  </>
-                )}
-              </button>
+              {currentUserId !== writer.id && (
+                <button
+                  type="button"
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    if (!isAuthenticated) {
+                      showToast("フォローするにはログインが必要です");
+                      void navigate("/login");
+                      return;
+                    }
+                    if (currentUserId === writer.id) {
+                      showToast("自分自身をフォローすることはできません");
+                      return;
+                    }
+                    const wasFollowing = isFollowing(writer.id);
+                    const ok = await toggleFollow(writer.id);
+                    if (!ok) {
+                      showToast("フォロー処理に失敗しました");
+                      return;
+                    }
+                    showToast(
+                      wasFollowing ? "フォローを解除しました" : "ライターをフォローしました",
+                    );
+                  }}
+                  className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm ${
+                    isFollowing(writer.id)
+                      ? "bg-blue-600 text-white hover:bg-blue-700"
+                      : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-100"
+                  }`}
+                >
+                  {isFollowing(writer.id) ? (
+                    <>
+                      <UserCheck className="w-3.5 h-3.5" />
+                      <span>フォロー中</span>
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="w-3.5 h-3.5" />
+                      <span>フォロー</span>
+                    </>
+                  )}
+                </button>
+              )}
               <span className="text-xs font-bold text-blue-500 bg-blue-50 px-3 py-1.5 rounded-full hidden sm:inline-block">
                 プロフィールへ
               </span>
@@ -413,7 +425,14 @@ export const ArticleView = () => {
                 nextEnabled ? "コメント機能をオンにしました" : "コメント機能をオフにしました",
               );
             } else {
-              showToast("コメント設定の更新に失敗しました");
+              if (
+                (error as { code?: string; message?: string }).code === "42703" ||
+                error.message?.includes("comments_enabled")
+              ) {
+                showToast("データベース更新準備中のため、コメント設定を変更できません");
+              } else {
+                showToast("コメント設定の更新に失敗しました");
+              }
             }
           }}
         />

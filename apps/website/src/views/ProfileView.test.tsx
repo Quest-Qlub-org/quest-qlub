@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vite-plus/test"
 import { act } from "react";
 import { ProfileView } from "./ProfileView";
 import { renderWithRouter, createTestProfile } from "../test/test-utils";
+import { ARTICLE_LIST_FIELDS } from "../context/DataContext";
 import type { Profile } from "../supabase";
 
 const mockNavigate = vi.fn();
@@ -15,6 +16,7 @@ const mockFetchFollowDetails = vi.fn();
 let mockWriter: Profile;
 let mockCurrentUser: { id: string } | null = null;
 let mockCurrentProfile: Profile | null = null;
+let mockIsAuthenticated = true;
 
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
@@ -41,21 +43,30 @@ vi.mock("../hooks/useFollows", () => ({
   useFollows: () => ({
     isFollowing: mockIsFollowing,
     toggleFollow: mockToggleFollow,
+    isAuthenticated: mockIsAuthenticated && Boolean(mockCurrentUser?.id),
+    currentUserId: mockCurrentUser?.id ?? null,
   }),
   fetchFollowCounts: (...args: unknown[]) => mockFetchFollowCounts(...args),
   fetchFollowDetails: (...args: unknown[]) => mockFetchFollowDetails(...args),
 }));
 
+let lastArticlesSelectFields = "";
+
 vi.mock("../supabase", () => ({
   supabase: {
-    from: () => ({
-      select: () => ({
-        eq: () => ({
+    from: (table: string) => ({
+      select: (fields: string) => {
+        if (table === "articles") {
+          lastArticlesSelectFields = fields;
+        }
+        return {
           eq: () => ({
-            order: () => Promise.resolve({ data: [], error: null }),
+            eq: () => ({
+              order: () => Promise.resolve({ data: [], error: null }),
+            }),
           }),
-        }),
-      }),
+        };
+      },
     }),
   },
 }));
@@ -65,6 +76,8 @@ describe("ProfileView (Follow counts and owner-only detailed lists)", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockIsAuthenticated = true;
+    mockToggleFollow.mockResolvedValue(true);
     mockWriter = createTestProfile({
       id: "writer-1",
       username: "writer-user",
@@ -194,5 +207,104 @@ describe("ProfileView (Follow counts and owner-only detailed lists)", () => {
     });
 
     expect(container.textContent).toContain("ボブ");
+  });
+
+  it("queries writer articles using ARTICLE_LIST_FIELDS without comments_enabled", async () => {
+    mockCurrentUser = null;
+    mockCurrentProfile = null;
+
+    const { unmount } = renderWithRouter(<ProfileView />);
+    unmountFn = unmount;
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(lastArticlesSelectFields).toBe(ARTICLE_LIST_FIELDS);
+    expect(lastArticlesSelectFields).not.toContain("comments_enabled");
+  });
+
+  it("allows logged-in user to follow without redirecting to login", async () => {
+    mockCurrentUser = { id: "user-2" };
+    mockCurrentProfile = createTestProfile({ id: "user-2", role: "viewer" });
+    mockIsAuthenticated = true;
+    mockToggleFollow.mockResolvedValue(true);
+
+    const { container, unmount } = renderWithRouter(<ProfileView />);
+    unmountFn = unmount;
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const followButton = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("フォロー"),
+    );
+    expect(followButton).toBeDefined();
+
+    await act(async () => {
+      followButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(mockToggleFollow).toHaveBeenCalledWith("writer-1");
+    expect(mockNavigate).not.toHaveBeenCalledWith("login");
+    expect(mockShowToast).toHaveBeenCalledWith("ライターをフォローしました");
+  });
+
+  it("redirects guest user to login when clicking follow", async () => {
+    mockCurrentUser = null;
+    mockCurrentProfile = null;
+    mockIsAuthenticated = false;
+
+    const { container, unmount } = renderWithRouter(<ProfileView />);
+    unmountFn = unmount;
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const followButton = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("フォロー"),
+    );
+    expect(followButton).toBeDefined();
+
+    await act(async () => {
+      followButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(mockToggleFollow).not.toHaveBeenCalled();
+    expect(mockNavigate).toHaveBeenCalledWith("login");
+    expect(mockShowToast).toHaveBeenCalledWith("フォローするにはログインが必要です");
+  });
+
+  it("shows error toast without redirecting to login when toggleFollow fails for logged in user", async () => {
+    mockCurrentUser = { id: "user-2" };
+    mockCurrentProfile = createTestProfile({ id: "user-2", role: "viewer" });
+    mockIsAuthenticated = true;
+    mockToggleFollow.mockResolvedValue(false);
+
+    const { container, unmount } = renderWithRouter(<ProfileView />);
+    unmountFn = unmount;
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const followButton = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("フォロー"),
+    );
+    expect(followButton).toBeDefined();
+
+    await act(async () => {
+      followButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(mockToggleFollow).toHaveBeenCalledWith("writer-1");
+    expect(mockNavigate).not.toHaveBeenCalledWith("login");
+    expect(mockShowToast).toHaveBeenCalledWith("フォロー処理に失敗しました");
   });
 });

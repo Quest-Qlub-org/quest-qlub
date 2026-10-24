@@ -46,7 +46,14 @@ export function EditorArticlesView() {
       );
       showToast(nextEnabled ? "コメント機能をオンにしました" : "コメント機能をオフにしました");
     } else {
-      showToast("コメント設定の更新に失敗しました");
+      if (
+        (error as { code?: string; message?: string }).code === "42703" ||
+        error.message?.includes("comments_enabled")
+      ) {
+        showToast("データベース更新準備中のため、コメント設定を変更できません");
+      } else {
+        showToast("コメント設定の更新に失敗しました");
+      }
     }
   };
 

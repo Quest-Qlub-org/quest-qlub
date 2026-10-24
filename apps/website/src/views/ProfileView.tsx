@@ -10,12 +10,13 @@ import { supabase } from "../supabase";
 import type { Profile } from "../supabase";
 import type { Article } from "../types";
 import { mapDbArticleToArticle } from "../types";
+import { ARTICLE_LIST_FIELDS } from "../context/DataContext";
 
 export const ProfileView = () => {
   const { username } = useParams<{ username: string }>();
   const { writers, writersLoading, articles, navigate, viewParam, showToast, profile, user } =
     useApp();
-  const { isFollowing, toggleFollow } = useFollows();
+  const { isFollowing, toggleFollow, isAuthenticated } = useFollows();
 
   const currentUserId = profile?.id || user?.id || null;
   const targetIdentifier = username || viewParam;
@@ -103,9 +104,7 @@ export const ProfileView = () => {
 
           const { data: artsData } = await supabase
             .from("articles")
-            .select(
-              "id, title, thumbnail, thumbnail_url, thumbnail_color, writer_id, views, likes, tags, is_recommended, is_popular, status, summary, series_id, episode_number, comments_enabled, created_at",
-            )
+            .select(ARTICLE_LIST_FIELDS)
             .eq("writer_id", profileData.id)
             .eq("status", "published")
             .order("created_at", { ascending: false });
@@ -224,11 +223,15 @@ export const ProfileView = () => {
             <button
               type="button"
               onClick={async () => {
+                if (!isAuthenticated) {
+                  showToast("フォローするにはログインが必要です");
+                  navigate("login");
+                  return;
+                }
                 const wasFollowing = following;
                 const ok = await toggleFollow(writer.id);
                 if (!ok) {
-                  showToast("フォローするにはログインが必要です");
-                  navigate("login");
+                  showToast("フォロー処理に失敗しました");
                   return;
                 }
                 setFollowersCount((c) => (wasFollowing ? Math.max(0, c - 1) : c + 1));

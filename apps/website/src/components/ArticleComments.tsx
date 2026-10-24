@@ -164,6 +164,16 @@ export function ArticleComments({
           ? await (insertQuery as any).select().single()
           : await insertQuery;
 
+      if (res?.error) {
+        setError(
+          (res.error as { code?: string; message?: string })?.code === "PGRST205" ||
+            res.error?.message?.includes("article_comments")
+            ? "データベース更新準備中のため、現在コメントを投稿できません"
+            : "コメントの送信に失敗しました",
+        );
+        return;
+      }
+
       const inserted = res?.data;
       const nowIso = new Date().toISOString();
       const newComment: CommentItem = {

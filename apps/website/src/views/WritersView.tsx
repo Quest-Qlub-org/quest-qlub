@@ -8,11 +8,13 @@ import { useFollows } from "../hooks/useFollows";
 const WriterRow = ({
   w,
   isFollowing,
+  currentUserId,
   onToggleFollow,
   onSelect,
 }: {
   w: Profile;
   isFollowing: boolean;
+  currentUserId?: string | null;
   onToggleFollow: (id: string) => void;
   onSelect: (usernameOrId: string) => void;
 }) => (
@@ -38,30 +40,32 @@ const WriterRow = ({
       </div>
     </div>
     <div className="flex items-center gap-3">
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          onToggleFollow(w.id);
-        }}
-        className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm ${
-          isFollowing
-            ? "bg-blue-600 text-white hover:bg-blue-700"
-            : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-100"
-        }`}
-      >
-        {isFollowing ? (
-          <>
-            <UserCheck className="w-3.5 h-3.5" />
-            <span>フォロー中</span>
-          </>
-        ) : (
-          <>
-            <UserPlus className="w-3.5 h-3.5" />
-            <span>フォロー</span>
-          </>
-        )}
-      </button>
+      {currentUserId !== w.id && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleFollow(w.id);
+          }}
+          className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm ${
+            isFollowing
+              ? "bg-blue-600 text-white hover:bg-blue-700"
+              : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-100"
+          }`}
+        >
+          {isFollowing ? (
+            <>
+              <UserCheck className="w-3.5 h-3.5" />
+              <span>フォロー中</span>
+            </>
+          ) : (
+            <>
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>フォロー</span>
+            </>
+          )}
+        </button>
+      )}
       <span className="text-sm font-bold text-gray-500 hidden sm:flex items-center">
         記事一覧 <ChevronLeft className="w-4 h-4 rotate-180 ml-1" />
       </span>
@@ -79,14 +83,22 @@ export const WritersView = () => {
     navigate,
     showToast,
   } = useApp();
-  const { isFollowing, toggleFollow } = useFollows();
+  const { isFollowing, toggleFollow, isAuthenticated, currentUserId } = useFollows();
 
   const handleToggleFollow = async (id: string) => {
+    if (!isAuthenticated) {
+      showToast("フォローするにはログインが必要です");
+      navigate("login");
+      return;
+    }
+    if (currentUserId === id) {
+      showToast("自分自身をフォローすることはできません");
+      return;
+    }
     const wasFollowing = isFollowing(id);
     const ok = await toggleFollow(id);
     if (!ok) {
-      showToast("フォローするにはログインが必要です");
-      navigate("login");
+      showToast("フォロー処理に失敗しました");
       return;
     }
     showToast(wasFollowing ? "フォローを解除しました" : "ライターをフォローしました");
@@ -122,6 +134,7 @@ export const WritersView = () => {
                     key={w.id}
                     w={w}
                     isFollowing={isFollowing(w.id)}
+                    currentUserId={currentUserId}
                     onToggleFollow={handleToggleFollow}
                     onSelect={(id) => navigate("profile", id)}
                   />
@@ -139,6 +152,7 @@ export const WritersView = () => {
                     key={w.id}
                     w={w}
                     isFollowing={isFollowing(w.id)}
+                    currentUserId={currentUserId}
                     onToggleFollow={handleToggleFollow}
                     onSelect={(id) => navigate("profile", id)}
                   />

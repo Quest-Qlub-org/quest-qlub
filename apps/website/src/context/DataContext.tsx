@@ -9,6 +9,10 @@ import { useUI } from "./UIContext";
 const ARTICLE_PAGE_SIZE = 12;
 const WRITER_PAGE_SIZE = 12;
 
+// 安全な記事一覧取得フィールド（巨大な本文 content を除外し、実DBで確実に存在するカラムのみ）
+export const ARTICLE_LIST_FIELDS =
+  "id, title, thumbnail, thumbnail_url, thumbnail_color, writer_id, views, likes, tags, is_recommended, is_popular, status, summary, series_id, episode_number, created_at";
+
 export interface DataContextType {
   // Articles
   articles: Article[];
@@ -71,9 +75,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     try {
       let res = await supabase
         .from("articles")
-        .select(
-          "id, title, thumbnail, thumbnail_url, thumbnail_color, writer_id, views, likes, tags, is_recommended, is_popular, status, summary, series_id, episode_number, comments_enabled, created_at",
-        )
+        .select(ARTICLE_LIST_FIELDS)
         .eq("status", "published")
         .order("created_at", { ascending: false })
         .range(0, ARTICLE_PAGE_SIZE - 1);
@@ -84,9 +86,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         await new Promise((r) => setTimeout(r, 200));
         res = await supabase
           .from("articles")
-          .select(
-            "id, title, thumbnail, thumbnail_url, thumbnail_color, writer_id, views, likes, tags, is_recommended, is_popular, status, summary, series_id, episode_number, comments_enabled, created_at",
-          )
+          .select(ARTICLE_LIST_FIELDS)
           .eq("status", "published")
           .order("created_at", { ascending: false })
           .range(0, ARTICLE_PAGE_SIZE - 1);
@@ -111,9 +111,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       const end = start + ARTICLE_PAGE_SIZE - 1;
       const { data, error } = await supabase
         .from("articles")
-        .select(
-          "id, title, thumbnail, thumbnail_url, thumbnail_color, writer_id, views, likes, tags, is_recommended, is_popular, status, summary, series_id, episode_number, comments_enabled, created_at",
-        )
+        .select(ARTICLE_LIST_FIELDS)
         .eq("status", "published")
         .order("created_at", { ascending: false })
         .range(start, end);

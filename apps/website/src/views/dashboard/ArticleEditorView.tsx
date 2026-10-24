@@ -38,6 +38,14 @@ export interface ArticleEditorPageProps {
   editingId: string | null;
 }
 
+const isCommentsEnabledSchemaError = (err: unknown): boolean => {
+  const e = err as { code?: string; message?: string } | null;
+  return (
+    e?.code === "42703" ||
+    (typeof e?.message === "string" && e.message.includes("comments_enabled"))
+  );
+};
+
 const ALLOWED_IMAGE_TYPES: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",
@@ -205,20 +213,27 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
     const targetId = editingArticle?.id || autoSaveIdRef.current;
 
     if (targetId) {
-      const { error } = await supabase
-        .from("articles")
-        .update({
-          title: formTitle,
-          content: formContent,
-          summary: formSummary || null,
-          tags,
-          thumbnail_color: formColor,
-          thumbnail_url: thumbnailUrl,
-          series_id: formSeriesId || null,
-          episode_number: formEpisodeNumber ? parseInt(formEpisodeNumber, 10) : null,
-          comments_enabled: formCommentsEnabled,
-        })
-        .eq("id", targetId);
+      const updatePayload: Record<string, unknown> = {
+        title: formTitle,
+        content: formContent,
+        summary: formSummary || null,
+        tags,
+        thumbnail_color: formColor,
+        thumbnail_url: thumbnailUrl,
+        series_id: formSeriesId || null,
+        episode_number: formEpisodeNumber ? parseInt(formEpisodeNumber, 10) : null,
+        comments_enabled: formCommentsEnabled,
+      };
+
+      let { error } = await supabase.from("articles").update(updatePayload).eq("id", targetId);
+
+      // comments_enabled 列未存在時は除外して自動再試行
+      if (error && isCommentsEnabledSchemaError(error)) {
+        const { comments_enabled: _, ...safePayload } = updatePayload;
+        const retryRes = await supabase.from("articles").update(safePayload).eq("id", targetId);
+        error = retryRes.error;
+      }
+
       if (!error) {
         setArticles((prev) =>
           prev.map((a) =>
@@ -251,27 +266,33 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
         showToast("エラーが発生しました。もう一度お試しください。");
       }
     } else {
-      const { data, error } = await supabase
-        .from("articles")
-        .insert({
-          title: formTitle,
-          content: formContent,
-          summary: formSummary || null,
-          tags,
-          thumbnail_color: formColor,
-          thumbnail_url: thumbnailUrl,
-          writer_id: currentUserId,
-          status: "draft",
-          views: 0,
-          likes: 0,
-          is_recommended: false,
-          is_popular: false,
-          series_id: formSeriesId || null,
-          episode_number: formEpisodeNumber ? parseInt(formEpisodeNumber, 10) : null,
-          comments_enabled: formCommentsEnabled,
-        })
-        .select()
-        .single();
+      const insertPayload: Record<string, unknown> = {
+        title: formTitle,
+        content: formContent,
+        summary: formSummary || null,
+        tags,
+        thumbnail_color: formColor,
+        thumbnail_url: thumbnailUrl,
+        writer_id: currentUserId,
+        status: "draft",
+        views: 0,
+        likes: 0,
+        is_recommended: false,
+        is_popular: false,
+        series_id: formSeriesId || null,
+        episode_number: formEpisodeNumber ? parseInt(formEpisodeNumber, 10) : null,
+        comments_enabled: formCommentsEnabled,
+      };
+
+      let { data, error } = await supabase.from("articles").insert(insertPayload).select().single();
+
+      // comments_enabled 列未存在時は除外して自動再試行
+      if (error && isCommentsEnabledSchemaError(error)) {
+        const { comments_enabled: _, ...safePayload } = insertPayload;
+        const retryRes = await supabase.from("articles").insert(safePayload).select().single();
+        data = retryRes.data;
+        error = retryRes.error;
+      }
       if (!error && data) {
         autoSaveIdRef.current = data.id;
         setArticles((prev) => [
@@ -343,42 +364,53 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
     if (!isDirty || !formTitle.trim()) return;
     const timer = setTimeout(async () => {
       if (autoSaveIdRef.current) {
-        await supabase
+        const updatePayload: Record<string, unknown> = {
+          title: formTitle,
+          content: formContent,
+          summary: formSummary || null,
+          tags,
+          thumbnail_color: formColor,
+          thumbnail_url: thumbnailUrl,
+          series_id: formSeriesId || null,
+          episode_number: formEpisodeNumber ? parseInt(formEpisodeNumber, 10) : null,
+          comments_enabled: formCommentsEnabled,
+        };
+        const { error } = await supabase
           .from("articles")
-          .update({
-            title: formTitle,
-            content: formContent,
-            summary: formSummary || null,
-            tags,
-            thumbnail_color: formColor,
-            thumbnail_url: thumbnailUrl,
-            series_id: formSeriesId || null,
-            episode_number: formEpisodeNumber ? parseInt(formEpisodeNumber, 10) : null,
-            comments_enabled: formCommentsEnabled,
-          })
+          .update(updatePayload)
           .eq("id", autoSaveIdRef.current);
+        if (error && isCommentsEnabledSchemaError(error)) {
+          const { comments_enabled: _, ...safePayload } = updatePayload;
+          await supabase.from("articles").update(safePayload).eq("id", autoSaveIdRef.current);
+        }
       } else {
-        const { data } = await supabase
+        const insertPayload: Record<string, unknown> = {
+          title: formTitle,
+          content: formContent,
+          summary: formSummary || null,
+          tags,
+          thumbnail_color: formColor,
+          thumbnail_url: thumbnailUrl,
+          writer_id: currentUserId,
+          status: "draft",
+          views: 0,
+          likes: 0,
+          is_recommended: false,
+          is_popular: false,
+          series_id: formSeriesId || null,
+          episode_number: formEpisodeNumber ? parseInt(formEpisodeNumber, 10) : null,
+          comments_enabled: formCommentsEnabled,
+        };
+        let { data, error } = await supabase
           .from("articles")
-          .insert({
-            title: formTitle,
-            content: formContent,
-            summary: formSummary || null,
-            tags,
-            thumbnail_color: formColor,
-            thumbnail_url: thumbnailUrl,
-            writer_id: currentUserId,
-            status: "draft",
-            views: 0,
-            likes: 0,
-            is_recommended: false,
-            is_popular: false,
-            series_id: formSeriesId || null,
-            episode_number: formEpisodeNumber ? parseInt(formEpisodeNumber, 10) : null,
-            comments_enabled: formCommentsEnabled,
-          })
+          .insert(insertPayload)
           .select()
           .single();
+        if (error && isCommentsEnabledSchemaError(error)) {
+          const { comments_enabled: _, ...safePayload } = insertPayload;
+          const retryRes = await supabase.from("articles").insert(safePayload).select().single();
+          data = retryRes.data;
+        }
         if (data) {
           autoSaveIdRef.current = data.id;
           setArticles((prev) => [

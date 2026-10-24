@@ -179,4 +179,154 @@ describe("useFollows hook & follow privacy rules", () => {
     expect(ownDetails.following.map((p) => p.id)).toEqual(["writer-1"]);
     expect(ownDetails.followers.map((p) => p.id)).toEqual(["user-2"]);
   });
+
+  it("prevents user from following themselves and returns false", async () => {
+    vi.spyOn(AuthContextModule, "useAuth").mockReturnValue({
+      user: { id: "user-1", email: "u1@example.com" } as any,
+      profile: createTestProfile({ id: "user-1", role: "viewer" }),
+      setProfile: vi.fn(),
+      userRole: "viewer",
+      setUserRole: vi.fn(),
+      authLoading: false,
+      mfaChallengeRequired: false,
+      setMfaChallengeRequired: vi.fn(),
+      refreshProfile: vi.fn(),
+    });
+
+    const root = createRoot(container);
+    await act(async () => {
+      root.render(<HookTester />);
+      await Promise.resolve();
+    });
+
+    let res: boolean | undefined;
+    await act(async () => {
+      res = await currentHook.toggleFollow("user-1");
+    });
+
+    expect(res).toBe(false);
+    expect(currentHook.isFollowing("user-1")).toBe(false);
+    root.unmount();
+  });
+
+  it("falls back to localStorage when user_follows table is missing (PGRST205 schema drift)", async () => {
+    // 欠損テーブルエラー (PGRST205) を模倣
+    const schemaError = {
+      code: "PGRST205",
+      message: "Could not find the table 'public.user_follows' in the schema cache",
+    };
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "user_follows") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({
+              data: null,
+              error: schemaError,
+            }),
+          }),
+          insert: vi.fn().mockResolvedValue({
+            data: null,
+            error: schemaError,
+          }),
+          delete: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue({
+                data: null,
+                error: schemaError,
+              }),
+            }),
+          }),
+        } as any;
+      }
+      if (table === "profiles") {
+        return {
+          select: vi.fn().mockReturnValue({
+            in: vi.fn().mockImplementation(async (_col: string, ids: string[]) => ({
+              data: ids.map((id) =>
+                createTestProfile({ id, display_name: `プロフィール_${id}`, username: id }),
+              ),
+              error: null,
+            })),
+          }),
+        } as any;
+      }
+      return {} as any;
+    });
+
+    // RPC get_follow_counts も失敗する状態を模倣
+    vi.spyOn(supabase, "rpc").mockImplementation(((fnName: string) => {
+      if (fnName === "get_follow_counts") {
+        return Promise.resolve({
+          data: null,
+          error: { code: "42883", message: "function get_follow_counts does not exist" },
+        });
+      }
+      return Promise.resolve({ data: null, error: null });
+    }) as any);
+
+    vi.spyOn(AuthContextModule, "useAuth").mockReturnValue({
+      user: { id: "user-fallback", email: "fallback@example.com" } as any,
+      profile: createTestProfile({ id: "user-fallback", role: "viewer" }),
+      setProfile: vi.fn(),
+      userRole: "viewer",
+      setUserRole: vi.fn(),
+      authLoading: false,
+      mfaChallengeRequired: false,
+      setMfaChallengeRequired: vi.fn(),
+      refreshProfile: vi.fn(),
+    });
+
+    const root = createRoot(container);
+    await act(async () => {
+      root.render(<HookTester />);
+      await Promise.resolve();
+    });
+
+    expect(currentHook.followedIds).toEqual([]);
+
+    // user_follows テーブルが存在しなくても toggleFollow が成功 (true) し、localStorage に保存されること
+    let res: boolean | undefined;
+    await act(async () => {
+      res = await currentHook.toggleFollow("writer-drift");
+    });
+
+    expect(res).toBe(true);
+    expect(currentHook.isFollowing("writer-drift")).toBe(true);
+    expect(
+      JSON.parse(window.localStorage.getItem("quest_qlub_user_follows_user-fallback") || "[]"),
+    ).toEqual(["writer-drift"]);
+
+    // 再マウント時も localStorage から復元されること
+    root.unmount();
+    const root2 = createRoot(container);
+    await act(async () => {
+      root2.render(<HookTester />);
+      await Promise.resolve();
+    });
+
+    expect(currentHook.isFollowing("writer-drift")).toBe(true);
+    expect(currentHook.followedIds).toEqual(["writer-drift"]);
+
+    // fetchFollowCounts もローカル保存値をフォールバック反映すること
+    const counts = await fetchFollowCounts("user-fallback");
+    expect(counts.followingCount).toBe(1);
+
+    // fetchFollowDetails もローカル保存値から対象プロフィールを取得できること
+    const details = await fetchFollowDetails("user-fallback", "user-fallback");
+    expect(details.allowed).toBe(true);
+    expect(details.following.map((p) => p.id)).toEqual(["writer-drift"]);
+
+    // フォロー解除も localStorage に反映され成功すること
+    await act(async () => {
+      res = await currentHook.toggleFollow("writer-drift");
+    });
+    expect(res).toBe(true);
+    expect(currentHook.isFollowing("writer-drift")).toBe(false);
+    expect(
+      JSON.parse(window.localStorage.getItem("quest_qlub_user_follows_user-fallback") || "[]"),
+    ).toEqual([]);
+
+    root2.unmount();
+  });
 });

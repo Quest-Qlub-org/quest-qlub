@@ -78,6 +78,11 @@ DB の `supabase_migrations.schema_migrations` に記録済みのバージョン
     - `article_comments` への `is_pinned`（ライターのみ・最大3件トリガー検証）および `updated_at` 追加、ログイン必須化。
     - `comment_edit_history` テーブルと自動履歴記録トリガーの追加（全ユーザーが編集履歴を閲覧可能）。
     - `user_follows` テーブルの作成、全ユーザー公開用カウント集計RPC `get_follow_counts(uuid)`、および本人限定の詳細一覧SELECT RLSポリシーの設定。
+  - **クライアント側スキーマ耐障害性（Graceful Degradation）**:
+    - 本マイグレーション適用までの間、`comments_enabled` 列が存在しないことによる PostgREST 42703 エラーで記事一覧が非表示になる問題を恒久回避するため、`DataContext`, `ProfileView`, `WriterDashboard` では共通の安全なカラム定義（`ARTICLE_LIST_FIELDS`）を採用。
+    - `ArticleEditorView` での保存・更新時には、DB側で `comments_enabled` が未存在の場合（42703）に自動で除外リトライする多層防御フォールバックを組み込み、未適用・適用後の両方でシームレスに動作する互換性を担保。
+    - `user_follows` テーブルおよび `get_follow_counts` 関数が未適用の状態（PGRST205 / 42P01 / 42883）でも、`useFollows` フックがアカウント別の `localStorage`（`quest_qlub_user_follows_${currentUserId}`）へ透過的にフォールバック。ログイン済みユーザーがフォロー操作を行ってもエラーで弾かれたり `/login` に強制リダイレクトされることなく、安全にフォロー状態が維持されるクライアント耐障害性を担保。
+    - 各画面（`ArticleView`, `ProfileView`, `WritersView`）において、フォローボタン押下時の未認証判定（`!isAuthenticated`）と実行失敗判定（`!ok`）を明確に分離。ログイン済みユーザーの操作失敗を「未ログイン」と誤認して `/login` に飛ばす挙動を根本解消するとともに、著者本人による自己フォロー操作の抑止（ボタン非表示および警告通知）を徹底。
 
 ## セキュリティ強化（コード・Edge Function）
 
