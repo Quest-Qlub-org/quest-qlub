@@ -4,6 +4,7 @@ import type { User } from "@supabase/supabase-js";
 import type { Profile } from "../supabase";
 import type { Article, Series } from "../types";
 import { AuthProvider, useAuth } from "./AuthContext";
+import type { UserRole } from "./AuthContext";
 import { UIProvider, useUI } from "./UIContext";
 import { DataProvider, useData } from "./DataContext";
 
@@ -16,8 +17,8 @@ export interface AppContextType {
   user: User | null;
   profile: Profile | null;
   setProfile: React.Dispatch<React.SetStateAction<Profile | null>>;
-  userRole: "guest" | "viewer" | "writer" | "editor";
-  setUserRole: React.Dispatch<React.SetStateAction<"guest" | "viewer" | "writer" | "editor">>;
+  userRole: UserRole;
+  setUserRole: React.Dispatch<React.SetStateAction<UserRole>>;
   authLoading: boolean;
   mfaChallengeRequired: boolean;
   setMfaChallengeRequired: React.Dispatch<React.SetStateAction<boolean>>;
@@ -36,6 +37,10 @@ export interface AppContextType {
   hasMoreWriters: boolean;
   loadingMoreWriters: boolean;
   loadMoreWriters: () => Promise<void>;
+  teamMembers: Profile[];
+  setTeamMembers: React.Dispatch<React.SetStateAction<Profile[]>>;
+  teamMembersLoading: boolean;
+  refreshTeamMembers: () => Promise<void>;
   articles: Article[];
   setArticles: React.Dispatch<React.SetStateAction<Article[]>>;
   articlesLoading: boolean;
@@ -89,6 +94,7 @@ const VIEW_TO_PATH_MAP: Record<string, (param?: string | null) => string> = {
   editorArticles: () => "/editor-dash/articles",
   editorRecommend: () => "/editor-dash/recommend",
   editorWriters: () => "/editor-dash/writers",
+  editorApplications: () => "/editor-dash/applications",
   login: () => "/login",
   register: () => "/register",
   forgotPassword: () => "/forgot-password",
@@ -138,6 +144,10 @@ export function useApp(): AppContextType {
     hasMoreWriters: data.hasMoreWriters,
     loadingMoreWriters: data.loadingMoreWriters,
     loadMoreWriters: data.loadMoreWriters,
+    teamMembers: data.teamMembers,
+    setTeamMembers: data.setTeamMembers,
+    teamMembersLoading: data.teamMembersLoading,
+    refreshTeamMembers: data.refreshTeamMembers,
 
     articles: data.articles,
     setArticles: data.setArticles,

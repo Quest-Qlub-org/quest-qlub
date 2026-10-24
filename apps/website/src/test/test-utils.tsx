@@ -32,6 +32,7 @@ export function createTestArticle(overrides?: Partial<Article>): Article {
     seriesId: null,
     episodeNumber: null,
     commentsEnabled: true,
+    createdAt: "2026-03-01T00:00:00Z",
     ...overrides,
   };
 }
@@ -40,10 +41,12 @@ export function createTestArticle(overrides?: Partial<Article>): Article {
  * テスト用の Profile オブジェクトを生成するファクトリ関数
  */
 export function createTestProfile(overrides?: Partial<Profile>): Profile {
+  const role = overrides?.role ?? "writer";
   return {
     id: "writer-1",
     email: "writer@example.com",
-    role: "writer",
+    role,
+    roles: overrides?.roles ?? [role],
     display_name: "テストライター",
     username: "testwriter",
     avatar_url: null,

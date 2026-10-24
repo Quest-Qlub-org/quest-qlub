@@ -184,4 +184,79 @@ describe("DataContext", () => {
     // カラムが存在しない場合でも commentsEnabled は true にデフォルト設定される
     expect(dataState.articles[0].commentsEnabled).toBe(true);
   });
+
+  it("fetches team members and filters out pure viewer accounts", async () => {
+    const mockProfiles = [
+      createTestProfile({
+        id: "p-editor",
+        role: "editor",
+        roles: ["editor"],
+        display_name: "編集長A",
+      }),
+      createTestProfile({
+        id: "p-writer",
+        role: "writer",
+        roles: ["writer", "engineer"],
+        display_name: "エンジニア兼ライターB",
+      }),
+      createTestProfile({
+        id: "p-viewer",
+        role: "viewer",
+        roles: ["viewer"],
+        display_name: "一般読者C",
+      }),
+    ];
+
+    const createQueryChain = (data: any[] = []) => {
+      const chain: any = {
+        select: vi.fn(() => chain),
+        eq: vi.fn(() => chain),
+        in: vi.fn(() => chain),
+        order: vi.fn(() => Promise.resolve({ data, error: null })),
+        range: vi.fn(() => Promise.resolve({ data, error: null })),
+      };
+      return chain;
+    };
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "profiles") {
+        return createQueryChain(mockProfiles);
+      }
+      return createQueryChain([]);
+    });
+
+    const mockAuthContextValue = {
+      user: null,
+      profile: null,
+      setProfile: vi.fn(),
+      userRole: "guest" as const,
+      setUserRole: vi.fn(),
+      authLoading: false,
+      mfaChallengeRequired: false,
+      setMfaChallengeRequired: vi.fn(),
+      refreshProfile: vi.fn(),
+    };
+
+    let dataState!: ReturnType<typeof useData>;
+    const TestConsumer = () => {
+      dataState = useData();
+      return <div>Team count: {dataState.teamMembers.length}</div>;
+    };
+
+    await act(async () => {
+      root!.render(
+        <AuthContext.Provider value={mockAuthContextValue}>
+          <UIProvider>
+            <DataProvider>
+              <TestConsumer />
+            </DataProvider>
+          </UIProvider>
+        </AuthContext.Provider>,
+      );
+    });
+
+    // 一般読者C は除外され、編集長A と エンジニア兼ライターB の2名のみ抽出される
+    expect(dataState.teamMembers.length).toBe(2);
+    expect(dataState.teamMembers.map((m) => m.id)).toEqual(["p-editor", "p-writer"]);
+  });
 });

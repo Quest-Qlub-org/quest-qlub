@@ -77,6 +77,11 @@ const EditorRecommendView = lazy(() =>
 const EditorWritersView = lazy(() =>
   import("./views/dashboard/EditorWritersView").then((m) => ({ default: m.EditorWritersView })),
 );
+const EditorApplicationsView = lazy(() =>
+  import("./views/dashboard/EditorApplicationsView").then((m) => ({
+    default: m.EditorApplicationsView,
+  })),
+);
 
 // Types & Utilities export for backward compatibility & tests
 export type { Series, Article } from "./types";
@@ -111,6 +116,8 @@ export function parseLocation(pathname: string): { currentView: string; viewPara
   if (pathname === "/editor-dash/recommend")
     return { currentView: "editorRecommend", viewParam: null };
   if (pathname === "/editor-dash/writers") return { currentView: "editorWriters", viewParam: null };
+  if (pathname === "/editor-dash/applications")
+    return { currentView: "editorApplications", viewParam: null };
   if (pathname === "/login") return { currentView: "login", viewParam: null };
   if (pathname === "/register") return { currentView: "register", viewParam: null };
   if (pathname === "/forgot-password") return { currentView: "forgotPassword", viewParam: null };
@@ -238,6 +245,14 @@ export default function App() {
             element={
               <RoleRoute requiredRole="editor">
                 <EditorWritersView />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/editor-dash/applications"
+            element={
+              <RoleRoute requiredRole="editor">
+                <EditorApplicationsView />
               </RoleRoute>
             }
           />

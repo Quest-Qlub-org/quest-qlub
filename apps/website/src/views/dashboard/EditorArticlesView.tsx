@@ -57,6 +57,34 @@ export function EditorArticlesView() {
     }
   };
 
+  const handleToggleStatus = async (article: Article) => {
+    const nextStatus: ArticleStatus = article.status === "published" ? "draft" : "published";
+    const promptMsg =
+      nextStatus === "draft"
+        ? `「${article.title}」を非公開（下書き）にしますか？`
+        : `「${article.title}」を公開しますか？`;
+    if (!confirm(promptMsg)) return;
+
+    const { error } = await supabase
+      .from("articles")
+      .update({ status: nextStatus })
+      .eq("id", article.id);
+
+    if (!error) {
+      setArticles((prev) =>
+        prev.map((a) => (a.id === article.id ? { ...a, status: nextStatus } : a)),
+      );
+      setGlobalArticles((prev) =>
+        prev.map((a) => (a.id === article.id ? { ...a, status: nextStatus } : a)),
+      );
+      showToast(
+        nextStatus === "published" ? "記事を公開しました" : "記事を非公開（下書き）にしました",
+      );
+    } else {
+      showToast("ステータス変更に失敗しました");
+    }
+  };
+
   const getStatusConfig = (s: string) =>
     ARTICLE_STATUS_CONFIG[s as ArticleStatus] ?? ARTICLE_STATUS_CONFIG.draft;
 
@@ -97,6 +125,18 @@ export function EditorArticlesView() {
                       </span>
                     </button>
                     <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => void handleToggleStatus(a)}
+                        className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-colors ${
+                          a.status === "published"
+                            ? "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
+                            : "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100"
+                        }`}
+                        title={a.status === "published" ? "下書きに戻す（非公開）" : "公開する"}
+                      >
+                        {a.status === "published" ? "非公開" : "公開"}
+                      </button>
                       <button
                         type="button"
                         onClick={() => void handleToggleComments(a)}

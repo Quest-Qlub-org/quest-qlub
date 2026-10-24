@@ -2,8 +2,9 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "../supabase";
 import type { Profile } from "../supabase";
+import { getPrimaryRole } from "../utils/roles";
 
-export type UserRole = "guest" | "viewer" | "writer" | "editor";
+export type UserRole = "guest" | "viewer" | "writer" | "editor" | "engineer";
 
 export interface AuthContextType {
   user: User | null;
@@ -32,19 +33,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     userMetadata?: Record<string, unknown>,
   ): Promise<{ profile: Profile; role: UserRole }> => {
     try {
+      let profileData: Profile | null = null;
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, role, display_name, username, x_account, avatar_url, bio, created_at")
+        .select("id, role, roles, display_name, username, x_account, avatar_url, bio, created_at")
         .eq("id", userId)
         .maybeSingle();
 
       if (!error && data) {
+        profileData = data as unknown as Profile;
+      } else if (error && (error.code === "42703" || error.message?.includes("roles"))) {
+        const retryRes = await supabase
+          .from("profiles")
+          .select("id, role, display_name, username, x_account, avatar_url, bio, created_at")
+          .eq("id", userId)
+          .maybeSingle();
+        if (!retryRes.error && retryRes.data) {
+          profileData = retryRes.data as unknown as Profile;
+        }
+      }
+
+      if (profileData) {
+        const profileRoles =
+          Array.isArray(profileData.roles) && profileData.roles.length > 0
+            ? profileData.roles
+            : profileData.role
+              ? [profileData.role]
+              : [];
+        const derivedRole =
+          (getPrimaryRole(profileRoles) as UserRole) || (profileData.role as UserRole) || "viewer";
         return {
           profile: {
-            ...data,
+            ...profileData,
+            roles: profileRoles,
             email: email || user?.email || "",
           },
-          role: (data.role as UserRole) || "viewer",
+          role: derivedRole,
         };
       }
     } catch (e) {
@@ -56,6 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       id: userId,
       email: email || user?.email || "",
       role: "viewer",
+      roles: ["viewer"],
       display_name:
         (userMetadata?.display_name as string) ||
         (userMetadata?.name as string) ||

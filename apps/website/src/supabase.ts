@@ -55,15 +55,17 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
-export type UserRole = "viewer" | "writer" | "editor";
+export type UserRole = "viewer" | "writer" | "editor" | "engineer";
 
 export interface Profile {
   id: string;
   email?: string;
   role: UserRole;
+  roles?: string[];
   display_name: string | null;
   username: string | null;
   avatar_url: string | null;
   bio?: string | null;
   x_account?: string | null;
+  created_at?: string | null;
 }

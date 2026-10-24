@@ -84,6 +84,18 @@ DB の `supabase_migrations.schema_migrations` に記録済みのバージョン
     - `user_follows` テーブルおよび `get_follow_counts` 関数が未適用の状態（PGRST205 / 42P01 / 42883）でも、`useFollows` フックがアカウント別の `localStorage`（`quest_qlub_user_follows_${currentUserId}`）へ透過的にフォールバック。ログイン済みユーザーがフォロー操作を行ってもエラーで弾かれたり `/login` に強制リダイレクトされることなく、安全にフォロー状態が維持されるクライアント耐障害性を担保。
     - 各画面（`ArticleView`, `ProfileView`, `WritersView`）において、フォローボタン押下時の未認証判定（`!isAuthenticated`）と実行失敗判定（`!ok`）を明確に分離。ログイン済みユーザーの操作失敗を「未ログイン」と誤認して `/login` に飛ばす挙動を根本解消するとともに、著者本人による自己フォロー操作の抑止（ボタン非表示および警告通知）を徹底。
 
+- `20261024070000_add_profile_roles_array.sql`（未適用・次回デプロイ / Issue #54）
+  - **プロフィール複数ロール対応（roles配列列と管理RPC）**:
+    - `public.profiles` に `roles text[] DEFAULT '{}'::text[]` を追加し、1アカウントに複数のロール（例: 編集長 + エンジニア、ライター + エンジニア）を付与可能に拡張。
+    - `anon`, `authenticated` に `roles` 列の SELECT 権限を付与（公開プロフィールおよび `/about` での表示用）。
+    - 編集長専用の複数ロール一括更新RPC `admin_set_user_roles(target_user_id text, new_roles text[])` を新設（最後の編集長アカウント降格防止チェック付き、下位互換のため既存 `role` 列も主ロールとして自動同期）。
+    - 既存の `admin_change_user_role`, `admin_promote_writer`, `admin_get_all_profiles` を `roles` 配列と同期するよう拡張。
+    - `check_is_editor()` 関数およびトリガー `prevent_self_role_escalation`, `enforce_profile_initial_role` を更新し、`roles` 配列による権限昇格の不正試行を DB トリガー層で防御。
+  - **クライアント側スキーマ耐障害性（Graceful Degradation）**:
+    - `roles` カラムが DB 未適用の環境（42703 エラー）でも、`AuthContext`, `DataContext` (`fetchWriters`, `loadMoreWriters`, `fetchTeamMembers`), `ProfileView`, `EditorWritersView` のすべてで自動除外リトライと単一 `role` カラムへのフォールバック（`getProfileRoles`）を整備。
+    - `admin_set_user_roles` RPC が未定義（42883 エラー）の場合でも、`EditorWritersView` が即座に従来の `admin_change_user_role` へ自動フォールバック。
+    - `/about`（`AboutView`）では、ハードコードされていたメンバー一覧を廃止し、取得したロール情報から「編集長」「ライター」「エンジニア」「その他カスタムロール」へ動的分類して自動反映。複数ロールを持つメンバー（例: ライター兼エンジニアの「るーと」）は該当するすべてのセクションへ重複して自動掲載される。
+
 ## セキュリティ強化（コード・Edge Function）
 
 - **S4**: `send-contact-email` の CORS 許可リストを厳格化。任意の `*.vercel.app`

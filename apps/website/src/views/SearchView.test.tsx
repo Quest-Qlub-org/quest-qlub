@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vite-plus/test";
 import { createRoot } from "react-dom/client";
 import { act } from "react";
+import { MemoryRouter } from "react-router-dom";
 import { SearchView } from "./SearchView";
 import * as AppContextModule from "../context/AppContext";
 import { createTestArticle, createTestProfile, setNativeValue } from "../test/test-utils";
@@ -46,6 +47,16 @@ describe("SearchView", () => {
     } as unknown as ReturnType<typeof AppContextModule.useApp>);
   }
 
+  function renderSearchView(initialRoute = "/search") {
+    act(() => {
+      root!.render(
+        <MemoryRouter initialEntries={[initialRoute]}>
+          <SearchView />
+        </MemoryRouter>,
+      );
+    });
+  }
+
   it("renders search input, tags, and writers initially without results area", () => {
     const writer = createTestProfile({ id: "w-1", display_name: "ライター1" });
     const article1 = createTestArticle({
@@ -58,9 +69,7 @@ describe("SearchView", () => {
 
     setupAppMock({ articles: [article1], writers: [writer] });
 
-    act(() => {
-      root!.render(<SearchView />);
-    });
+    renderSearchView();
 
     // 検索入力、タグ、ライター選択が表示されていること
     expect(container.querySelector('input[placeholder="キーワードで検索"]')).not.toBeNull();
@@ -92,9 +101,7 @@ describe("SearchView", () => {
 
     setupAppMock({ articles: [article1, article2], writers: [writer] });
 
-    act(() => {
-      root!.render(<SearchView />);
-    });
+    renderSearchView();
 
     const searchInput = container.querySelector(
       'input[placeholder="キーワードで検索"]',
@@ -155,9 +162,7 @@ describe("SearchView", () => {
       writers: [writerScience, writerHistory],
     });
 
-    act(() => {
-      root!.render(<SearchView />);
-    });
+    renderSearchView();
 
     // 「#理科」タグボタンをクリック
     const buttons = Array.from(container.querySelectorAll("button"));
@@ -194,9 +199,7 @@ describe("SearchView", () => {
 
     setupAppMock({ articles: [article], writers: [] });
 
-    act(() => {
-      root!.render(<SearchView />);
-    });
+    renderSearchView();
 
     const searchInput = container.querySelector(
       'input[placeholder="キーワードで検索"]',
@@ -208,5 +211,58 @@ describe("SearchView", () => {
 
     expect(container.textContent).toContain("検索結果 (0件)");
     expect(container.textContent).toContain("該当する記事が見つかりませんでした");
+  });
+
+  it("does not show tags from draft or pending articles in candidate tags", () => {
+    const publishedArticle = createTestArticle({
+      id: "pub-1",
+      title: "公開済み記事",
+      tags: ["公開タグ"],
+      status: "published",
+    });
+    const draftArticle = createTestArticle({
+      id: "draft-1",
+      title: "下書き記事",
+      tags: ["秘密の下書きタグ"],
+      status: "draft",
+    });
+    const pendingArticle = createTestArticle({
+      id: "pending-1",
+      title: "申請中記事",
+      tags: ["未承認タグ"],
+      status: "pending",
+    });
+
+    setupAppMock({ articles: [publishedArticle, draftArticle, pendingArticle], writers: [] });
+
+    renderSearchView();
+
+    expect(container.textContent).toContain("#公開タグ");
+    expect(container.textContent).not.toContain("#秘密の下書きタグ");
+    expect(container.textContent).not.toContain("#未承認タグ");
+  });
+
+  it("automatically selects tag and filters articles when tag is in URL query parameters", () => {
+    const publishedArticle1 = createTestArticle({
+      id: "pub-math",
+      title: "楽しい数学の世界",
+      tags: ["数学"],
+      status: "published",
+    });
+    const publishedArticle2 = createTestArticle({
+      id: "pub-history",
+      title: "歴史の謎",
+      tags: ["歴史"],
+      status: "published",
+    });
+
+    setupAppMock({ articles: [publishedArticle1, publishedArticle2], writers: [] });
+
+    renderSearchView("/search?tag=%E6%95%B0%E5%AD%A6");
+
+    // 検索結果に「楽しい数学の世界」が表示され、「歴史の謎」は表示されない
+    expect(container.textContent).toContain("検索結果 (1件)");
+    expect(container.textContent).toContain("楽しい数学の世界");
+    expect(container.textContent).not.toContain("歴史の謎");
   });
 });

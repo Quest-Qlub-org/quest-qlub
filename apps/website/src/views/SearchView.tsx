@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { CustomUserIcon, CustomSearchIcon } from "../components/icons/NavIcons";
 import { MOCK_TAGS } from "../types";
@@ -8,13 +9,32 @@ import { parseSearchKeywords, matchKeywords } from "../utils/normalizeJapanese";
 
 export const SearchView = () => {
   const { articles, writers } = useApp();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const [keyword, setKeyword] = useState("");
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const urlTag = searchParams.get("tag");
+  const urlQ = searchParams.get("q") || searchParams.get("keyword");
+
+  const [keyword, setKeyword] = useState(() => urlQ || "");
+  const [selectedTags, setSelectedTags] = useState<string[]>(() => (urlTag ? [urlTag] : []));
   const [selectedWriterIds, setSelectedWriterIds] = useState<string[]>([]);
 
+  useEffect(() => {
+    if (urlTag) {
+      setSelectedTags([urlTag]);
+    }
+  }, [urlTag]);
+
+  useEffect(() => {
+    if (urlQ) {
+      setKeyword(urlQ);
+    }
+  }, [urlQ]);
+
   const displayTags = useMemo(() => {
-    const allTags = Array.from(new Set(articles.flatMap((a) => a.tags ?? []))).filter(Boolean);
+    const publishedArticles = articles.filter((a) => a.status === "published");
+    const allTags = Array.from(new Set(publishedArticles.flatMap((a) => a.tags ?? []))).filter(
+      Boolean,
+    );
     return allTags.length > 0 ? allTags : MOCK_TAGS;
   }, [articles]);
 
@@ -47,13 +67,40 @@ export const SearchView = () => {
   }, [articles, writers, queryKeywords, selectedTags, selectedWriterIds]);
 
   const toggleTag = (tag: string) =>
-    setSelectedTags((prev) =>
-      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
-    );
+    setSelectedTags((prev) => {
+      const next = prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag];
+      if (searchParams.get("tag") === tag && !next.includes(tag)) {
+        const nextParams = new URLSearchParams(searchParams);
+        nextParams.delete("tag");
+        setSearchParams(nextParams, { replace: true });
+      }
+      return next;
+    });
+
   const toggleWriter = (id: string) =>
     setSelectedWriterIds((prev) =>
       prev.includes(id) ? prev.filter((w) => w !== id) : [...prev, id],
     );
+
+  const handleClearKeyword = () => {
+    setKeyword("");
+    if (searchParams.has("q") || searchParams.has("keyword")) {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete("q");
+      nextParams.delete("keyword");
+      setSearchParams(nextParams, { replace: true });
+    }
+  };
+
+  const handleResetFilters = () => {
+    setKeyword("");
+    setSelectedTags([]);
+    setSelectedWriterIds([]);
+    if (searchParams.toString()) {
+      setSearchParams({}, { replace: true });
+    }
+  };
+
   const hasFilter = keyword || selectedTags.length > 0 || selectedWriterIds.length > 0;
 
   return (
@@ -73,7 +120,7 @@ export const SearchView = () => {
             </div>
             {keyword && (
               <button
-                onClick={() => setKeyword("")}
+                onClick={handleClearKeyword}
                 className="absolute right-3 top-4 text-gray-400 hover:text-gray-600"
               >
                 <X className="w-5 h-5" />
@@ -140,11 +187,7 @@ export const SearchView = () => {
           </section>
           {hasFilter && (
             <button
-              onClick={() => {
-                setKeyword("");
-                setSelectedTags([]);
-                setSelectedWriterIds([]);
-              }}
+              onClick={handleResetFilters}
               className="w-full py-3 bg-gray-100 text-gray-700 font-bold rounded-xl border border-gray-200 hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 shadow-sm"
             >
               <X className="w-5 h-5" />

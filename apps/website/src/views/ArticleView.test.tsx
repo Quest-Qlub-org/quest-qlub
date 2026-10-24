@@ -276,4 +276,98 @@ describe("ArticleView", () => {
 
     expect(container.textContent).toContain("ログインページ");
   });
+
+  it("displays preview banner when article status is pending or draft", async () => {
+    const draftArticle = {
+      id: "art-draft-1",
+      title: "下書きプレビュー記事",
+      thumbnail: "",
+      thumbnail_url: null,
+      thumbnail_color: "blue",
+      writer_id: "author-1",
+      views: 0,
+      likes: 0,
+      tags: ["下書きタグ"],
+      is_recommended: false,
+      is_popular: false,
+      status: "pending",
+      content: "<p>申請中の記事です</p>",
+      summary: "要約テキスト",
+      created_at: "2026-10-24T12:00:00Z",
+    };
+
+    const createQueryChain = (data: any = null) => {
+      const promise = Promise.resolve({ data: data ? [data] : [], error: null });
+      const chain: any = Object.assign(promise, {
+        select: vi.fn(() => chain),
+        eq: vi.fn(() => chain),
+        in: vi.fn(() => chain),
+        order: vi.fn(() => chain),
+        range: vi.fn(() => Promise.resolve({ data: [], error: null })),
+        maybeSingle: vi.fn(() => Promise.resolve({ data, error: null })),
+        single: vi.fn(() => Promise.resolve({ data, error: null })),
+      });
+      return chain;
+    };
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") return createQueryChain(draftArticle);
+      if (table === "profiles") {
+        return createQueryChain({
+          id: "author-1",
+          role: "writer",
+          display_name: "ライター1",
+          username: "writer1",
+        });
+      }
+      return createQueryChain(null);
+    });
+
+    vi.spyOn(useFollowsModule, "useFollows").mockReturnValue({
+      followedIds: [],
+      isFollowing: vi.fn(() => false),
+      toggleFollow: vi.fn(async () => true),
+      isAuthenticated: true,
+      currentUserId: "author-1",
+      loading: false,
+    });
+
+    const rpcSpy = vi.spyOn(supabase, "rpc");
+
+    await act(async () => {
+      root!.render(
+        <MemoryRouter initialEntries={["/articles/art-draft-1"]}>
+          <AppProviders>
+            <Routes>
+              <Route path="/articles/:id" element={<ArticleView />} />
+              <Route path="/search" element={<div data-testid="search-view">検索ビュー</div>} />
+            </Routes>
+          </AppProviders>
+        </MemoryRouter>,
+      );
+    });
+
+    for (let i = 0; i < 30; i++) {
+      if (container.textContent?.includes("下書きプレビュー記事")) break;
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 20));
+      });
+    }
+
+    expect(container.textContent).toContain("【プレビュー表示中】ステータス: 承認待ち");
+    expect(container.textContent).toContain("2026/10/24");
+    expect(rpcSpy).not.toHaveBeenCalledWith("increment_views", expect.anything());
+
+    const tagBtn = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("#下書きタグ"),
+    );
+    expect(tagBtn).toBeDefined();
+
+    await act(async () => {
+      tagBtn?.click();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("検索ビュー");
+  });
 });

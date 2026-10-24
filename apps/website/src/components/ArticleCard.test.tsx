@@ -182,11 +182,27 @@ describe("ArticleCard", () => {
       root!.render(<ArticleCard article={mockArticle} layout="horizontal" />);
     });
     expect((container.firstElementChild as HTMLElement).className).toContain("flex h-28");
+    const contentDiv = container.firstElementChild?.lastElementChild as HTMLElement;
+    expect(contentDiv.className).toContain("flex-1 min-w-0");
 
     // 2. vertical
     act(() => {
       root!.render(<ArticleCard article={mockArticle} layout="vertical" />);
     });
     expect((container.firstElementChild as HTMLElement).className).toContain("flex flex-col");
+  });
+
+  it("renders formatted publication date when createdAt is present", () => {
+    const mockArticle = createTestArticle({
+      id: "art-date",
+      createdAt: "2026-10-24T10:00:00",
+    });
+    setupAppMock();
+
+    act(() => {
+      root!.render(<ArticleCard article={mockArticle} />);
+    });
+
+    expect(container.textContent).toContain("2026/10/24");
   });
 });

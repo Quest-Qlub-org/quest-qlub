@@ -1,7 +1,7 @@
 import { useApp } from "../../context/AppContext";
 import { supabase } from "../../supabase";
 import { CustomUserIcon } from "../../App";
-import { ChevronLeft, Check, AlertCircle } from "lucide-react";
+import { ChevronLeft, Check, AlertCircle, Eye, Mail } from "lucide-react";
 
 export const EditorDashboard = () => {
   const { userRole, navigate, articles, setArticles, writers, showToast } = useApp();
@@ -46,9 +46,15 @@ export const EditorDashboard = () => {
         </button>
         <button
           onClick={() => navigate("editorWriters")}
-          className="p-4 bg-white border border-purple-200 rounded-xl shadow-sm text-center font-bold text-purple-700 hover:bg-purple-50 col-span-2 flex items-center justify-center gap-2"
+          className="p-4 bg-white border border-purple-200 rounded-xl shadow-sm text-center font-bold text-purple-700 hover:bg-purple-50 flex items-center justify-center gap-2"
         >
           <CustomUserIcon className="w-5 h-5" /> 新規ライターの追加
+        </button>
+        <button
+          onClick={() => navigate("editorApplications")}
+          className="p-4 bg-white border border-purple-200 rounded-xl shadow-sm text-center font-bold text-purple-700 hover:bg-purple-50 flex items-center justify-center gap-2"
+        >
+          <Mail className="w-5 h-5" /> ライター応募一覧
         </button>
       </div>
       <section>
@@ -65,16 +71,20 @@ export const EditorDashboard = () => {
               </p>
               <div className="flex gap-2">
                 <button
+                  onClick={() => navigate("article", article.id)}
+                  className="px-3 py-2 bg-blue-50 text-blue-700 text-sm font-bold rounded-lg hover:bg-blue-100 flex items-center justify-center gap-1 border border-blue-200 shadow-sm"
+                >
+                  <Eye className="w-4 h-4" /> 内容確認
+                </button>
+                <button
                   onClick={async () => {
                     const { error } = await supabase
                       .from("articles")
                       .update({ status: "published" })
                       .eq("id", article.id);
                     if (!error) {
-                      setArticles(
-                        articles.map((a) =>
-                          a.id === article.id ? { ...a, status: "published" } : a,
-                        ),
+                      setArticles((prev) =>
+                        prev.map((a) => (a.id === article.id ? { ...a, status: "published" } : a)),
                       );
                       showToast("記事を公開しました");
                     } else {
@@ -92,17 +102,17 @@ export const EditorDashboard = () => {
                       .update({ status: "draft" })
                       .eq("id", article.id);
                     if (!error) {
-                      setArticles(
-                        articles.map((a) => (a.id === article.id ? { ...a, status: "draft" } : a)),
+                      setArticles((prev) =>
+                        prev.map((a) => (a.id === article.id ? { ...a, status: "draft" } : a)),
                       );
                       showToast("差し戻しました");
                     } else {
                       showToast("エラーが発生しました。もう一度お試しください。");
                     }
                   }}
-                  className="flex-1 py-2 bg-white text-gray-600 border border-gray-300 text-sm font-bold rounded-lg hover:bg-gray-50"
+                  className="py-2 px-3 bg-white text-gray-600 border border-gray-300 text-sm font-bold rounded-lg hover:bg-gray-50"
                 >
-                  確認・差し戻し
+                  差し戻し
                 </button>
               </div>
             </div>

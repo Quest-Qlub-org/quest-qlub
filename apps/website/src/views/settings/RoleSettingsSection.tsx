@@ -1,22 +1,40 @@
 import { useNavigate } from "react-router-dom";
-import { Shield, PenTool } from "lucide-react";
+import { Shield, PenTool, Code } from "lucide-react";
 import type { Profile } from "../../supabase";
+import {
+  getProfileRoles,
+  profileHasRole,
+  getRoleLabel,
+  getRoleBadgeClass,
+} from "../../utils/roles";
 
 export function RoleSettingsSection({ profile }: { profile: Profile | null }) {
   const navigate = useNavigate();
-  const role = profile?.role || "viewer";
+  const roles = getProfileRoles(profile);
+  const isEditor = profileHasRole(profile, "editor");
+  const isWriter = profileHasRole(profile, "writer");
+  const isOnlyViewer = roles.length === 0 || (roles.length === 1 && roles[0] === "viewer");
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-      <div className="p-4 bg-gray-50/50 border-b border-gray-100 flex items-center justify-between">
+      <div className="p-4 bg-gray-50/50 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
         <div>
           <h2 className="font-bold text-gray-900 text-sm">アカウント種別・権限</h2>
           <p className="text-xs text-gray-500 mt-0.5">現在の利用権限とアクセス可能な画面です</p>
         </div>
-        <RoleBadge role={role} />
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {roles.map((r) => (
+            <span
+              key={r}
+              className={`px-2.5 py-1 text-xs font-bold rounded-full ${getRoleBadgeClass(r)}`}
+            >
+              {getRoleLabel(r)}
+            </span>
+          ))}
+        </div>
       </div>
       <div className="p-4 space-y-3">
-        {role === "editor" && (
+        {isEditor && (
           <div className="flex items-center justify-between p-3 bg-purple-50 rounded-xl border border-purple-100">
             <div className="flex items-center gap-2.5">
               <Shield className="w-5 h-5 text-purple-600" />
@@ -26,15 +44,16 @@ export function RoleSettingsSection({ profile }: { profile: Profile | null }) {
               </div>
             </div>
             <button
+              type="button"
               onClick={() => navigate("/editor-dash")}
-              className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm"
+              className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm cursor-pointer"
             >
               管理画面へ
             </button>
           </div>
         )}
 
-        {(role === "writer" || role === "editor") && (
+        {(isWriter || isEditor) && (
           <div className="flex items-center justify-between p-3 bg-blue-50 rounded-xl border border-blue-100">
             <div className="flex items-center gap-2.5">
               <PenTool className="w-5 h-5 text-blue-600" />
@@ -44,23 +63,47 @@ export function RoleSettingsSection({ profile }: { profile: Profile | null }) {
               </div>
             </div>
             <button
+              type="button"
               onClick={() => navigate("/writer-dash")}
-              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm"
+              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm cursor-pointer"
             >
               執筆画面へ
             </button>
           </div>
         )}
 
-        {role === "viewer" && (
+        {profileHasRole(profile, "engineer") && (
+          <div
+            data-testid="engineer-role-card"
+            className="flex items-center justify-between p-3 bg-emerald-50 rounded-xl border border-emerald-100"
+          >
+            <div className="flex items-center gap-2.5">
+              <Code className="w-5 h-5 text-emerald-600" />
+              <div>
+                <p className="text-xs font-bold text-emerald-900">エンジニア権限</p>
+                <p className="text-[11px] text-emerald-700">システム開発・保守・技術支援</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate("/about")}
+              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm cursor-pointer"
+            >
+              Aboutページへ
+            </button>
+          </div>
+        )}
+
+        {isOnlyViewer && (
           <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 text-xs text-gray-600 flex items-center justify-between">
             <div>
               <p className="font-bold text-gray-800">一般読者アカウント</p>
               <p className="text-gray-500 mt-0.5">記事の閲覧やお気に入り登録をご利用いただけます</p>
             </div>
             <button
+              type="button"
               onClick={() => navigate("/contact")}
-              className="px-3 py-1.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 text-xs font-bold rounded-lg transition-colors"
+              className="px-3 py-1.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 text-xs font-bold rounded-lg transition-colors cursor-pointer"
             >
               ライターに応募
             </button>
@@ -69,27 +112,4 @@ export function RoleSettingsSection({ profile }: { profile: Profile | null }) {
       </div>
     </div>
   );
-}
-
-function RoleBadge({ role }: { role: string }) {
-  switch (role) {
-    case "editor":
-      return (
-        <span className="px-2.5 py-1 bg-purple-100 text-purple-700 text-xs font-bold rounded-full">
-          編集長
-        </span>
-      );
-    case "writer":
-      return (
-        <span className="px-2.5 py-1 bg-blue-100 text-blue-700 text-xs font-bold rounded-full">
-          ライター
-        </span>
-      );
-    default:
-      return (
-        <span className="px-2.5 py-1 bg-gray-100 text-gray-600 text-xs font-bold rounded-full">
-          一般読者
-        </span>
-      );
-  }
 }

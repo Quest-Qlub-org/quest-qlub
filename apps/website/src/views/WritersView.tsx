@@ -4,6 +4,7 @@ import { ChevronLeft, Loader2, UserPlus, UserCheck } from "lucide-react";
 import type { Profile } from "../supabase";
 import { WriterRowSkeleton } from "../components/Skeleton";
 import { useFollows } from "../hooks/useFollows";
+import { getProfileRoles, profileHasRole, getRoleLabel } from "../utils/roles";
 
 const WriterRow = ({
   w,
@@ -34,9 +35,22 @@ const WriterRow = ({
         <p className="font-bold text-gray-800 text-base">
           {w.display_name ?? (w.username ? `@${w.username}` : "名称未設定")}
         </p>
-        <p className="text-xs font-bold text-blue-500">
-          {w.role === "editor" ? "編集長" : "ライター"}
-        </p>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {getProfileRoles(w).map((r) => (
+            <span
+              key={r}
+              className={`text-xs font-bold ${
+                r === "editor"
+                  ? "text-purple-600"
+                  : r === "engineer"
+                    ? "text-emerald-600"
+                    : "text-blue-500"
+              }`}
+            >
+              {getRoleLabel(r)}
+            </span>
+          ))}
+        </div>
       </div>
     </div>
     <div className="flex items-center gap-3">
@@ -104,8 +118,10 @@ export const WritersView = () => {
     showToast(wasFollowing ? "フォローを解除しました" : "ライターをフォローしました");
   };
 
-  const editors = writers.filter((w) => w.role === "editor");
-  const writerList = writers.filter((w) => w.role === "writer");
+  const editors = writers.filter((w) => profileHasRole(w, "editor"));
+  const writerList = writers.filter(
+    (w) => profileHasRole(w, "writer") && !profileHasRole(w, "editor"),
+  );
 
   return (
     <div className="p-4 md:p-8 space-y-6 animate-in fade-in duration-300">

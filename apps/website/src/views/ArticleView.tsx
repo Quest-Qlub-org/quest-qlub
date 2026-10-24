@@ -1,17 +1,18 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
-import { getThumbnailColor } from "../types";
+import { getThumbnailColor, ARTICLE_STATUS_CONFIG } from "../types";
 import { mapDbArticleToArticle } from "../types";
 import type { Article, Series } from "../types";
 import { LogoIcon, CustomUserIcon, CustomStarIcon } from "../components/icons/NavIcons";
-import { ChevronLeft, Share2, Eye, Loader2, UserPlus, UserCheck } from "lucide-react";
+import { ChevronLeft, Share2, Eye, Loader2, UserPlus, UserCheck, Calendar } from "lucide-react";
 import { sanitizeHtml } from "../utils/sanitize";
 import { supabase } from "../supabase";
 import type { Profile } from "../supabase";
 import { ArticleComments } from "../components/ArticleComments";
 import { useFollows } from "../hooks/useFollows";
 import { updateMetaTags, resetMetaTags, generateArticleJsonLd } from "../utils/seo";
+import { formatArticleDate } from "../utils/date";
 
 export const ArticleView = () => {
   const { id: paramId } = useParams<{ id: string }>();
@@ -55,6 +56,7 @@ export const ArticleView = () => {
       setDetailedArticle(cachedArticle);
       setLoading(false);
     } else {
+      setDetailedArticle(null);
       setLoading(true);
     }
 
@@ -110,11 +112,13 @@ export const ArticleView = () => {
             }
           }
 
-          // 閲覧数インクリメント
-          try {
-            await supabase.rpc("increment_views", { p_article_id: articleId });
-          } catch {
-            // 閲覧数インクリメントエラーは無視
+          // 閲覧数インクリメント（公開済み記事のみ）
+          if (mapped.status === "published") {
+            try {
+              await supabase.rpc("increment_views", { p_article_id: articleId });
+            } catch {
+              // 閲覧数インクリメントエラーは無視
+            }
           }
         }
       } catch {
@@ -153,16 +157,18 @@ export const ArticleView = () => {
       url: currentUrl,
       image: article.thumbnailUrl,
       authorName,
+      datePublished: article.createdAt ?? undefined,
     });
 
     updateMetaTags({
-      title: article.title,
+      title: article.status !== "published" ? `[プレビュー] ${article.title}` : article.title,
       description,
       image: article.thumbnailUrl,
       url: currentUrl,
       type: "article",
       twitterCard: "summary_large_image",
       author: authorName,
+      publishedTime: article.createdAt ?? undefined,
       jsonLd,
     });
 
@@ -211,22 +217,36 @@ export const ArticleView = () => {
         </button>
       </div>
 
-      {article.thumbnailUrl ? (
-        <div className="w-full bg-gray-50" style={{ aspectRatio: "16/9" }}>
-          <img
-            src={article.thumbnailUrl}
-            alt={article.title}
-            className="w-full h-full object-contain"
-          />
-        </div>
-      ) : (
-        <div
-          className={`${color.bg} w-full flex items-center justify-center`}
-          style={{ aspectRatio: "16/9" }}
-        >
-          <LogoIcon className="w-20 h-20 opacity-20" />
+      {article.status !== "published" && (
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 text-center text-amber-800 text-xs font-bold flex items-center justify-center gap-2">
+          <span className="px-2 py-0.5 rounded bg-amber-200 text-amber-900 font-extrabold text-[10px]">
+            PREVIEW
+          </span>
+          <span>
+            【プレビュー表示中】ステータス:{" "}
+            {ARTICLE_STATUS_CONFIG[article.status]?.label ?? article.status}
+            （一般には公開されていません）
+          </span>
         </div>
       )}
+
+      <div className="max-w-3xl mx-auto px-4 md:px-8 pt-4">
+        {article.thumbnailUrl ? (
+          <div className="w-full max-h-72 md:max-h-80 aspect-video rounded-2xl overflow-hidden bg-gray-50 border border-gray-200 flex items-center justify-center mx-auto shadow-sm">
+            <img
+              src={article.thumbnailUrl}
+              alt={article.title}
+              className="w-full h-full object-contain max-h-72 md:max-h-80"
+            />
+          </div>
+        ) : (
+          <div
+            className={`${color.bg} w-full max-h-64 aspect-video rounded-2xl flex items-center justify-center shadow-sm border border-gray-100 mx-auto`}
+          >
+            <LogoIcon className="w-16 h-16 opacity-30" />
+          </div>
+        )}
+      </div>
 
       <div className="p-4 md:p-8 space-y-5 max-w-3xl mx-auto">
         {article.seriesId &&
@@ -255,11 +275,17 @@ export const ArticleView = () => {
         )}
 
         <div className="flex flex-wrap items-center justify-between gap-4 py-3 border-b border-gray-100">
-          <div className="flex items-center gap-4 text-sm text-gray-500">
-            <span className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-md">
+          <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500">
+            {formatArticleDate(article.createdAt) && (
+              <span className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-md text-xs text-gray-600">
+                <Calendar className="w-3.5 h-3.5" />
+                <span>{formatArticleDate(article.createdAt)}</span>
+              </span>
+            )}
+            <span className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-md text-xs">
               <Eye className="w-4 h-4" /> {article.views}
             </span>
-            <span className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-md">
+            <span className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-md text-xs">
               <CustomStarIcon className="w-4 h-4" active={isFav} /> {article.likes}
             </span>
           </div>
@@ -275,12 +301,14 @@ export const ArticleView = () => {
 
         <div className="flex gap-2 flex-wrap">
           {(article.tags ?? []).map((tag) => (
-            <span
+            <button
               key={tag}
-              className="px-3 py-1 bg-gray-100 text-gray-600 text-xs font-bold rounded-full border border-gray-200"
+              type="button"
+              onClick={() => navigate(`/search?tag=${encodeURIComponent(tag)}`)}
+              className="px-3 py-1 bg-gray-100 text-gray-600 text-xs font-bold rounded-full border border-gray-200 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 transition-colors cursor-pointer"
             >
               #{tag}
-            </span>
+            </button>
           ))}
         </div>
 

@@ -3,6 +3,7 @@ import { supabase } from "../supabase";
 import type { Profile } from "../supabase";
 import type { Article, Series } from "../types";
 import { mapDbArticleToArticle } from "../types";
+import { getProfileRoles, isStaffRole } from "../utils/roles";
 import { useAuth } from "./AuthContext";
 import { useUI } from "./UIContext";
 
@@ -31,6 +32,12 @@ export interface DataContextType {
   hasMoreWriters: boolean;
   loadingMoreWriters: boolean;
   loadMoreWriters: () => Promise<void>;
+
+  // Team Members (Staff for /about)
+  teamMembers: Profile[];
+  setTeamMembers: React.Dispatch<React.SetStateAction<Profile[]>>;
+  teamMembersLoading: boolean;
+  refreshTeamMembers: () => Promise<void>;
 
   // Series
   seriesList: Series[];
@@ -61,6 +68,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [writersLoading, setWritersLoading] = useState(true);
   const [hasMoreWriters, setHasMoreWriters] = useState(true);
   const [loadingMoreWriters, setLoadingMoreWriters] = useState(false);
+
+  const [teamMembers, setTeamMembers] = useState<Profile[]>([]);
+  const [teamMembersLoading, setTeamMembersLoading] = useState(true);
 
   const [seriesList, setSeriesList] = useState<Series[]>([]);
 
@@ -133,27 +143,31 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const fetchWriters = useCallback(async () => {
     setWritersLoading(true);
     try {
-      let res = await supabase
+      let writerRows: Profile[] | null = null;
+      const res = await supabase
         .from("profiles")
-        .select("id, role, display_name, username, x_account, avatar_url, bio, created_at")
+        .select("id, role, roles, display_name, username, x_account, avatar_url, bio, created_at")
         .in("role", ["writer", "editor"])
         .order("created_at", { ascending: false })
         .range(0, WRITER_PAGE_SIZE - 1);
 
-      if (res.error) {
-        console.warn("fetchWriters first attempt failed, retrying...", res.error);
-        await new Promise((r) => setTimeout(r, 200));
-        res = await supabase
+      if (res.error && (res.error.code === "42703" || res.error.message?.includes("roles"))) {
+        const fallbackRes = await supabase
           .from("profiles")
           .select("id, role, display_name, username, x_account, avatar_url, bio, created_at")
           .in("role", ["writer", "editor"])
           .order("created_at", { ascending: false })
           .range(0, WRITER_PAGE_SIZE - 1);
+        if (!fallbackRes.error && fallbackRes.data) {
+          writerRows = fallbackRes.data as unknown as Profile[];
+        }
+      } else if (!res.error && res.data) {
+        writerRows = res.data as unknown as Profile[];
       }
 
-      if (!res.error && res.data) {
-        setWriters(res.data);
-        setHasMoreWriters(res.data.length === WRITER_PAGE_SIZE);
+      if (writerRows) {
+        setWriters(writerRows);
+        setHasMoreWriters(writerRows.length === WRITER_PAGE_SIZE);
       }
     } catch (e) {
       console.error("Failed to fetch writers", e);
@@ -168,18 +182,33 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     try {
       const start = writers.length;
       const end = start + WRITER_PAGE_SIZE - 1;
-      const { data, error } = await supabase
+      let newRows: Profile[] | null = null;
+      const res = await supabase
         .from("profiles")
-        .select("id, role, display_name, username, x_account, avatar_url, bio, created_at")
+        .select("id, role, roles, display_name, username, x_account, avatar_url, bio, created_at")
         .in("role", ["writer", "editor"])
         .order("created_at", { ascending: false })
         .range(start, end);
 
-      if (!error && data) {
-        if (data.length > 0) {
-          setWriters((prev) => [...prev, ...data]);
+      if (res.error && (res.error.code === "42703" || res.error.message?.includes("roles"))) {
+        const fallbackRes = await supabase
+          .from("profiles")
+          .select("id, role, display_name, username, x_account, avatar_url, bio, created_at")
+          .in("role", ["writer", "editor"])
+          .order("created_at", { ascending: false })
+          .range(start, end);
+        if (!fallbackRes.error && fallbackRes.data) {
+          newRows = fallbackRes.data as unknown as Profile[];
         }
-        setHasMoreWriters(data.length === WRITER_PAGE_SIZE);
+      } else if (!res.error && res.data) {
+        newRows = res.data as unknown as Profile[];
+      }
+
+      if (newRows) {
+        if (newRows.length > 0) {
+          setWriters((prev) => [...prev, ...newRows!]);
+        }
+        setHasMoreWriters(newRows.length === WRITER_PAGE_SIZE);
       }
     } catch (e) {
       console.error("Failed to load more writers", e);
@@ -187,6 +216,41 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       setLoadingMoreWriters(false);
     }
   }, [writers.length, loadingMoreWriters, hasMoreWriters]);
+
+  const fetchTeamMembers = useCallback(async () => {
+    setTeamMembersLoading(true);
+    try {
+      let memberRows: Profile[] | null = null;
+      const res = await supabase
+        .from("profiles")
+        .select("id, role, roles, display_name, username, x_account, avatar_url, bio, created_at")
+        .order("created_at", { ascending: true });
+
+      if (res.error && (res.error.code === "42703" || res.error.message?.includes("roles"))) {
+        const fallbackRes = await supabase
+          .from("profiles")
+          .select("id, role, display_name, username, x_account, avatar_url, bio, created_at")
+          .order("created_at", { ascending: true });
+        if (!fallbackRes.error && fallbackRes.data) {
+          memberRows = fallbackRes.data as unknown as Profile[];
+        }
+      } else if (!res.error && res.data) {
+        memberRows = res.data as unknown as Profile[];
+      }
+
+      if (memberRows) {
+        const staffList = memberRows.filter((p) => {
+          const rList = getProfileRoles(p);
+          return rList.some((r) => isStaffRole(r));
+        });
+        setTeamMembers(staffList);
+      }
+    } catch (e) {
+      console.error("Failed to fetch team members", e);
+    } finally {
+      setTeamMembersLoading(false);
+    }
+  }, []);
 
   const fetchSeries = useCallback(async () => {
     try {
@@ -235,14 +299,19 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let isMounted = true;
     const init = async () => {
-      await Promise.allSettled([fetchArticles(), fetchWriters(), fetchSeries()]);
+      await Promise.allSettled([
+        fetchArticles(),
+        fetchWriters(),
+        fetchTeamMembers(),
+        fetchSeries(),
+      ]);
       if (isMounted) setDataLoaded(true);
     };
     void init();
     return () => {
       isMounted = false;
     };
-  }, [fetchArticles, fetchWriters, fetchSeries, authLoading]);
+  }, [fetchArticles, fetchWriters, fetchTeamMembers, fetchSeries, authLoading]);
 
   // ユーザーお気に入りロード
   useEffect(() => {
@@ -315,6 +384,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     hasMoreWriters,
     loadingMoreWriters,
     loadMoreWriters,
+    teamMembers,
+    setTeamMembers,
+    teamMembersLoading,
+    refreshTeamMembers: fetchTeamMembers,
     seriesList,
     setSeriesList,
     favorites,

@@ -5,7 +5,7 @@ import { LogoIcon } from "../../components/icons/NavIcons";
 import { getThumbnailColor, ARTICLE_STATUS_CONFIG, mapDbArticleToArticle } from "../../types";
 import type { Article, ArticleStatus } from "../../types";
 import { ARTICLE_LIST_FIELDS } from "../../context/DataContext";
-import { ChevronLeft, Plus, Edit3, Loader2 } from "lucide-react";
+import { ChevronLeft, Plus, Edit3, Loader2, Eye } from "lucide-react";
 
 export const WriterDashboard = () => {
   const { profile, articles, setArticles, showToast, navigate, authLoading } = useApp();
@@ -70,6 +70,23 @@ export const WriterDashboard = () => {
       );
       setArticles(articles.map((a) => (a.id === article.id ? { ...a, status: "pending" } : a)));
       showToast("投稿申請しました");
+    } else {
+      showToast("エラーが発生しました。もう一度お試しください。");
+    }
+  };
+
+  const handleUnpublish = async (article: Article) => {
+    if (!window.confirm(`「${article.title}」を非公開（下書き）に戻しますか？`)) return;
+    const { error } = await supabase
+      .from("articles")
+      .update({ status: "draft" })
+      .eq("id", article.id);
+    if (!error) {
+      setWriterArticles((prev) =>
+        prev.map((a) => (a.id === article.id ? { ...a, status: "draft" } : a)),
+      );
+      setArticles(articles.map((a) => (a.id === article.id ? { ...a, status: "draft" } : a)));
+      showToast("記事を非公開（下書き）に戻しました");
     } else {
       showToast("エラーが発生しました。もう一度お試しください。");
     }
@@ -157,7 +174,13 @@ export const WriterDashboard = () => {
                     </h4>
                     {statusLabel(article.status)}
                   </div>
-                  <div className="flex gap-2 mt-2">
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    <button
+                      onClick={() => navigate("article", article.id)}
+                      className="py-1.5 px-2 bg-gray-50 text-gray-700 text-xs font-bold rounded hover:bg-gray-100 flex items-center justify-center gap-1 border border-gray-200"
+                    >
+                      <Eye className="w-3 h-3" /> 確認
+                    </button>
                     <button
                       onClick={() => openEdit(article)}
                       className="flex-1 py-1.5 bg-gray-100 text-gray-600 text-xs font-bold rounded hover:bg-gray-200 flex items-center justify-center gap-1"
@@ -170,6 +193,14 @@ export const WriterDashboard = () => {
                         className="flex-1 py-1.5 bg-blue-50 text-blue-600 text-xs font-bold rounded hover:bg-blue-100 border border-blue-200"
                       >
                         投稿申請
+                      </button>
+                    )}
+                    {article.status === "published" && (
+                      <button
+                        onClick={() => void handleUnpublish(article)}
+                        className="py-1.5 px-2 bg-amber-50 text-amber-700 text-xs font-bold rounded hover:bg-amber-100 border border-amber-200"
+                      >
+                        非公開にする
                       </button>
                     )}
                     {article.status !== "published" && (

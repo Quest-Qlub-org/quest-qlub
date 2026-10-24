@@ -11,6 +11,7 @@ import type { Profile } from "../supabase";
 import type { Article } from "../types";
 import { mapDbArticleToArticle } from "../types";
 import { ARTICLE_LIST_FIELDS } from "../context/DataContext";
+import { getProfileRoles, getRoleLabel } from "../utils/roles";
 
 export const ProfileView = () => {
   const { username } = useParams<{ username: string }>();
@@ -76,7 +77,9 @@ export const ProfileView = () => {
           );
           let query = supabase
             .from("profiles")
-            .select("id, role, display_name, username, x_account, avatar_url, bio, created_at");
+            .select(
+              "id, role, roles, display_name, username, x_account, avatar_url, bio, created_at",
+            );
 
           if (isUuid) {
             query = query.eq("id", targetIdentifier);
@@ -84,16 +87,34 @@ export const ProfileView = () => {
             query = query.eq("username", cleanTarget);
           }
 
+          let fetchedProfile: Profile | null = null;
           const { data, error } = await query.maybeSingle();
+
+          if (!error && data) {
+            fetchedProfile = data as unknown as Profile;
+          } else if (error && (error.code === "42703" || error.message?.includes("roles"))) {
+            let fallbackQuery = supabase
+              .from("profiles")
+              .select("id, role, display_name, username, x_account, avatar_url, bio, created_at");
+            if (isUuid) {
+              fallbackQuery = fallbackQuery.eq("id", targetIdentifier);
+            } else {
+              fallbackQuery = fallbackQuery.eq("username", cleanTarget);
+            }
+            const fallbackRes = await fallbackQuery.maybeSingle();
+            if (!fallbackRes.error && fallbackRes.data) {
+              fetchedProfile = fallbackRes.data as unknown as Profile;
+            }
+          }
 
           if (!isMounted) return;
 
-          if (error || !data) {
+          if (!fetchedProfile) {
             if (!cachedWriter) setNotFound(true);
             setLoading(false);
             return;
           }
-          profileData = data as Profile;
+          profileData = fetchedProfile;
           setWriter(profileData);
           setNotFound(false);
         }
@@ -215,10 +236,15 @@ export const ProfileView = () => {
         <h2 className="text-2xl font-bold mb-1">
           {writer.display_name ?? (cleanUsername ? `@${cleanUsername}` : "名称未設定")}
         </h2>
-        <div className="flex items-center justify-center gap-2 mb-3">
-          <span className="inline-block px-3 py-1 bg-white/20 rounded-full text-sm font-bold backdrop-blur-sm">
-            {writer.role === "editor" ? "編集長" : writer.role === "writer" ? "ライター" : "読者"}
-          </span>
+        <div className="flex items-center justify-center gap-2 mb-3 flex-wrap">
+          {getProfileRoles(writer).map((r) => (
+            <span
+              key={r}
+              className="inline-block px-3 py-1 bg-white/20 rounded-full text-sm font-bold backdrop-blur-sm"
+            >
+              {getRoleLabel(r)}
+            </span>
+          ))}
           {!isOwnProfile && (
             <button
               type="button"

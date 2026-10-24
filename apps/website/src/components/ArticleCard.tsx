@@ -2,6 +2,7 @@ import type { Article } from "../types";
 import { useApp } from "../context/AppContext";
 import { getThumbnailColor } from "../types";
 import { LogoIcon, CustomUserIcon, CustomStarIcon } from "./icons/NavIcons";
+import { formatArticleDate } from "../utils/date";
 
 export const ArticleCard = ({
   article,
@@ -14,6 +15,7 @@ export const ArticleCard = ({
   const writer = writers.find((w) => w.id === article.writerId);
   const isFav = favorites.includes(article.id);
   const color = getThumbnailColor(article.thumbnailColor ?? null);
+  const formattedDate = formatArticleDate(article.createdAt);
 
   return (
     <div
@@ -25,21 +27,25 @@ export const ArticleCard = ({
       {article.thumbnailUrl ? (
         <div
           className={`${
-            layout === "horizontal" ? "w-1/3 min-w-[110px] h-full" : "w-full"
-          } overflow-hidden bg-gray-50`}
+            layout === "horizontal"
+              ? "w-1/3 min-w-[110px] max-w-[130px] h-full"
+              : "w-full max-h-44 md:max-h-48"
+          } overflow-hidden bg-gray-50 flex items-center justify-center shrink-0`}
           style={layout !== "horizontal" ? { aspectRatio: "16/9" } : {}}
         >
           <img
             src={article.thumbnailUrl}
             alt={article.title}
-            className="w-full h-full object-contain"
+            className="w-full h-full object-cover"
           />
         </div>
       ) : (
         <div
           className={`${color.bg} ${
-            layout === "horizontal" ? "w-1/3 min-w-[110px]" : "w-full"
-          } flex items-center justify-center`}
+            layout === "horizontal"
+              ? "w-1/3 min-w-[110px] max-w-[130px] h-full"
+              : "w-full max-h-44 md:max-h-48"
+          } flex items-center justify-center shrink-0`}
           style={layout !== "horizontal" ? { aspectRatio: "16/9" } : {}}
         >
           <LogoIcon className="w-10 h-10 opacity-40" />
@@ -47,18 +53,27 @@ export const ArticleCard = ({
       )}
       <div
         className={`p-3 flex flex-col justify-between ${
-          layout === "horizontal" ? "w-2/3" : "w-full"
+          layout === "horizontal" ? "flex-1 min-w-0" : "w-full"
         }`}
       >
         <h3 className="font-bold text-gray-800 line-clamp-2 text-sm md:text-base leading-snug">
           {article.title}
         </h3>
-        <div className="flex items-center justify-between mt-2">
-          <span className="text-xs text-gray-500 flex items-center gap-1 truncate max-w-[70%]">
-            <CustomUserIcon className="w-4 h-4" />{" "}
-            {writer?.display_name ?? (writer?.username ? `@${writer.username}` : "名称未設定")}
-          </span>
-          <CustomStarIcon className="w-5 h-5" active={isFav} />
+        <div className="flex items-center justify-between mt-2 pt-1">
+          <div className="flex items-center gap-2 min-w-0 flex-1 mr-2 text-xs text-gray-500">
+            <span className="flex items-center gap-1 truncate">
+              <CustomUserIcon className="w-4 h-4 shrink-0" />{" "}
+              <span className="truncate">
+                {writer?.display_name ?? (writer?.username ? `@${writer.username}` : "名称未設定")}
+              </span>
+            </span>
+            {formattedDate && (
+              <span className="text-[11px] text-gray-400 shrink-0 select-none">
+                {formattedDate}
+              </span>
+            )}
+          </div>
+          <CustomStarIcon className="w-5 h-5 shrink-0" active={isFav} />
         </div>
       </div>
     </div>

@@ -54,6 +54,10 @@ describe("parseLocation", () => {
       currentView: "editorWriters",
       viewParam: null,
     });
+    expect(parseLocation("/editor-dash/applications")).toEqual({
+      currentView: "editorApplications",
+      viewParam: null,
+    });
   });
 
   it("extracts path parameters correctly", () => {
