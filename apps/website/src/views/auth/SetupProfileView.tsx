@@ -95,48 +95,54 @@ export const SetupProfileView = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 w-full max-w-sm">
-        <h1 className="text-2xl font-bold text-center mb-2">プロフィールの初期設定</h1>
-        <p className="text-xs text-gray-500 text-center mb-6">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center p-4 transition-colors">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-8 w-full max-w-sm">
+        <h1 className="text-2xl font-bold text-center mb-2 text-gray-900 dark:text-gray-100">
+          プロフィールの初期設定
+        </h1>
+        <p className="text-xs text-gray-500 dark:text-gray-400 text-center mb-6">
           Quest Qlubを利用するためにプロフィールを設定してください
         </p>
         {error && <p className="text-red-500 text-sm mb-4 text-center">{error}</p>}
         <form onSubmit={handleSave} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1">表示名 *</label>
+            <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">
+              表示名 *
+            </label>
             <input
               type="text"
               placeholder="例: 山田太郎"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1">ユーザー名 *</label>
+            <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">
+              ユーザー名 *
+            </label>
             <input
               type="text"
               placeholder="例: tarou_yamada (英数字・_ )"
               value={username}
               onChange={(e) => setUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, ""))}
-              className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-            <p className="text-[10px] text-gray-400 mt-1">
+            <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">
               半角英数字・アンダースコア3〜20文字。プロフィールURLおよびX（旧Twitter）リンクに使用されます。
             </p>
           </div>
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50 mt-2"
+            className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50 mt-2 cursor-pointer"
           >
             {loading ? "設定中..." : "設定を完了する"}
           </button>
           <button
             type="button"
             onClick={handleLogout}
-            className="w-full py-3 border border-gray-300 text-gray-600 font-bold rounded-xl hover:bg-gray-50 bg-white"
+            className="w-full py-3 border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-300 font-bold rounded-xl hover:bg-gray-50 dark:hover:bg-gray-750 bg-white dark:bg-gray-800 cursor-pointer transition-colors"
           >
             ログアウト
           </button>

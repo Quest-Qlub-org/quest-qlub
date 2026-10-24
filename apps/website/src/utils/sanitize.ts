@@ -84,6 +84,34 @@ function filterSafeStyles(rawStyle: string): string {
     }
 
     if (SAFE_CSS_PROPERTIES.has(prop)) {
+      // ダークモード時に黒文字黒背景の同化や白帯を防ぐため、
+      // デフォルト文字色相当（純黒・暗色）および純白背景のインラインスタイルを除去して親のテーマ色に追従させる
+      if (prop === "color") {
+        const norm = val.toLowerCase().replace(/\s+/g, "");
+        if (
+          norm === "#000" ||
+          norm === "#000000" ||
+          norm === "black" ||
+          norm === "rgb(0,0,0)" ||
+          norm === "rgba(0,0,0,1)" ||
+          norm === "rgb(17,24,39)" ||
+          norm === "rgb(31,41,55)"
+        ) {
+          continue;
+        }
+      } else if (prop === "background-color") {
+        const norm = val.toLowerCase().replace(/\s+/g, "");
+        if (
+          norm === "#fff" ||
+          norm === "#ffffff" ||
+          norm === "white" ||
+          norm === "rgb(255,255,255)" ||
+          norm === "rgba(255,255,255,1)"
+        ) {
+          continue;
+        }
+      }
+
       safeDeclarations.push(`${prop}: ${val}`);
     }
   }

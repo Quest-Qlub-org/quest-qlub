@@ -130,7 +130,7 @@ export const SearchView = () => {
               placeholder="キーワードで検索"
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
-              className="w-full pl-12 pr-10 py-4 bg-white border-2 border-gray-200 rounded-xl focus:border-blue-500 transition-all outline-none font-bold text-gray-700 shadow-sm"
+              className="w-full pl-12 pr-10 py-4 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-xl focus:border-blue-500 dark:focus:border-blue-400 transition-all outline-none font-bold text-gray-700 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 shadow-sm"
             />
             <div className="absolute left-3 top-3.5">
               <CustomSearchIcon className="w-7 h-7" />
@@ -138,28 +138,32 @@ export const SearchView = () => {
             {keyword && (
               <button
                 onClick={handleClearKeyword}
-                className="absolute right-3 top-4 text-gray-400 hover:text-gray-600"
+                className="absolute right-3 top-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             )}
           </div>
-          <section className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-            <h3 className="text-sm font-bold text-gray-500 mb-3 border-b pb-2">タグでしぼる</h3>
+          <section className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+            <h3 className="text-sm font-bold text-gray-500 dark:text-gray-400 mb-3 border-b border-gray-100 dark:border-gray-700 pb-2">
+              タグでしぼる
+            </h3>
             <div className="flex flex-wrap gap-2">
               {displayTags.map((tag) => (
                 <button
                   key={tag}
                   onClick={() => toggleTag(tag)}
-                  className={`px-3 py-1.5 border rounded-lg text-sm font-bold transition-colors ${selectedTags.includes(tag) ? "bg-blue-500 border-blue-500 text-white" : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600"}`}
+                  className={`px-3 py-1.5 border rounded-lg text-sm font-bold transition-colors cursor-pointer ${selectedTags.includes(tag) ? "bg-blue-500 border-blue-500 text-white" : "bg-gray-50 dark:bg-gray-700/60 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:border-blue-300 dark:hover:border-blue-700 hover:text-blue-600 dark:hover:text-blue-400"}`}
                 >
                   #{tag}
                 </button>
               ))}
             </div>
           </section>
-          <section className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-            <h3 className="text-sm font-bold text-gray-500 mb-3 border-b pb-2">ライターでしぼる</h3>
+          <section className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+            <h3 className="text-sm font-bold text-gray-500 dark:text-gray-400 mb-3 border-b border-gray-100 dark:border-gray-700 pb-2">
+              ライターでしぼる
+            </h3>
             <div
               className={`grid gap-2 ${
                 hasFilter
@@ -190,7 +194,7 @@ export const SearchView = () => {
                   <button
                     key={w.id}
                     onClick={() => toggleWriter(w.id)}
-                    className={`flex items-center gap-2 p-2.5 border rounded-lg text-left transition-colors min-w-0 ${selectedWriterIds.includes(w.id) ? "bg-blue-50 border-blue-400" : "bg-gray-50 border-gray-200 hover:bg-blue-50 hover:border-blue-200"}`}
+                    className={`flex items-center gap-2 p-2.5 border rounded-lg text-left transition-colors min-w-0 cursor-pointer ${selectedWriterIds.includes(w.id) ? "bg-blue-50 dark:bg-blue-950/50 border-blue-400 dark:border-blue-500" : "bg-gray-50 dark:bg-gray-700/60 border-gray-200 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:border-blue-200"}`}
                   >
                     {w.avatar_url ? (
                       <img
@@ -201,7 +205,7 @@ export const SearchView = () => {
                     ) : (
                       <CustomUserIcon className="w-6 h-6 shrink-0" />
                     )}
-                    <span className="text-sm font-bold text-gray-700 truncate">
+                    <span className="text-sm font-bold text-gray-700 dark:text-gray-200 truncate">
                       {w.display_name ?? (w.username ? `@${w.username}` : "名称未設定")}
                     </span>
                   </button>
@@ -211,7 +215,7 @@ export const SearchView = () => {
           {hasFilter && (
             <button
               onClick={handleResetFilters}
-              className="w-full py-3 bg-gray-100 text-gray-700 font-bold rounded-xl border border-gray-200 hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 shadow-sm"
+              className="w-full py-3 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-bold rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors flex items-center justify-center gap-2 shadow-sm cursor-pointer"
             >
               <X className="w-5 h-5" />
               フィルターをリセット
@@ -222,11 +226,13 @@ export const SearchView = () => {
           {hasFilter && (
             <div>
               <div className="mb-3">
-                <p className="font-bold text-gray-700">検索結果 ({results.length}件)</p>
+                <p className="font-bold text-gray-700 dark:text-gray-200">
+                  検索結果 ({results.length}件)
+                </p>
               </div>
               <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
                 {results.length === 0 ? (
-                  <p className="text-gray-500 text-center py-8 bg-white rounded-xl border lg:col-span-2">
+                  <p className="text-gray-500 dark:text-gray-400 text-center py-8 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 lg:col-span-2">
                     該当する記事が見つかりませんでした
                   </p>
                 ) : (

@@ -460,4 +460,23 @@ describe("ArticleComments (DB-backed, Auth-required, Role permissions, Pinning &
 
     unmount2();
   });
+
+  it("applies dark mode styling classes to container sections", async () => {
+    mockAuth("viewer", "viewer-1", "一般読者");
+
+    const { container, unmount } = renderWithRouter(
+      <ArticleComments articleId={articleId} writerId={writerId} commentsEnabled={true} />,
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const section = container.querySelector("section");
+    expect(section).not.toBeNull();
+    expect(section?.className).toContain("dark:bg-gray-800");
+    expect(section?.className).toContain("dark:border-gray-700");
+
+    unmount();
+  });
 });

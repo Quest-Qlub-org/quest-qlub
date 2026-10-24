@@ -156,11 +156,13 @@ export const SudoConfirmModal: React.FC<SudoConfirmModalProps> = ({
         role="dialog"
         aria-modal="true"
         aria-labelledby="sudo-confirm-title"
-        className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-sm overflow-hidden p-6 text-center"
+        className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-sm overflow-hidden p-6 text-center"
       >
         <div
           className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 ${
-            step === "mfa_totp" ? "bg-blue-100 text-blue-600" : "bg-amber-100 text-amber-600"
+            step === "mfa_totp"
+              ? "bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400"
+              : "bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400"
           }`}
         >
           {step === "mfa_totp" ? (
@@ -170,17 +172,20 @@ export const SudoConfirmModal: React.FC<SudoConfirmModalProps> = ({
           )}
         </div>
 
-        <h2 id="sudo-confirm-title" className="text-xl font-bold text-gray-900 mb-1">
+        <h2
+          id="sudo-confirm-title"
+          className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-1"
+        >
           {step === "mfa_totp" ? "2段階認証の確認" : "管理者権限の確認"}
         </h2>
-        <p className="text-xs text-gray-500 mb-5 leading-relaxed">
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-5 leading-relaxed">
           {step === "mfa_totp"
             ? "引き続いて、認証アプリに表示されている6桁のコードを入力してください。"
             : "ダッシュボードへのアクセスには、セキュリティ保護のためアカウントの再確認が必要です。パスワードを入力してください。"}
         </p>
 
         {error && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600 flex items-start gap-2 mb-4 text-left">
+          <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl text-xs text-red-600 dark:text-red-400 flex items-start gap-2 mb-4 text-left">
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
             <span>{error}</span>
           </div>
@@ -198,14 +203,14 @@ export const SudoConfirmModal: React.FC<SudoConfirmModalProps> = ({
                 autoFocus
                 value={verifyCode}
                 onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, ""))}
-                className="w-full text-center tracking-[0.4em] font-mono text-2xl border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full text-center tracking-[0.4em] font-mono text-2xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
             <button
               type="submit"
               disabled={loading || verifyCode.length !== 6 || !factorId}
-              className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
+              className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm cursor-pointer"
             >
               {loading ? "認証中..." : "認証して進む"}
             </button>
@@ -220,14 +225,14 @@ export const SudoConfirmModal: React.FC<SudoConfirmModalProps> = ({
                   autoFocus
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={loading || !password}
-                className="w-full py-3 bg-gray-900 text-white font-bold rounded-xl hover:bg-gray-800 disabled:opacity-50 transition-colors shadow-sm"
+                className="w-full py-3 bg-gray-900 dark:bg-gray-700 text-white font-bold rounded-xl hover:bg-gray-800 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors shadow-sm cursor-pointer"
               >
                 {loading ? "認証中..." : "認証して進む"}
               </button>
@@ -239,9 +244,9 @@ export const SudoConfirmModal: React.FC<SudoConfirmModalProps> = ({
                   type="button"
                   onClick={handlePasskeySubmit}
                   disabled={loading}
-                  className="w-full py-2.5 border border-gray-200 text-gray-700 text-xs font-bold rounded-xl hover:bg-gray-50 flex items-center justify-center gap-2 bg-white transition-colors disabled:opacity-50"
+                  className="w-full py-2.5 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 text-xs font-bold rounded-xl hover:bg-gray-50 dark:hover:bg-gray-750 flex items-center justify-center gap-2 bg-white dark:bg-gray-800 transition-colors disabled:opacity-50 cursor-pointer"
                 >
-                  <Key className="w-4 h-4 text-gray-600" />
+                  <Key className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                   パスキーで再認証
                 </button>
               </div>
@@ -249,12 +254,12 @@ export const SudoConfirmModal: React.FC<SudoConfirmModalProps> = ({
           </>
         )}
 
-        <div className="pt-4 mt-4 border-t border-gray-100">
+        <div className="pt-4 mt-4 border-t border-gray-100 dark:border-gray-700">
           <button
             type="button"
             onClick={onCancel}
             disabled={loading}
-            className="w-full py-2 text-xs text-gray-400 hover:text-gray-600 font-bold flex items-center justify-center gap-1.5 transition-colors"
+            className="w-full py-2 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>キャンセルして戻る</span>

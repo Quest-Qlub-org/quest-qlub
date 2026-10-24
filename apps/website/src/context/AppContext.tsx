@@ -6,10 +6,12 @@ import type { Article, Series } from "../types";
 import { AuthProvider, useAuth } from "./AuthContext";
 import type { UserRole } from "./AuthContext";
 import { UIProvider, useUI } from "./UIContext";
+import type { ThemeMode } from "./UIContext";
 import { DataProvider, useData } from "./DataContext";
 
 export { AuthProvider, useAuth } from "./AuthContext";
 export { UIProvider, useUI } from "./UIContext";
+export type { ThemeMode } from "./UIContext";
 export { DataProvider, useData } from "./DataContext";
 
 export interface AppContextType {
@@ -61,6 +63,12 @@ export interface AppContextType {
   fontSize: string;
   setFontSize: React.Dispatch<React.SetStateAction<string>>;
   getFontSizeClass: () => string;
+
+  // Theme Settings
+  theme: ThemeMode;
+  setTheme: (theme: ThemeMode) => void;
+  effectiveTheme: "light" | "dark";
+  toggleTheme: () => void;
 
   // Loading states
   dataLoaded: boolean;
@@ -172,6 +180,11 @@ export function useApp(): AppContextType {
     fontSize: ui.fontSize,
     setFontSize: ui.setFontSize,
     getFontSizeClass: ui.getFontSizeClass,
+
+    theme: ui.theme,
+    setTheme: ui.setTheme,
+    effectiveTheme: ui.effectiveTheme,
+    toggleTheme: ui.toggleTheme,
 
     dataLoaded: data.dataLoaded,
   };

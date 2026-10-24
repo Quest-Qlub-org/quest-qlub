@@ -239,14 +239,16 @@ export const EditorDashboard = () => {
 
   return (
     <div className="max-w-5xl mx-auto p-4 md:p-6 space-y-6 animate-in slide-in-from-right-8 duration-300">
-      <div className="-mx-4 md:mx-0 -mt-4 md:mt-0 px-4 md:rounded-xl bg-white border-b md:border border-gray-200 py-3 flex items-center gap-3 sticky top-0 z-10 shadow-sm mb-6">
+      <div className="-mx-4 md:mx-0 -mt-4 md:mt-0 px-4 md:rounded-xl bg-white dark:bg-gray-800 border-b md:border border-gray-200 dark:border-gray-700 py-3 flex items-center gap-3 sticky top-0 z-10 shadow-sm mb-6">
         <button
           onClick={() => window.history.back()}
-          className="p-2 bg-white rounded-full shadow-sm hover:bg-gray-50"
+          className="p-2 bg-white dark:bg-gray-700 rounded-full shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200"
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
-        <h2 className="text-lg font-bold text-purple-800">編集長ダッシュボード</h2>
+        <h2 className="text-lg font-bold text-purple-800 dark:text-purple-300">
+          編集長ダッシュボード
+        </h2>
       </div>
       {userRole === "editor" && (
         <button
@@ -260,7 +262,7 @@ export const EditorDashboard = () => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <button
           onClick={() => navigate("editorArticles")}
-          className="p-4 bg-white border border-purple-200 rounded-xl shadow-sm text-center font-bold text-purple-700 hover:bg-purple-50 transition-colors"
+          className="p-4 bg-white dark:bg-gray-800 border border-purple-200 dark:border-purple-800/60 rounded-xl shadow-sm text-center font-bold text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/40 transition-colors"
         >
           全記事の
           <br />
@@ -268,7 +270,7 @@ export const EditorDashboard = () => {
         </button>
         <button
           onClick={() => navigate("editorRecommend")}
-          className="p-4 bg-white border border-purple-200 rounded-xl shadow-sm text-center font-bold text-purple-700 hover:bg-purple-50 transition-colors"
+          className="p-4 bg-white dark:bg-gray-800 border border-purple-200 dark:border-purple-800/60 rounded-xl shadow-sm text-center font-bold text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/40 transition-colors"
         >
           おすすめ・人気
           <br />
@@ -276,13 +278,13 @@ export const EditorDashboard = () => {
         </button>
         <button
           onClick={() => navigate("editorWriters")}
-          className="p-4 bg-white border border-purple-200 rounded-xl shadow-sm text-center font-bold text-purple-700 hover:bg-purple-50 flex items-center justify-center gap-2 transition-colors"
+          className="p-4 bg-white dark:bg-gray-800 border border-purple-200 dark:border-purple-800/60 rounded-xl shadow-sm text-center font-bold text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/40 flex items-center justify-center gap-2 transition-colors"
         >
           <CustomUserIcon className="w-5 h-5 shrink-0" /> <span>新規ライターの追加</span>
         </button>
         <button
           onClick={() => navigate("editorApplications")}
-          className="p-4 bg-white border border-purple-200 rounded-xl shadow-sm text-center font-bold text-purple-700 hover:bg-purple-50 flex items-center justify-center gap-2 transition-colors"
+          className="p-4 bg-white dark:bg-gray-800 border border-purple-200 dark:border-purple-800/60 rounded-xl shadow-sm text-center font-bold text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/40 flex items-center justify-center gap-2 transition-colors"
         >
           <Mail className="w-5 h-5 shrink-0" /> <span>ライター応募一覧</span>
         </button>
@@ -290,7 +292,7 @@ export const EditorDashboard = () => {
 
       {/* 投稿承認待ちセクション */}
       <section>
-        <h3 className="font-bold text-gray-800 flex items-center gap-2 border-b pb-2 mb-3">
+        <h3 className="font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2 border-b border-gray-200 dark:border-gray-700 pb-2 mb-3">
           <AlertCircle className="w-5 h-5 text-orange-500" /> 投稿承認待ち ({pendingArticles.length}
           件)
         </h3>
@@ -302,21 +304,23 @@ export const EditorDashboard = () => {
             return (
               <div
                 key={article.id}
-                className="bg-orange-50 p-4 rounded-xl border border-orange-200 flex flex-col justify-between gap-3"
+                className="bg-orange-50 dark:bg-orange-950/30 p-4 rounded-xl border border-orange-200 dark:border-orange-800/50 flex flex-col justify-between gap-3"
               >
                 <div>
                   <div className="flex items-start justify-between gap-2 mb-1">
-                    <p className="font-bold text-gray-800 break-words">{article.title}</p>
+                    <p className="font-bold text-gray-800 dark:text-gray-100 break-words">
+                      {article.title}
+                    </p>
                     {getStatusBadge(article.status)}
                   </div>
-                  <p className="text-xs text-gray-500">申請者: {writerName}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">申請者: {writerName}</p>
                   {schedLabel && (
-                    <p className="text-xs text-purple-700 font-bold mt-1 flex items-center gap-1">
+                    <p className="text-xs text-purple-700 dark:text-purple-300 font-bold mt-1 flex items-center gap-1">
                       <Clock className="w-3.5 h-3.5" /> 希望公開日時: {schedLabel}
                     </p>
                   )}
                   {article.summary && (
-                    <p className="text-xs text-gray-600 mt-2 line-clamp-2 bg-white/70 p-2 rounded-lg border border-orange-100">
+                    <p className="text-xs text-gray-600 dark:text-gray-300 mt-2 line-clamp-2 bg-white/70 dark:bg-gray-800/70 p-2 rounded-lg border border-orange-100 dark:border-orange-900/40">
                       {article.summary}
                     </p>
                   )}
@@ -326,7 +330,7 @@ export const EditorDashboard = () => {
                     type="button"
                     data-testid={`preview-pending-${article.id}`}
                     onClick={() => void openInlinePreview(article)}
-                    className="px-3 py-2 bg-blue-50 text-blue-700 text-sm font-bold rounded-lg hover:bg-blue-100 flex items-center justify-center gap-1 border border-blue-200 shadow-sm cursor-pointer"
+                    className="px-3 py-2 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 text-sm font-bold rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/40 flex items-center justify-center gap-1 border border-blue-200 dark:border-blue-800/50 shadow-sm cursor-pointer"
                   >
                     <Eye className="w-4 h-4" /> 内容確認
                   </button>
@@ -340,7 +344,7 @@ export const EditorDashboard = () => {
                   <button
                     type="button"
                     onClick={() => void handleRejectArticle(article)}
-                    className="py-2 px-3 bg-white text-gray-600 border border-gray-300 text-sm font-bold rounded-lg hover:bg-gray-50 cursor-pointer"
+                    className="py-2 px-3 bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-200 border border-gray-300 dark:border-gray-600 text-sm font-bold rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 cursor-pointer"
                   >
                     差し戻し
                   </button>
@@ -349,7 +353,7 @@ export const EditorDashboard = () => {
             );
           })}
           {pendingArticles.length === 0 && (
-            <p className="text-sm text-gray-500 text-center py-6 bg-white rounded-xl border md:col-span-2">
+            <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-6 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 md:col-span-2">
               現在、承認待ちの記事はありません。
             </p>
           )}
@@ -359,8 +363,9 @@ export const EditorDashboard = () => {
       {/* 公開予約中セクション */}
       {scheduledArticles.length > 0 && (
         <section>
-          <h3 className="font-bold text-gray-800 flex items-center gap-2 border-b pb-2 mb-3">
-            <Clock className="w-5 h-5 text-purple-600" /> 公開予約中 ({scheduledArticles.length}件)
+          <h3 className="font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2 border-b border-gray-200 dark:border-gray-700 pb-2 mb-3">
+            <Clock className="w-5 h-5 text-purple-600 dark:text-purple-400" /> 公開予約中 (
+            {scheduledArticles.length}件)
           </h3>
           <div className="space-y-3 md:grid md:grid-cols-2 md:gap-4 md:space-y-0">
             {scheduledArticles.map((article) => {
@@ -370,16 +375,18 @@ export const EditorDashboard = () => {
               return (
                 <div
                   key={article.id}
-                  className="bg-purple-50/70 p-4 rounded-xl border border-purple-200 flex flex-col justify-between gap-3"
+                  className="bg-purple-50/70 dark:bg-purple-950/30 p-4 rounded-xl border border-purple-200 dark:border-purple-800/50 flex flex-col justify-between gap-3"
                 >
                   <div>
                     <div className="flex items-start justify-between gap-2 mb-1">
-                      <p className="font-bold text-gray-800 break-words">{article.title}</p>
+                      <p className="font-bold text-gray-800 dark:text-gray-100 break-words">
+                        {article.title}
+                      </p>
                       {getStatusBadge("scheduled")}
                     </div>
-                    <p className="text-xs text-gray-500">執筆者: {writerName}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">執筆者: {writerName}</p>
                     {schedLabel && (
-                      <p className="text-xs text-purple-700 font-bold mt-1 flex items-center gap-1">
+                      <p className="text-xs text-purple-700 dark:text-purple-300 font-bold mt-1 flex items-center gap-1">
                         <Clock className="w-3.5 h-3.5" /> 予約日時: {schedLabel}
                       </p>
                     )}
@@ -388,7 +395,7 @@ export const EditorDashboard = () => {
                     <button
                       type="button"
                       onClick={() => void openInlinePreview(article)}
-                      className="px-3 py-2 bg-white text-purple-700 text-xs font-bold rounded-lg hover:bg-purple-100 flex items-center justify-center gap-1 border border-purple-200 shadow-sm cursor-pointer"
+                      className="px-3 py-2 bg-white dark:bg-gray-800 text-purple-700 dark:text-purple-300 text-xs font-bold rounded-lg hover:bg-purple-100 dark:hover:bg-purple-950/40 flex items-center justify-center gap-1 border border-purple-200 dark:border-purple-800/50 shadow-sm cursor-pointer"
                     >
                       <Eye className="w-3.5 h-3.5" /> 内容・予約確認
                     </button>
@@ -402,7 +409,7 @@ export const EditorDashboard = () => {
                     <button
                       type="button"
                       onClick={() => void handleRejectArticle(article)}
-                      className="py-2 px-3 bg-white text-gray-600 border border-gray-300 text-xs font-bold rounded-lg hover:bg-gray-50 cursor-pointer"
+                      className="py-2 px-3 bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-200 border border-gray-300 dark:border-gray-600 text-xs font-bold rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 cursor-pointer"
                     >
                       下書きへ戻す
                     </button>
@@ -425,14 +432,14 @@ export const EditorDashboard = () => {
             role="dialog"
             aria-modal="true"
             aria-label="記事プレビュー"
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden"
+            className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             {/* モーダルヘッダー */}
-            <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 border-b border-gray-200 bg-gray-50">
+            <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80">
               <div className="flex items-center gap-2 min-w-0">
                 {getStatusBadge(previewArticle.status)}
-                <span className="text-xs text-gray-500 truncate">
+                <span className="text-xs text-gray-500 dark:text-gray-400 truncate">
                   申請者:{" "}
                   {writers.find((w) => w.id === previewArticle.writerId)?.display_name ?? "不明"}
                 </span>
@@ -445,7 +452,7 @@ export const EditorDashboard = () => {
                     setPreviewArticle(null);
                     navigate("writerEdit", targetId);
                   }}
-                  className="text-xs px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg font-bold text-gray-700 hover:bg-gray-100 inline-flex items-center gap-1 cursor-pointer"
+                  className="text-xs px-2.5 py-1.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 inline-flex items-center gap-1 cursor-pointer"
                 >
                   <Edit3 className="w-3.5 h-3.5" /> 編集
                 </button>
@@ -456,7 +463,7 @@ export const EditorDashboard = () => {
                     setPreviewArticle(null);
                     navigate("article", targetId);
                   }}
-                  className="text-xs px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg font-bold text-blue-600 hover:bg-blue-50 inline-flex items-center gap-1 cursor-pointer"
+                  className="text-xs px-2.5 py-1.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 inline-flex items-center gap-1 cursor-pointer"
                 >
                   <ExternalLink className="w-3.5 h-3.5" /> 記事ページへ
                 </button>
@@ -464,7 +471,7 @@ export const EditorDashboard = () => {
                   type="button"
                   aria-label="閉じる"
                   onClick={() => setPreviewArticle(null)}
-                  className="p-1.5 rounded-full hover:bg-gray-200 text-gray-500 cursor-pointer"
+                  className="p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -474,7 +481,7 @@ export const EditorDashboard = () => {
             {/* モーダル本文（スクロール領域） */}
             <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
               {previewArticle.thumbnailUrl ? (
-                <div className="w-full max-h-60 aspect-video rounded-xl overflow-hidden bg-gray-50 border border-gray-200 flex items-center justify-center">
+                <div className="w-full max-h-60 aspect-video rounded-xl overflow-hidden bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 flex items-center justify-center">
                   <img
                     src={previewArticle.thumbnailUrl}
                     alt={previewArticle.title}
@@ -483,13 +490,13 @@ export const EditorDashboard = () => {
                 </div>
               ) : (
                 <div
-                  className={`${getThumbnailColor(previewArticle.thumbnailColor ?? null).bg} w-full h-32 rounded-xl flex items-center justify-center border border-gray-100`}
+                  className={`${getThumbnailColor(previewArticle.thumbnailColor ?? null).bg} w-full h-32 rounded-xl flex items-center justify-center border border-gray-100 dark:border-gray-700`}
                 >
                   <LogoIcon className="w-12 h-12 opacity-30" />
                 </div>
               )}
 
-              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 leading-snug break-words">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100 leading-snug break-words">
                 {previewArticle.title}
               </h2>
 
@@ -498,7 +505,7 @@ export const EditorDashboard = () => {
                   {(previewArticle.tags ?? []).map((t) => (
                     <span
                       key={t}
-                      className="px-2.5 py-0.5 bg-gray-100 text-gray-600 text-xs font-bold rounded-full border border-gray-200"
+                      className="px-2.5 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs font-bold rounded-full border border-gray-200 dark:border-gray-600"
                     >
                       #{t}
                     </span>
@@ -507,30 +514,34 @@ export const EditorDashboard = () => {
               )}
 
               {previewArticle.summary && (
-                <div className="bg-blue-50 p-3.5 rounded-xl text-sm text-gray-700 border border-blue-100 font-medium">
+                <div className="bg-blue-50 dark:bg-blue-950/40 p-3.5 rounded-xl text-sm text-gray-700 dark:text-gray-300 border border-blue-100 dark:border-blue-800/50 font-medium">
                   {previewArticle.summary}
                 </div>
               )}
 
-              <div className="border-t border-gray-100 pt-4">
+              <div className="border-t border-gray-100 dark:border-gray-700 pt-4">
                 {previewLoading ? (
-                  <p className="text-sm text-gray-400 text-center py-8">本文を読み込み中...</p>
+                  <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-8">
+                    本文を読み込み中...
+                  </p>
                 ) : previewArticle.content ? (
                   <div
                     className={`article-content ${typeof getFontSizeClass === "function" ? getFontSizeClass() : "text-base"}`}
                     dangerouslySetInnerHTML={{ __html: sanitizeHtml(previewArticle.content) }}
                   />
                 ) : (
-                  <p className="text-sm text-gray-400 text-center py-8">本文が設定されていません</p>
+                  <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-8">
+                    本文が設定されていません
+                  </p>
                 )}
               </div>
             </div>
 
             {/* モーダルフッター（その場で承認・公開予約・差し戻しアクション） */}
-            <div className="p-4 border-t border-gray-200 bg-gray-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-2 flex-wrap">
-                <label className="text-xs font-bold text-gray-600 flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-purple-600" />
+                <label className="text-xs font-bold text-gray-600 dark:text-gray-300 flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
                   <span>公開予約日時:</span>
                 </label>
                 <input
@@ -538,13 +549,13 @@ export const EditorDashboard = () => {
                   data-testid="editor-preview-schedule-input"
                   value={scheduleInput}
                   onChange={(e) => setScheduleInput(e.target.value)}
-                  className="text-xs border border-gray-300 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-purple-400"
+                  className="text-xs border border-gray-300 dark:border-gray-600 rounded-lg px-2.5 py-1.5 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-400"
                 />
                 {scheduleInput && (
                   <button
                     type="button"
                     onClick={() => setScheduleInput("")}
-                    className="text-xs text-gray-400 hover:text-gray-600 underline"
+                    className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 underline"
                   >
                     クリア
                   </button>
@@ -556,7 +567,7 @@ export const EditorDashboard = () => {
                   type="button"
                   data-testid="modal-reject-btn"
                   onClick={() => void handleRejectArticle(previewArticle)}
-                  className="px-4 py-2 bg-white text-gray-700 border border-gray-300 text-sm font-bold rounded-xl hover:bg-gray-100 cursor-pointer"
+                  className="px-4 py-2 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 text-sm font-bold rounded-xl hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer"
                 >
                   差し戻し
                 </button>

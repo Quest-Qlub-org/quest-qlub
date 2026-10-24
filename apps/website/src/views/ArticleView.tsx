@@ -318,24 +318,24 @@ export const ArticleView = () => {
   };
 
   return (
-    <div className="animate-in slide-in-from-right-8 duration-300 bg-white min-h-screen">
-      <div className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b px-2 py-2 flex items-center">
+    <div className="animate-in slide-in-from-right-8 duration-300 bg-white dark:bg-gray-900 min-h-screen text-gray-800 dark:text-gray-100 transition-colors">
+      <div className="sticky top-0 z-40 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 px-2 py-2 flex items-center">
         <button
           onClick={() => navigate(-1)}
-          className="p-2 rounded-full hover:bg-gray-100 flex items-center"
+          className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center cursor-pointer transition-colors"
         >
-          <ChevronLeft className="w-6 h-6 text-gray-600" />
-          <span className="text-sm font-bold text-gray-600">戻る</span>
+          <ChevronLeft className="w-6 h-6 text-gray-600 dark:text-gray-300" />
+          <span className="text-sm font-bold text-gray-600 dark:text-gray-300">戻る</span>
         </button>
       </div>
 
       {article.status !== "published" && (
         <div
           data-testid="article-preview-banner"
-          className="bg-amber-50 border-b border-amber-200 px-4 py-3 text-amber-800 text-xs font-bold flex flex-col sm:flex-row items-center justify-between gap-2 max-w-full"
+          className="bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-900 px-4 py-3 text-amber-800 dark:text-amber-200 text-xs font-bold flex flex-col sm:flex-row items-center justify-between gap-2 max-w-full"
         >
           <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-            <span className="px-2 py-0.5 rounded bg-amber-200 text-amber-900 font-extrabold text-[10px]">
+            <span className="px-2 py-0.5 rounded bg-amber-200 dark:bg-amber-800 text-amber-900 dark:text-amber-100 font-extrabold text-[10px]">
               PREVIEW
             </span>
             <span>
@@ -344,7 +344,7 @@ export const ArticleView = () => {
               （一般には公開されていません）
             </span>
             {formatScheduledDateTime(article.scheduledAt) && (
-              <span className="inline-flex items-center gap-1 text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full">
+              <span className="inline-flex items-center gap-1 text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/50 px-2 py-0.5 rounded-full">
                 <Clock className="w-3 h-3" /> 公開予定:{" "}
                 {formatScheduledDateTime(article.scheduledAt)}
               </span>
@@ -364,7 +364,7 @@ export const ArticleView = () => {
                       void navigate(`/dashboard/writer/edit/${article.id}`);
                     }
                   }}
-                  className="px-2.5 py-1.5 bg-white text-gray-700 border border-amber-300 rounded-lg hover:bg-gray-50 inline-flex items-center gap-1 cursor-pointer"
+                  className="px-2.5 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-amber-300 dark:border-amber-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 inline-flex items-center gap-1 cursor-pointer"
                 >
                   <Edit3 className="w-3.5 h-3.5" /> 編集する
                 </button>
@@ -383,7 +383,7 @@ export const ArticleView = () => {
                   type="button"
                   data-testid="preview-banner-withdraw-btn"
                   onClick={() => void handleQuickStatusChange("draft")}
-                  className="px-3 py-1.5 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-100 cursor-pointer"
+                  className="px-3 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
                 >
                   申請取消
                 </button>
@@ -403,7 +403,7 @@ export const ArticleView = () => {
                       type="button"
                       data-testid="preview-banner-reject-btn"
                       onClick={() => void handleQuickStatusChange("draft")}
-                      className="px-3 py-1.5 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-100 cursor-pointer"
+                      className="px-3 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
                     >
                       差し戻し
                     </button>
@@ -417,7 +417,7 @@ export const ArticleView = () => {
 
       <div className="max-w-3xl mx-auto px-4 md:px-8 pt-4">
         {article.thumbnailUrl ? (
-          <div className="w-full max-h-72 md:max-h-80 aspect-video rounded-2xl overflow-hidden bg-gray-50 border border-gray-200 flex items-center justify-center mx-auto shadow-sm">
+          <div className="w-full max-h-72 md:max-h-80 aspect-video rounded-2xl overflow-hidden bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex items-center justify-center mx-auto shadow-sm">
             <img
               src={article.thumbnailUrl}
               alt={article.title}
@@ -426,7 +426,7 @@ export const ArticleView = () => {
           </div>
         ) : (
           <div
-            className={`${color.bg} w-full max-h-64 aspect-video rounded-2xl flex items-center justify-center shadow-sm border border-gray-100 mx-auto`}
+            className={`${color.bg} w-full max-h-64 aspect-video rounded-2xl flex items-center justify-center shadow-sm border border-gray-100 dark:border-gray-800 mx-auto`}
           >
             <LogoIcon className="w-16 h-16 opacity-30" />
           </div>
@@ -440,44 +440,52 @@ export const ArticleView = () => {
             if (!series) return null;
             return (
               <div className="flex items-center gap-2">
-                <span className="text-xs font-bold bg-blue-100 text-blue-600 px-2 py-1 rounded-full">
+                <span className="text-xs font-bold bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300 px-2 py-1 rounded-full">
                   連載
                 </span>
-                <span className="text-sm font-bold text-blue-600">{series.title}</span>
+                <span className="text-sm font-bold text-blue-600 dark:text-blue-400">
+                  {series.title}
+                </span>
                 {article.episodeNumber != null && (
-                  <span className="text-xs text-gray-400">第{article.episodeNumber}話</span>
+                  <span className="text-xs text-gray-400 dark:text-gray-500">
+                    第{article.episodeNumber}話
+                  </span>
                 )}
               </div>
             );
           })()}
 
-        <h1 className="text-2xl font-bold text-gray-900 leading-tight">{article.title}</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 leading-tight">
+          {article.title}
+        </h1>
 
         {article.summary && (
-          <div className="bg-blue-50 p-4 rounded-xl text-gray-700 border border-blue-100 font-medium">
+          <div className="bg-blue-50 dark:bg-blue-950/40 p-4 rounded-xl text-gray-700 dark:text-gray-300 border border-blue-100 dark:border-blue-900/60 font-medium">
             {article.summary}
           </div>
         )}
 
-        <div className="flex flex-wrap items-center justify-between gap-4 py-3 border-b border-gray-100">
-          <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500">
+        <div className="flex flex-wrap items-center justify-between gap-4 py-3 border-b border-gray-100 dark:border-gray-800">
+          <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500 dark:text-gray-400">
             {formatArticleDate(article.createdAt) && (
-              <span className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-md text-xs text-gray-600">
+              <span className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-md text-xs text-gray-600 dark:text-gray-300">
                 <Calendar className="w-3.5 h-3.5" />
                 <span>{formatArticleDate(article.createdAt)}</span>
               </span>
             )}
-            <span className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-md text-xs">
+            <span className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-md text-xs text-gray-600 dark:text-gray-300">
               <Eye className="w-4 h-4" /> {article.views}
             </span>
-            <span className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-md text-xs">
+            <span className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-md text-xs text-gray-600 dark:text-gray-300">
               <CustomStarIcon className="w-4 h-4" active={isFav} /> {article.likes}
             </span>
           </div>
           <button
             onClick={() => void toggleFavorite(article.id)}
-            className={`p-2 rounded-full border shadow-sm transition-all ${
-              isFav ? "bg-yellow-50 border-yellow-300 scale-110" : "bg-white border-gray-200"
+            className={`p-2 rounded-full border shadow-sm transition-all cursor-pointer ${
+              isFav
+                ? "bg-yellow-50 dark:bg-yellow-950/40 border-yellow-300 dark:border-yellow-600 scale-110"
+                : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
             }`}
           >
             <CustomStarIcon className="w-6 h-6" active={isFav} />
@@ -490,7 +498,7 @@ export const ArticleView = () => {
               key={tag}
               type="button"
               onClick={() => navigate(`/search?tag=${encodeURIComponent(tag)}`)}
-              className="px-3 py-1 bg-gray-100 text-gray-600 text-xs font-bold rounded-full border border-gray-200 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 transition-colors cursor-pointer"
+              className="px-3 py-1 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 text-xs font-bold rounded-full border border-gray-200 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-950/50 hover:border-blue-300 dark:hover:border-blue-700 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
             >
               #{tag}
             </button>
@@ -499,11 +507,11 @@ export const ArticleView = () => {
 
         {writer && (
           <div
-            className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-xl shadow-sm cursor-pointer hover:bg-gray-50"
+            className="flex items-center justify-between p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors"
             onClick={() => navigate(`/writers/${writer.username || writer.id}`)}
           >
             <div className="flex items-center gap-3">
-              <div className="bg-gray-100 p-2 rounded-full border border-gray-200">
+              <div className="bg-gray-100 dark:bg-gray-700 p-2 rounded-full border border-gray-200 dark:border-gray-600">
                 {writer.avatar_url ? (
                   <img
                     src={writer.avatar_url}
@@ -515,8 +523,10 @@ export const ArticleView = () => {
                 )}
               </div>
               <div>
-                <p className="text-xs text-gray-500 font-bold mb-0.5">この記事を書いた人</p>
-                <p className="font-bold text-gray-800">
+                <p className="text-xs text-gray-500 dark:text-gray-400 font-bold mb-0.5">
+                  この記事を書いた人
+                </p>
+                <p className="font-bold text-gray-800 dark:text-gray-100">
                   {writer.display_name ?? (writer.username ? `@${writer.username}` : "名称未設定")}
                 </p>
               </div>
@@ -546,10 +556,10 @@ export const ArticleView = () => {
                       wasFollowing ? "フォローを解除しました" : "ライターをフォローしました",
                     );
                   }}
-                  className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm ${
+                  className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm cursor-pointer ${
                     isFollowing(writer.id)
                       ? "bg-blue-600 text-white hover:bg-blue-700"
-                      : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-100"
+                      : "bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
                   }`}
                 >
                   {isFollowing(writer.id) ? (
@@ -565,23 +575,27 @@ export const ArticleView = () => {
                   )}
                 </button>
               )}
-              <span className="text-xs font-bold text-blue-500 bg-blue-50 px-3 py-1.5 rounded-full hidden sm:inline-block">
+              <span className="text-xs font-bold text-blue-500 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 px-3 py-1.5 rounded-full hidden sm:inline-block">
                 プロフィールへ
               </span>
             </div>
           </div>
         )}
 
-        <div className={`py-4 text-gray-800 leading-loose article-content ${getFontSizeClass()}`}>
+        <div
+          className={`py-4 text-gray-800 dark:text-gray-200 leading-loose article-content ${getFontSizeClass()}`}
+        >
           {article.content ? (
             <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(article.content) }} />
           ) : (
-            <span className="text-gray-400 italic">本文はまだ書かれていません</span>
+            <span className="text-gray-400 dark:text-gray-500 italic">
+              本文はまだ書かれていません
+            </span>
           )}
         </div>
 
-        <div className="border-t pt-8 pb-4 space-y-4">
-          <p className="font-bold text-gray-800 text-center">この記事を共有</p>
+        <div className="border-t border-gray-200 dark:border-gray-800 pt-8 pb-4 space-y-4">
+          <p className="font-bold text-gray-800 dark:text-gray-200 text-center">この記事を共有</p>
           <div className="flex flex-wrap justify-center gap-x-6 gap-y-2">
             <button
               onClick={() =>
@@ -592,7 +606,7 @@ export const ArticleView = () => {
                   "_blank",
                 )
               }
-              className="w-14 h-14 bg-black text-white rounded-full flex items-center justify-center hover:opacity-80 shadow-md"
+              className="w-14 h-14 bg-black text-white rounded-full flex items-center justify-center hover:opacity-80 shadow-md cursor-pointer"
             >
               <span className="font-bold text-2xl">X</span>
             </button>
@@ -605,7 +619,7 @@ export const ArticleView = () => {
                   "_blank",
                 )
               }
-              className="w-14 h-14 bg-green-500 text-white rounded-full flex items-center justify-center hover:opacity-80 shadow-md"
+              className="w-14 h-14 bg-green-500 text-white rounded-full flex items-center justify-center hover:opacity-80 shadow-md cursor-pointer"
             >
               <span className="font-bold text-sm">LINE</span>
             </button>
@@ -614,7 +628,7 @@ export const ArticleView = () => {
                 void navigator.clipboard.writeText(articleUrl);
                 showToast("リンクをコピーしました");
               }}
-              className="w-14 h-14 bg-white border-2 border-gray-200 text-gray-600 rounded-full flex items-center justify-center hover:bg-gray-50 shadow-sm"
+              className="w-14 h-14 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 rounded-full flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm cursor-pointer"
             >
               <Share2 className="w-6 h-6" />
             </button>

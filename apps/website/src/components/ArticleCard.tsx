@@ -19,7 +19,7 @@ export const ArticleCard = ({
 
   return (
     <div
-      className={`bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden cursor-pointer active:scale-[0.98] transition-transform ${
+      className={`bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700/80 overflow-hidden cursor-pointer active:scale-[0.98] transition-all hover:border-gray-300 dark:hover:border-gray-600 ${
         layout === "horizontal" ? "flex h-28" : "flex flex-col"
       }`}
       onClick={() => navigate("article", article.id)}
@@ -30,7 +30,7 @@ export const ArticleCard = ({
             layout === "horizontal"
               ? "w-1/3 min-w-[110px] max-w-[130px] h-full"
               : "w-full max-h-44 md:max-h-48"
-          } overflow-hidden bg-gray-50 flex items-center justify-center shrink-0`}
+          } overflow-hidden bg-gray-50 dark:bg-gray-900 flex items-center justify-center shrink-0`}
           style={layout !== "horizontal" ? { aspectRatio: "16/9" } : {}}
         >
           <img
@@ -56,11 +56,11 @@ export const ArticleCard = ({
           layout === "horizontal" ? "flex-1 min-w-0" : "w-full"
         }`}
       >
-        <h3 className="font-bold text-gray-800 line-clamp-2 text-sm md:text-base leading-snug">
+        <h3 className="font-bold text-gray-800 dark:text-gray-100 line-clamp-2 text-sm md:text-base leading-snug">
           {article.title}
         </h3>
         <div className="flex items-center justify-between mt-2 pt-1">
-          <div className="flex items-center gap-2 min-w-0 flex-1 mr-2 text-xs text-gray-500">
+          <div className="flex items-center gap-2 min-w-0 flex-1 mr-2 text-xs text-gray-500 dark:text-gray-400">
             <span className="flex items-center gap-1 truncate">
               <CustomUserIcon className="w-4 h-4 shrink-0" />{" "}
               <span className="truncate">
@@ -68,7 +68,7 @@ export const ArticleCard = ({
               </span>
             </span>
             {formattedDate && (
-              <span className="text-[11px] text-gray-400 shrink-0 select-none">
+              <span className="text-[11px] text-gray-400 dark:text-gray-500 shrink-0 select-none">
                 {formattedDate}
               </span>
             )}

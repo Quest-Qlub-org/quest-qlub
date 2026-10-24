@@ -384,24 +384,26 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
       aria-label={title}
       className={`flex items-center justify-center w-8 h-8 rounded-lg text-sm transition-colors ${
         active
-          ? "bg-blue-100 text-blue-700 font-bold shadow-xs"
-          : "text-gray-600 hover:bg-gray-200/70 hover:text-gray-900"
+          ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-bold shadow-xs"
+          : "text-gray-600 dark:text-gray-300 hover:bg-gray-200/70 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-100"
       }`}
     >
       {children}
     </button>
   );
 
-  const Div = () => <div className="w-px h-5 bg-gray-200 mx-1 self-center shrink-0" />;
+  const Div = () => (
+    <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1 self-center shrink-0" />
+  );
 
   return (
-    <div className="border border-gray-200 rounded-2xl bg-white shadow-sm overflow-visible">
+    <div className="border border-gray-200 dark:border-gray-700 rounded-2xl bg-white dark:bg-gray-800 shadow-sm overflow-visible">
       {/* ツールバー */}
-      <div className="border-b border-gray-200 bg-gray-50/95 backdrop-blur px-2.5 py-2 flex flex-wrap items-center gap-1 rounded-t-2xl sticky top-[104px] z-20">
+      <div className="border-b border-gray-200 dark:border-gray-700 bg-gray-50/95 dark:bg-gray-800/95 backdrop-blur px-2.5 py-2 flex flex-wrap items-center gap-1 rounded-t-2xl sticky top-[104px] z-20">
         {/* 段落・見出し */}
         <select
           aria-label="見出しスタイル"
-          className="text-xs font-medium border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-700 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          className="text-xs font-medium border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400"
           value={activeHeading}
           onChange={(e) => {
             const v = e.target.value;
@@ -423,7 +425,7 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
         {/* コールアウト枠 */}
         <select
           aria-label="コールアウト枠"
-          className="text-xs font-medium border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-700 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          className="text-xs font-medium border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400"
           value={activeFrame}
           onChange={(e) => {
             const v = e.target.value;
@@ -446,7 +448,7 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
             type="button"
             onClick={exitCustomFrame}
             title="枠の外に新しい段落を追加"
-            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
           >
             <CornerDownLeft className="w-3.5 h-3.5" />
             <span>枠外へ改行</span>
@@ -456,7 +458,7 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
         {/* フォント種類 */}
         <select
           aria-label="フォント"
-          className="text-xs font-medium border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-700 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          className="text-xs font-medium border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400"
           value={activeFontFamily}
           onChange={(e) => {
             const v = e.target.value;
@@ -828,7 +830,7 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
       <EditorContent editor={editor} />
 
       {/* ステータスフッター（文字数・読了目安） */}
-      <div className="border-t border-gray-100 bg-gray-50/70 px-4 py-2 rounded-b-2xl flex items-center justify-between text-xs text-gray-500">
+      <div className="border-t border-gray-100 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-800/70 px-4 py-2 rounded-b-2xl flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
         <span>
           {activeFrame ? "💡 枠内編集中（Ctrl+Enter または「枠外へ改行」で枠を出られます）" : ""}
         </span>

@@ -24,10 +24,12 @@ export function ProfileSettingsSection({
   showToast: (msg: string) => void;
 }) {
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden divide-y divide-gray-100">
-      <div className="p-4 bg-gray-50/50">
-        <h2 className="font-bold text-gray-900 text-sm">プロフィール設定</h2>
-        <p className="text-xs text-gray-500 mt-0.5">記事やライター一覧に表示される公開情報です</p>
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden divide-y divide-gray-100 dark:divide-gray-700">
+      <div className="p-4 bg-gray-50/50 dark:bg-gray-800/50">
+        <h2 className="font-bold text-gray-900 dark:text-gray-100 text-sm">プロフィール設定</h2>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+          記事やライター一覧に表示される公開情報です
+        </p>
       </div>
       <FollowManageSection profile={profile} />
       <AvatarUpload
@@ -104,25 +106,29 @@ function FollowManageSection({ profile }: { profile: Profile | null }) {
 
   return (
     <div className="p-4">
-      <p className="text-xs text-gray-500 mb-2 font-bold">
+      <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 font-bold">
         フォロー・フォロワー（詳細確認は本人のみ）
       </p>
       <div className="flex items-center gap-3">
         <button
           type="button"
           onClick={() => void openModal("following")}
-          className="flex-1 py-2.5 px-4 rounded-xl border border-gray-200 hover:bg-blue-50/50 hover:border-blue-200 transition-colors flex items-center justify-between"
+          className="flex-1 py-2.5 px-4 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-blue-50/50 dark:hover:bg-blue-900/20 hover:border-blue-200 dark:hover:border-blue-700 transition-colors flex items-center justify-between bg-white dark:bg-gray-800"
         >
-          <span className="text-xs font-bold text-gray-600">フォロー中</span>
-          <span className="text-sm font-extrabold text-blue-600">{followingCount}</span>
+          <span className="text-xs font-bold text-gray-600 dark:text-gray-300">フォロー中</span>
+          <span className="text-sm font-extrabold text-blue-600 dark:text-blue-400">
+            {followingCount}
+          </span>
         </button>
         <button
           type="button"
           onClick={() => void openModal("followers")}
-          className="flex-1 py-2.5 px-4 rounded-xl border border-gray-200 hover:bg-blue-50/50 hover:border-blue-200 transition-colors flex items-center justify-between"
+          className="flex-1 py-2.5 px-4 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-blue-50/50 dark:hover:bg-blue-900/20 hover:border-blue-200 dark:hover:border-blue-700 transition-colors flex items-center justify-between bg-white dark:bg-gray-800"
         >
-          <span className="text-xs font-bold text-gray-600">フォロワー</span>
-          <span className="text-sm font-extrabold text-blue-600">{followersCount}</span>
+          <span className="text-xs font-bold text-gray-600 dark:text-gray-300">フォロワー</span>
+          <span className="text-sm font-extrabold text-blue-600 dark:text-blue-400">
+            {followersCount}
+          </span>
         </button>
       </div>
 
@@ -134,31 +140,33 @@ function FollowManageSection({ profile }: { profile: Profile | null }) {
           <div
             role="dialog"
             aria-modal="true"
-            className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden"
+            className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-700">
               <div className="flex items-center gap-2">
-                <Users className="w-5 h-5 text-blue-600" />
-                <h4 className="font-bold text-gray-900 text-base">フォロー・フォロワー一覧</h4>
+                <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                <h4 className="font-bold text-gray-900 dark:text-gray-100 text-base">
+                  フォロー・フォロワー一覧
+                </h4>
               </div>
               <button
                 type="button"
                 onClick={() => setModalTab(null)}
-                className="p-1.5 rounded-full hover:bg-gray-100 text-gray-500"
+                className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="grid grid-cols-2 border-b border-gray-100 text-xs font-bold">
+            <div className="grid grid-cols-2 border-b border-gray-100 dark:border-gray-700 text-xs font-bold">
               <button
                 type="button"
                 onClick={() => setModalTab("following")}
                 className={`py-3 text-center border-b-2 transition-colors ${
                   modalTab === "following"
-                    ? "border-blue-600 text-blue-600 bg-blue-50/40"
-                    : "border-transparent text-gray-500 hover:text-gray-800"
+                    ? "border-blue-600 text-blue-600 dark:text-blue-400 bg-blue-50/40 dark:bg-blue-900/20"
+                    : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
                 }`}
               >
                 フォロー中 ({followingList.length})
@@ -168,8 +176,8 @@ function FollowManageSection({ profile }: { profile: Profile | null }) {
                 onClick={() => setModalTab("followers")}
                 className={`py-3 text-center border-b-2 transition-colors ${
                   modalTab === "followers"
-                    ? "border-blue-600 text-blue-600 bg-blue-50/40"
-                    : "border-transparent text-gray-500 hover:text-gray-800"
+                    ? "border-blue-600 text-blue-600 dark:text-blue-400 bg-blue-50/40 dark:bg-blue-900/20"
+                    : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
                 }`}
               >
                 フォロワー ({followersList.length})
@@ -193,10 +201,10 @@ function FollowManageSection({ profile }: { profile: Profile | null }) {
                       setModalTab(null);
                       void navigate(`/writers/${item.username || item.id}`);
                     }}
-                    className="flex items-center justify-between p-3 rounded-xl border border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors"
+                    className="flex items-center justify-between p-3 rounded-xl border border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-9 h-9 rounded-full bg-gray-100 border border-gray-200 overflow-hidden flex items-center justify-center shrink-0">
+                      <div className="w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 overflow-hidden flex items-center justify-center shrink-0">
                         {item.avatar_url ? (
                           <img
                             src={item.avatar_url}
@@ -208,7 +216,7 @@ function FollowManageSection({ profile }: { profile: Profile | null }) {
                         )}
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-bold text-gray-800 truncate">
+                        <p className="text-sm font-bold text-gray-800 dark:text-gray-200 truncate">
                           {item.display_name || (item.username ? `@${item.username}` : "ユーザー")}
                         </p>
                         {item.username && (
@@ -283,9 +291,9 @@ function AvatarUpload({
 
   return (
     <div className="p-4">
-      <p className="text-xs text-gray-500 mb-2 font-bold">アイコン画像</p>
+      <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 font-bold">アイコン画像</p>
       <div className="flex items-center gap-4">
-        <div className="w-16 h-16 rounded-full overflow-hidden bg-gray-100 border border-gray-200 flex items-center justify-center flex-shrink-0">
+        <div className="w-16 h-16 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 flex items-center justify-center flex-shrink-0">
           {profile?.avatar_url ? (
             <img src={profile.avatar_url} alt="avatar" className="w-full h-full object-cover" />
           ) : (
@@ -296,8 +304,8 @@ function AvatarUpload({
           <label
             className={`inline-block px-4 py-2 rounded-lg text-sm font-bold cursor-pointer border-2 transition-all ${
               uploading
-                ? "bg-gray-100 text-gray-400 border-gray-200"
-                : "bg-white text-blue-600 border-blue-500 hover:bg-blue-50"
+                ? "bg-gray-100 dark:bg-gray-700 text-gray-400 border-gray-200 dark:border-gray-600"
+                : "bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20"
             }`}
           >
             {uploading ? "アップロード中..." : "画像を変更"}
@@ -309,7 +317,9 @@ function AvatarUpload({
               disabled={uploading}
             />
           </label>
-          <p className="text-xs text-gray-400 mt-1">JPG / PNG / WebP / GIF・2MB以下</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+            JPG / PNG / WebP / GIF・2MB以下
+          </p>
           {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
         </div>
       </div>
@@ -353,11 +363,11 @@ function DisplayNameEdit({
 
   return (
     <div className="p-4">
-      <p className="text-xs text-gray-500 mb-1 font-bold">表示名</p>
+      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 font-bold">表示名</p>
       {editing ? (
         <div className="flex gap-2">
           <input
-            className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+            className="flex-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
@@ -370,20 +380,22 @@ function DisplayNameEdit({
           </button>
           <button
             onClick={() => setEditing(false)}
-            className="px-3 py-1.5 bg-gray-100 text-gray-600 text-sm font-bold rounded-lg"
+            className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 text-sm font-bold rounded-lg"
           >
             取消
           </button>
         </div>
       ) : (
         <div className="flex items-center justify-between">
-          <p className="font-bold text-gray-800">{profile?.display_name ?? "（未設定）"}</p>
+          <p className="font-bold text-gray-800 dark:text-gray-200">
+            {profile?.display_name ?? "（未設定）"}
+          </p>
           <button
             onClick={() => {
               setName(profile?.display_name ?? "");
               setEditing(true);
             }}
-            className="text-xs text-blue-500 font-bold underline"
+            className="text-xs text-blue-500 dark:text-blue-400 font-bold underline"
           >
             編集
           </button>
@@ -449,16 +461,16 @@ function UsernameEdit({
 
   return (
     <div className="p-4">
-      <p className="text-xs text-gray-500 mb-1 font-bold">
-        ユーザー名 <span className="text-gray-400 font-normal">(@username)</span>
+      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 font-bold">
+        ユーザー名 <span className="text-gray-400 dark:text-gray-500 font-normal">(@username)</span>
       </p>
       {editing ? (
         <div className="space-y-2">
           <div className="flex gap-2">
-            <div className="flex-1 flex items-center border border-gray-300 rounded-lg px-3 py-1.5 focus-within:ring-2 focus-within:ring-blue-400">
-              <span className="text-gray-400 text-sm mr-1">@</span>
+            <div className="flex-1 flex items-center border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg px-3 py-1.5 focus-within:ring-2 focus-within:ring-blue-400">
+              <span className="text-gray-400 dark:text-gray-500 text-sm mr-1">@</span>
               <input
-                className="flex-1 text-sm focus:outline-none"
+                className="flex-1 text-sm bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none"
                 value={uname}
                 onChange={(e) => {
                   setUname(e.target.value);
@@ -479,19 +491,19 @@ function UsernameEdit({
                 setEditing(false);
                 setErr("");
               }}
-              className="px-3 py-1.5 bg-gray-100 text-gray-600 text-sm font-bold rounded-lg"
+              className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 text-sm font-bold rounded-lg"
             >
               取消
             </button>
           </div>
           {err && <p className="text-xs text-red-500">{err}</p>}
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-gray-400 dark:text-gray-500">
             半角英数字・アンダースコア3〜20文字。プロフィールURLおよびX（旧Twitter）リンクに使用されます。
           </p>
         </div>
       ) : (
         <div className="flex items-center justify-between">
-          <p className="font-bold text-gray-800">
+          <p className="font-bold text-gray-800 dark:text-gray-200">
             {profile?.username ? `@${profile.username.replace(/^@/, "")}` : "（未設定）"}
           </p>
           <button
@@ -499,7 +511,7 @@ function UsernameEdit({
               setUname((profile?.username ?? "").replace(/^@/, ""));
               setEditing(true);
             }}
-            className="text-xs text-blue-500 font-bold underline"
+            className="text-xs text-blue-500 dark:text-blue-400 font-bold underline"
           >
             編集
           </button>
@@ -543,18 +555,20 @@ function BioEdit({
 
   return (
     <div className="p-4">
-      <p className="text-xs text-gray-500 mb-1 font-bold">自己紹介</p>
+      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 font-bold">自己紹介</p>
       {editing ? (
         <div className="space-y-2">
           <textarea
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
+            className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
             rows={4}
             value={bio}
             onChange={(e) => setBio(e.target.value)}
             placeholder="あなたの自己紹介を入力してください"
             maxLength={300}
           />
-          <p className="text-xs text-gray-400 text-right">{bio.length}/300文字</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500 text-right">
+            {bio.length}/300文字
+          </p>
           <div className="flex gap-2">
             <button
               onClick={() => void handleSave()}
@@ -568,7 +582,7 @@ function BioEdit({
                 setEditing(false);
                 setBio(profile?.bio ?? "");
               }}
-              className="px-3 py-1.5 bg-gray-100 text-gray-600 text-sm font-bold rounded-lg"
+              className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 text-sm font-bold rounded-lg"
             >
               取消
             </button>
@@ -576,15 +590,19 @@ function BioEdit({
         </div>
       ) : (
         <div className="flex items-center justify-between gap-3">
-          <p className="text-sm text-gray-700 flex-1 whitespace-pre-wrap">
-            {profile?.bio ? profile.bio : <span className="text-gray-400">（未設定）</span>}
+          <p className="text-sm text-gray-700 dark:text-gray-300 flex-1 whitespace-pre-wrap">
+            {profile?.bio ? (
+              profile.bio
+            ) : (
+              <span className="text-gray-400 dark:text-gray-500">（未設定）</span>
+            )}
           </p>
           <button
             onClick={() => {
               setBio(profile?.bio ?? "");
               setEditing(true);
             }}
-            className="text-xs text-blue-500 font-bold underline shrink-0"
+            className="text-xs text-blue-500 dark:text-blue-400 font-bold underline shrink-0"
           >
             編集
           </button>
@@ -642,14 +660,14 @@ function XAccountEdit({
 
   return (
     <div className="p-4">
-      <p className="text-xs text-gray-500 mb-1 font-bold">X（旧Twitter）連携</p>
+      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 font-bold">X（旧Twitter）連携</p>
       {editing ? (
         <div className="space-y-2">
           <div className="flex gap-2">
-            <div className="flex-1 flex items-center border border-gray-300 rounded-lg px-3 py-1.5 focus-within:ring-2 focus-within:ring-blue-400">
-              <span className="text-gray-400 text-sm mr-1">@</span>
+            <div className="flex-1 flex items-center border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg px-3 py-1.5 focus-within:ring-2 focus-within:ring-blue-400">
+              <span className="text-gray-400 dark:text-gray-500 text-sm mr-1">@</span>
               <input
-                className="flex-1 text-sm focus:outline-none"
+                className="flex-1 text-sm bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none"
                 value={handle}
                 onChange={(e) => {
                   setHandle(e.target.value);
@@ -670,19 +688,19 @@ function XAccountEdit({
                 setEditing(false);
                 setErr("");
               }}
-              className="px-3 py-1.5 bg-gray-100 text-gray-600 text-sm font-bold rounded-lg"
+              className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 text-sm font-bold rounded-lg"
             >
               取消
             </button>
           </div>
           {err && <p className="text-xs text-red-500">{err}</p>}
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-gray-400 dark:text-gray-500">
             Xのユーザー名（@なし、またはURL）を入力するとプロフィールにXリンクが表示されます。
           </p>
         </div>
       ) : (
         <div className="flex items-center justify-between">
-          <p className="font-bold text-gray-800">
+          <p className="font-bold text-gray-800 dark:text-gray-200">
             {currentXHandle ? `@${currentXHandle}` : "（未設定）"}
           </p>
           <button
@@ -691,7 +709,7 @@ function XAccountEdit({
               setErr("");
               setEditing(true);
             }}
-            className="text-xs text-blue-500 font-bold underline"
+            className="text-xs text-blue-500 dark:text-blue-400 font-bold underline"
           >
             編集
           </button>

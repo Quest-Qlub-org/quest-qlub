@@ -92,9 +92,11 @@ export const RegisterView = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 w-full max-w-sm">
-        <h1 className="text-2xl font-bold text-center mb-6">アカウント登録</h1>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center p-4 transition-colors">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-8 w-full max-w-sm">
+        <h1 className="text-2xl font-bold text-center mb-6 text-gray-900 dark:text-gray-100">
+          アカウント登録
+        </h1>
         {error && <p className="text-red-500 text-sm mb-4 text-center">{error}</p>}
         <form onSubmit={handleRegister} className="space-y-4">
           {/* ボット対策ハニーポット */}
@@ -128,52 +130,55 @@ export const RegisterView = () => {
             placeholder="表示名 *"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
-            className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <input
             type="text"
             placeholder="ユーザー名（英数字・アンダースコアのみ）"
             value={username}
             onChange={(e) => setUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, ""))}
-            className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <input
             type="email"
             placeholder="メールアドレス"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <input
             type="password"
             placeholder="パスワード（8文字以上）"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <button
             type="submit"
             disabled={loading || cooldown > 0}
-            className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50"
+            className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50 cursor-pointer"
           >
             {loading ? "登録中..." : cooldown > 0 ? `再試行まであと ${cooldown} 秒` : "登録する"}
           </button>
         </form>
-        <div className="mt-5 p-4 bg-blue-50 border border-blue-200 rounded-xl text-center">
-          <p className="text-xs text-gray-700 mb-2 font-medium">
+        <div className="mt-5 p-4 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/60 rounded-xl text-center">
+          <p className="text-xs text-gray-700 dark:text-gray-300 mb-2 font-medium">
             ライターとして記事を書きたい方は、登録後に応募フォームよりご申請ください
           </p>
           <button
             type="button"
             onClick={() => navigate("/writer-apply")}
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-full hover:bg-blue-700 transition-colors shadow-sm"
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-full hover:bg-blue-700 transition-colors shadow-sm cursor-pointer"
           >
             ライター応募フォームへ
           </button>
         </div>
-        <p className="text-center text-sm text-gray-500 mt-4">
+        <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-4">
           すでにアカウントをお持ちの方は
-          <button onClick={() => navigate("login")} className="text-blue-600 underline ml-1">
+          <button
+            onClick={() => navigate("login")}
+            className="text-blue-600 dark:text-blue-400 underline ml-1 cursor-pointer"
+          >
             ログイン
           </button>
         </p>

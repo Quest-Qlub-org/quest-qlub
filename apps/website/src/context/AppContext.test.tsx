@@ -85,6 +85,10 @@ describe("AppContext - useApp hook", () => {
       fontSize: "medium",
       setFontSize: vi.fn(),
       getFontSizeClass: () => "text-base leading-relaxed",
+      theme: "system",
+      setTheme: vi.fn(),
+      effectiveTheme: "light",
+      toggleTheme: vi.fn(),
     });
 
     let appState!: ReturnType<typeof useApp>;

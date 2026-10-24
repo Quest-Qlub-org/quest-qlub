@@ -474,12 +474,14 @@ export function ArticleComments({
   // コメント機能がオフで、一般読者・ゲストが閲覧している場合（過去のコメントも含め完全非表示）
   if (!commentsEnabled && !canManageArticleComments) {
     return (
-      <section className="bg-gray-50 rounded-2xl p-6 border border-gray-200 mt-8 text-center">
-        <div className="w-10 h-10 bg-gray-200 text-gray-500 rounded-full flex items-center justify-center mx-auto mb-3">
+      <section className="bg-gray-50 dark:bg-gray-800/80 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 mt-8 text-center transition-colors">
+        <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-full flex items-center justify-center mx-auto mb-3">
           <EyeOff className="w-5 h-5" />
         </div>
-        <h3 className="text-sm font-bold text-gray-700">コメント欄は非表示になっています</h3>
-        <p className="text-xs text-gray-500 mt-1">
+        <h3 className="text-sm font-bold text-gray-700 dark:text-gray-200">
+          コメント欄は非表示になっています
+        </h3>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
           この記事のコメント機能はオフに設定されているため、コメントの閲覧および投稿はできません。
         </p>
       </section>
@@ -487,11 +489,13 @@ export function ArticleComments({
   }
 
   return (
-    <section className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm mt-8">
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-6 border-b border-gray-100 pb-4">
+    <section className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-100 dark:border-gray-700 shadow-sm mt-8 transition-colors">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-6 border-b border-gray-100 dark:border-gray-800 pb-4">
         <div className="flex items-center gap-2">
-          <MessageSquare className="w-5 h-5 text-blue-600" />
-          <h3 className="text-lg font-bold text-gray-800">感想・コメント ({comments.length})</h3>
+          <MessageSquare className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+          <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100">
+            感想・コメント ({comments.length})
+          </h3>
         </div>
 
         {/* ライター本人または編集長によるコメント機能オン/オフ切り替えスイッチ */}
@@ -500,20 +504,20 @@ export function ArticleComments({
             type="button"
             data-testid="toggle-comments-enabled"
             onClick={() => void onToggleCommentsEnabled(!commentsEnabled)}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-colors border ${
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-colors border cursor-pointer ${
               commentsEnabled
-                ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
-                : "bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200"
+                ? "bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800 hover:bg-green-100 dark:hover:bg-green-900/50"
+                : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700"
             }`}
           >
             {commentsEnabled ? (
               <>
-                <ToggleRight className="w-4 h-4 text-green-600" />
+                <ToggleRight className="w-4 h-4 text-green-600 dark:text-green-400" />
                 <span>コメント受付: オン</span>
               </>
             ) : (
               <>
-                <ToggleLeft className="w-4 h-4 text-gray-500" />
+                <ToggleLeft className="w-4 h-4 text-gray-500 dark:text-gray-400" />
                 <span>コメント受付: オフ（読者には非表示）</span>
               </>
             )}
@@ -522,8 +526,8 @@ export function ArticleComments({
       </div>
 
       {!commentsEnabled && canManageArticleComments && (
-        <div className="mb-6 p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-center gap-2 font-medium">
-          <EyeOff className="w-4 h-4 shrink-0 text-amber-600" />
+        <div className="mb-6 p-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-xl text-xs text-amber-800 dark:text-amber-200 flex items-center gap-2 font-medium">
+          <EyeOff className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
           <span>
             現在この記事のコメント機能はオフになっています。一般読者には過去のコメントも含めて非表示になっており、ライターと編集長のみが確認できます。
           </span>
@@ -531,7 +535,7 @@ export function ArticleComments({
       )}
 
       {isFallbackMode && (
-        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700 flex items-center gap-2">
+        <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-xl text-xs text-blue-700 dark:text-blue-300 flex items-center gap-2">
           <span>
             ℹ️ 現在ローカル保存モードでコメントを保持しています（ページを更新しても保持されます）。
           </span>
@@ -539,14 +543,14 @@ export function ArticleComments({
       )}
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600 font-bold">
+        <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl text-xs text-red-600 dark:text-red-400 font-bold">
           {error}
         </div>
       )}
 
       {/* コメント一覧 */}
       {comments.length === 0 ? (
-        <div className="text-center py-8 text-gray-400 text-sm">
+        <div className="text-center py-8 text-gray-400 dark:text-gray-500 text-sm">
           <p>まだコメントはありません。</p>
           {commentsEnabled && (
             <p className="text-xs mt-1">最初の感想や応援メッセージを投稿してみましょう！</p>
@@ -564,29 +568,31 @@ export function ArticleComments({
                 key={comment.id}
                 className={`rounded-xl p-4 border transition-colors ${
                   comment.isPinned
-                    ? "bg-amber-50/70 border-amber-200 shadow-sm"
-                    : "bg-gray-50 border-gray-100"
+                    ? "bg-amber-50/70 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900 shadow-sm"
+                    : "bg-gray-50 dark:bg-gray-900/40 border-gray-100 dark:border-gray-700/80"
                 }`}
               >
                 {comment.isPinned && (
-                  <div className="flex items-center gap-1 text-[11px] font-bold text-amber-700 mb-2">
-                    <Pin className="w-3.5 h-3.5 fill-amber-500 text-amber-600" />
+                  <div className="flex items-center gap-1 text-[11px] font-bold text-amber-700 dark:text-amber-400 mb-2">
+                    <Pin className="w-3.5 h-3.5 fill-amber-500 text-amber-600 dark:text-amber-400" />
                     <span>ライターによって固定されたコメント</span>
                   </div>
                 )}
 
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <div className="w-7 h-7 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold text-xs">
+                    <div className="w-7 h-7 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300 rounded-full flex items-center justify-center font-bold text-xs">
                       <User className="w-4 h-4" />
                     </div>
-                    <span className="font-bold text-sm text-gray-800">{comment.authorName}</span>
+                    <span className="font-bold text-sm text-gray-800 dark:text-gray-100">
+                      {comment.authorName}
+                    </span>
                     {writerId && comment.authorId === writerId && (
-                      <span className="text-[10px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                      <span className="text-[10px] font-bold bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full">
                         記事ライター
                       </span>
                     )}
-                    <span className="text-[11px] text-gray-400">
+                    <span className="text-[11px] text-gray-400 dark:text-gray-500">
                       {formatDate(comment.createdAt)}
                     </span>
                     {isEdited && (
@@ -594,7 +600,7 @@ export function ArticleComments({
                         type="button"
                         data-testid={`view-history-${comment.id}`}
                         onClick={() => void handleOpenHistory(comment)}
-                        className="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:underline font-medium"
+                        className="inline-flex items-center gap-1 text-[11px] text-blue-600 dark:text-blue-400 hover:underline font-medium cursor-pointer"
                       >
                         <History className="w-3 h-3" />
                         <span>（編集済み・履歴を見る）</span>
@@ -613,10 +619,10 @@ export function ArticleComments({
                         title={
                           comment.isPinned ? "ピン留めを解除" : "コメントをピン留め（最大3件）"
                         }
-                        className={`p-1.5 rounded-lg text-xs font-bold transition-colors ${
+                        className={`p-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
                           comment.isPinned
-                            ? "bg-amber-100 text-amber-700 hover:bg-amber-200"
-                            : "text-gray-400 hover:bg-gray-200 hover:text-gray-700"
+                            ? "bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-800"
+                            : "text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200"
                         }`}
                       >
                         <Pin className="w-3.5 h-3.5" />
@@ -630,7 +636,7 @@ export function ArticleComments({
                         data-testid={`edit-comment-${comment.id}`}
                         onClick={() => startEdit(comment)}
                         title="コメントを編集"
-                        className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-200 hover:text-blue-600 transition-colors"
+                        className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
@@ -643,7 +649,7 @@ export function ArticleComments({
                         data-testid={`delete-comment-${comment.id}`}
                         onClick={() => void handleDelete(comment)}
                         title="コメントを削除"
-                        className="p-1.5 rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                        className="p-1.5 rounded-lg text-gray-400 hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-600 dark:hover:text-red-400 transition-colors cursor-pointer"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -660,13 +666,13 @@ export function ArticleComments({
                       onChange={(e) => setEditingContent(e.target.value)}
                       rows={3}
                       maxLength={500}
-                      className="w-full border border-blue-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none bg-white"
+                      className="w-full border border-blue-300 dark:border-blue-600 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                     />
                     <div className="flex items-center justify-end gap-2">
                       <button
                         type="button"
                         onClick={() => setEditingCommentId(null)}
-                        className="px-3 py-1.5 text-xs font-bold text-gray-600 hover:bg-gray-200 rounded-lg transition-colors"
+                        className="px-3 py-1.5 text-xs font-bold text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors cursor-pointer"
                       >
                         キャンセル
                       </button>
@@ -674,7 +680,7 @@ export function ArticleComments({
                         type="button"
                         data-testid={`save-edit-${comment.id}`}
                         onClick={() => void handleSaveEdit(comment)}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors cursor-pointer"
                       >
                         <Check className="w-3.5 h-3.5" />
                         <span>保存する</span>
@@ -682,7 +688,7 @@ export function ArticleComments({
                     </div>
                   </div>
                 ) : (
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap pl-9">
+                  <p className="text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap pl-9">
                     {comment.content}
                   </p>
                 )}
@@ -694,20 +700,20 @@ export function ArticleComments({
 
       {/* コメント投稿エリア（コメントオン時のみ表示） */}
       {commentsEnabled && (
-        <div className="border-t border-gray-100 pt-6">
+        <div className="border-t border-gray-100 dark:border-gray-800 pt-6">
           {!isAuthenticated ? (
-            <div className="bg-blue-50/70 border border-blue-100 rounded-xl p-5 text-center space-y-3">
-              <div className="flex items-center justify-center gap-1.5 text-sm font-bold text-gray-800">
-                <Lock className="w-4 h-4 text-blue-600" />
+            <div className="bg-blue-50/70 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/60 rounded-xl p-5 text-center space-y-3">
+              <div className="flex items-center justify-center gap-1.5 text-sm font-bold text-gray-800 dark:text-gray-100">
+                <Lock className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                 <span>コメントを投稿するにはアカウント登録・ログインが必要です</span>
               </div>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
                 ログインすると、記事への感想投稿や自分のコメントの編集・削除が行えます。
               </p>
               <button
                 type="button"
                 onClick={() => void navigate("/login")}
-                className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-blue-600 text-white text-xs font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
+                className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-blue-600 text-white text-xs font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-sm cursor-pointer"
               >
                 <LogIn className="w-4 h-4" />
                 <span>ログイン / 新規登録へ</span>
@@ -716,8 +722,10 @@ export function ArticleComments({
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="flex items-center justify-between">
-                <h4 className="text-sm font-bold text-gray-700">コメントを投稿する</h4>
-                <span className="text-xs text-gray-500 font-medium">
+                <h4 className="text-sm font-bold text-gray-700 dark:text-gray-200">
+                  コメントを投稿する
+                </h4>
+                <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
                   投稿者: {profile?.display_name || `@${profile?.username || "user"}`}
                 </span>
               </div>
@@ -728,14 +736,14 @@ export function ArticleComments({
                   onChange={(e) => setContent(e.target.value)}
                   rows={3}
                   maxLength={500}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
+                  className="w-full border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                 />
               </div>
               <div className="flex justify-end">
                 <button
                   type="submit"
                   disabled={submitting || !content.trim()}
-                  className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-blue-600 text-white font-bold text-sm rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
+                  className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-blue-600 text-white font-bold text-sm rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm cursor-pointer"
                 >
                   <Send className="w-4 h-4" />
                   <span>{submitting ? "送信中..." : "コメントを投稿"}</span>
@@ -749,58 +757,62 @@ export function ArticleComments({
       {/* 編集履歴モーダル（誰でも閲覧可能） */}
       {historyTargetComment && (
         <div
-          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in"
           onClick={() => setHistoryTargetComment(null)}
         >
           <div
             role="dialog"
             aria-modal="true"
-            className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden"
+            className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-700">
               <div className="flex items-center gap-2">
-                <History className="w-5 h-5 text-blue-600" />
-                <h4 className="font-bold text-gray-900 text-base">コメントの編集履歴</h4>
+                <History className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                <h4 className="font-bold text-gray-900 dark:text-gray-100 text-base">
+                  コメントの編集履歴
+                </h4>
               </div>
               <button
                 type="button"
                 onClick={() => setHistoryTargetComment(null)}
-                className="p-1.5 rounded-full hover:bg-gray-100 text-gray-500"
+                className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <div className="p-5 overflow-y-auto space-y-4">
-              <div className="bg-blue-50/70 border border-blue-200 rounded-xl p-3.5">
-                <div className="flex items-center justify-between text-[11px] font-bold text-blue-700 mb-1">
+              <div className="bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-xl p-3.5">
+                <div className="flex items-center justify-between text-[11px] font-bold text-blue-700 dark:text-blue-300 mb-1">
                   <span>現在の表示内容（最新）</span>
                   <span>{formatDate(historyTargetComment.updatedAt)}</span>
                 </div>
-                <p className="text-sm text-gray-800 whitespace-pre-wrap">
+                <p className="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap">
                   {historyTargetComment.content}
                 </p>
               </div>
 
               {loadingHistory ? (
-                <p className="text-xs text-gray-400 text-center py-4">履歴を読み込み中...</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 text-center py-4">
+                  履歴を読み込み中...
+                </p>
               ) : historyItems.length === 0 ? (
-                <p className="text-xs text-gray-400 text-center py-4">
+                <p className="text-xs text-gray-400 dark:text-gray-500 text-center py-4">
                   過去の編集履歴データはありません
                 </p>
               ) : (
                 <div className="space-y-3">
-                  <p className="text-xs font-bold text-gray-500">編集前の履歴</p>
+                  <p className="text-xs font-bold text-gray-500 dark:text-gray-400">編集前の履歴</p>
                   {historyItems.map((item) => (
                     <div
                       key={item.id}
-                      className="bg-gray-50 border border-gray-200 rounded-xl p-3.5"
+                      className="bg-gray-50 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 rounded-xl p-3.5"
                     >
-                      <div className="text-[11px] text-gray-400 mb-1">
+                      <div className="text-[11px] text-gray-400 dark:text-gray-500 mb-1">
                         編集日時: {formatDate(item.editedAt)}
                       </div>
-                      <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                      <p className="text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap">
                         {item.previousContent}
                       </p>
                     </div>

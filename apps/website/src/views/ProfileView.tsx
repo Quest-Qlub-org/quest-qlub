@@ -203,15 +203,15 @@ export const ProfileView = () => {
 
   return (
     <div className="animate-in slide-in-from-right-8 duration-300">
-      <div className="bg-gradient-to-b from-blue-500 to-blue-700 pt-12 pb-8 px-4 text-center text-white relative">
+      <div className="bg-gradient-to-b from-blue-500 to-blue-700 dark:from-blue-700 dark:to-gray-900 pt-12 pb-8 px-4 text-center text-white relative">
         <button
           onClick={() => navigate("writers")}
-          className="absolute top-4 left-4 p-2 rounded-full bg-black/20 hover:bg-black/30 flex items-center gap-1"
+          className="absolute top-4 left-4 p-2 rounded-full bg-black/20 hover:bg-black/30 flex items-center gap-1 cursor-pointer"
         >
           <ChevronLeft className="w-5 h-5 text-white" />
           <span className="text-xs font-bold">戻る</span>
         </button>
-        <div className="w-24 h-24 bg-white rounded-full mx-auto mb-4 flex items-center justify-center shadow-lg border-4 border-white overflow-hidden">
+        <div className="w-24 h-24 bg-white dark:bg-gray-800 rounded-full mx-auto mb-4 flex items-center justify-center shadow-lg border-4 border-white dark:border-gray-800 overflow-hidden">
           {writer.avatar_url ? (
             <img src={writer.avatar_url} className="w-24 h-24 object-cover" alt="" />
           ) : (
@@ -248,7 +248,7 @@ export const ProfileView = () => {
                 setFollowersCount((c) => (wasFollowing ? Math.max(0, c - 1) : c + 1));
                 showToast(wasFollowing ? "フォローを解除しました" : "ライターをフォローしました");
               }}
-              className={`inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-bold transition-all shadow-sm ${
+              className={`inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-bold transition-all shadow-sm cursor-pointer ${
                 following
                   ? "bg-white text-blue-700 hover:bg-blue-50"
                   : "bg-blue-600 border border-white/50 text-white hover:bg-blue-500"
@@ -277,7 +277,7 @@ export const ProfileView = () => {
                 type="button"
                 data-testid="open-following-list"
                 onClick={() => void handleOpenFollowModal("following")}
-                className="px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 transition-colors text-xs font-bold flex items-center gap-1.5"
+                className="px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 transition-colors text-xs font-bold flex items-center gap-1.5 cursor-pointer"
               >
                 <span className="text-sm font-extrabold">{followingCount}</span>
                 <span className="text-white/90">フォロー中</span>
@@ -286,7 +286,7 @@ export const ProfileView = () => {
                 type="button"
                 data-testid="open-followers-list"
                 onClick={() => void handleOpenFollowModal("followers")}
-                className="px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 transition-colors text-xs font-bold flex items-center gap-1.5"
+                className="px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 transition-colors text-xs font-bold flex items-center gap-1.5 cursor-pointer"
               >
                 <span className="text-sm font-extrabold">{followersCount}</span>
                 <span className="text-white/90">フォロワー</span>
@@ -331,13 +331,13 @@ export const ProfileView = () => {
       </div>
       <div className="p-4 md:p-8 space-y-6 -mt-4 relative z-10">
         {writer.bio && (
-          <div className="bg-white p-5 rounded-xl shadow-md border border-gray-100 text-gray-700 text-sm font-medium leading-relaxed">
+          <div className="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-md border border-gray-100 dark:border-gray-700 text-gray-700 dark:text-gray-200 text-sm font-medium leading-relaxed">
             {writer.bio}
           </div>
         )}
         <section className={!writer.bio ? "mt-6" : ""}>
-          <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-            <span className="bg-blue-100 p-1.5 rounded-lg">
+          <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
+            <span className="bg-blue-100 dark:bg-blue-900/50 p-1.5 rounded-lg">
               <LogoIcon className="w-5 h-5" />
             </span>
             この人の記事 ({writerArticles.length}件)
@@ -346,7 +346,7 @@ export const ProfileView = () => {
             {writerArticles.length > 0 ? (
               writerArticles.map((article) => <ArticleCard key={article.id} article={article} />)
             ) : (
-              <p className="text-gray-500 text-sm text-center py-8 bg-gray-50 rounded-xl border border-dashed border-gray-300">
+              <p className="text-gray-500 dark:text-gray-400 text-sm text-center py-8 bg-gray-50 dark:bg-gray-800 rounded-xl border border-dashed border-gray-300 dark:border-gray-700">
                 まだ記事がありません
               </p>
             )}
@@ -357,37 +357,39 @@ export const ProfileView = () => {
       {/* 本人専用：フォロー中・フォロワー詳細一覧モーダル */}
       {isOwnProfile && followModalTab && (
         <div
-          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in"
           onClick={() => setFollowModalTab(null)}
         >
           <div
             role="dialog"
             aria-modal="true"
-            className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden"
+            className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-700">
               <div className="flex items-center gap-2">
-                <Users className="w-5 h-5 text-blue-600" />
-                <h4 className="font-bold text-gray-900 text-base">フォロー・フォロワー管理</h4>
+                <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                <h4 className="font-bold text-gray-900 dark:text-gray-100 text-base">
+                  フォロー・フォロワー管理
+                </h4>
               </div>
               <button
                 type="button"
                 onClick={() => setFollowModalTab(null)}
-                className="p-1.5 rounded-full hover:bg-gray-100 text-gray-500"
+                className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="grid grid-cols-2 border-b border-gray-100 text-xs font-bold">
+            <div className="grid grid-cols-2 border-b border-gray-100 dark:border-gray-700 text-xs font-bold">
               <button
                 type="button"
                 onClick={() => setFollowModalTab("following")}
-                className={`py-3 text-center border-b-2 transition-colors ${
+                className={`py-3 text-center border-b-2 transition-colors cursor-pointer ${
                   followModalTab === "following"
-                    ? "border-blue-600 text-blue-600 bg-blue-50/40"
-                    : "border-transparent text-gray-500 hover:text-gray-800"
+                    ? "border-blue-600 text-blue-600 dark:text-blue-400 bg-blue-50/40 dark:bg-blue-950/40"
+                    : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
                 }`}
               >
                 フォロー中 ({followingList.length})
@@ -395,10 +397,10 @@ export const ProfileView = () => {
               <button
                 type="button"
                 onClick={() => setFollowModalTab("followers")}
-                className={`py-3 text-center border-b-2 transition-colors ${
+                className={`py-3 text-center border-b-2 transition-colors cursor-pointer ${
                   followModalTab === "followers"
-                    ? "border-blue-600 text-blue-600 bg-blue-50/40"
-                    : "border-transparent text-gray-500 hover:text-gray-800"
+                    ? "border-blue-600 text-blue-600 dark:text-blue-400 bg-blue-50/40 dark:bg-blue-950/40"
+                    : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
                 }`}
               >
                 フォロワー ({followersList.length})
@@ -407,9 +409,11 @@ export const ProfileView = () => {
 
             <div className="p-4 overflow-y-auto space-y-2.5">
               {loadingFollowDetails ? (
-                <p className="text-xs text-gray-400 text-center py-8">読み込み中...</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 text-center py-8">
+                  読み込み中...
+                </p>
               ) : (followModalTab === "following" ? followingList : followersList).length === 0 ? (
-                <p className="text-xs text-gray-400 text-center py-8">
+                <p className="text-xs text-gray-400 dark:text-gray-500 text-center py-8">
                   {followModalTab === "following"
                     ? "フォロー中のアカウントはありません"
                     : "フォロワーはまだいません"}
@@ -422,10 +426,10 @@ export const ProfileView = () => {
                       setFollowModalTab(null);
                       navigate("profile", item.username || item.id);
                     }}
-                    className="flex items-center justify-between p-3 rounded-xl border border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors"
+                    className="flex items-center justify-between p-3 rounded-xl border border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/60 cursor-pointer transition-colors"
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-full bg-gray-100 border border-gray-200 overflow-hidden flex items-center justify-center shrink-0">
+                      <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 overflow-hidden flex items-center justify-center shrink-0">
                         {item.avatar_url ? (
                           <img
                             src={item.avatar_url}
@@ -437,11 +441,13 @@ export const ProfileView = () => {
                         )}
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-bold text-gray-800 truncate">
+                        <p className="text-sm font-bold text-gray-800 dark:text-gray-100 truncate">
                           {item.display_name || (item.username ? `@${item.username}` : "ユーザー")}
                         </p>
                         {item.username && (
-                          <p className="text-xs text-gray-400 truncate">@{item.username}</p>
+                          <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
+                            @{item.username}
+                          </p>
                         )}
                       </div>
                     </div>

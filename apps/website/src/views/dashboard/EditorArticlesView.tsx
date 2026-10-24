@@ -188,11 +188,16 @@ export function EditorArticlesView() {
 
   return (
     <div className="max-w-5xl mx-auto p-4 md:p-6 space-y-4 animate-in slide-in-from-right-8 duration-300">
-      <div className="-mx-4 md:mx-0 -mt-4 md:mt-0 px-4 md:rounded-xl bg-white border-b md:border border-gray-200 py-3 flex items-center gap-3 sticky top-0 z-10 shadow-sm mb-4">
-        <button onClick={() => nav(-1)} className="p-2 bg-white rounded-full shadow-sm">
+      <div className="-mx-4 md:mx-0 -mt-4 md:mt-0 px-4 md:rounded-xl bg-white dark:bg-gray-800 border-b md:border border-gray-200 dark:border-gray-700 py-3 flex items-center gap-3 sticky top-0 z-10 shadow-sm mb-4">
+        <button
+          onClick={() => nav(-1)}
+          className="p-2 bg-white dark:bg-gray-700 rounded-full shadow-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600"
+        >
           <ChevronLeft className="w-5 h-5" />
         </button>
-        <h2 className="text-lg font-bold text-purple-800">全記事の編集・削除</h2>
+        <h2 className="text-lg font-bold text-purple-800 dark:text-purple-300">
+          全記事の編集・削除
+        </h2>
       </div>
       {loading ? (
         <p className="text-center text-gray-400 py-8">読み込み中...</p>
@@ -207,7 +212,7 @@ export function EditorArticlesView() {
               return (
                 <div
                   key={a.id}
-                  className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm"
+                  className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm"
                 >
                   <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                     <button
@@ -217,7 +222,7 @@ export function EditorArticlesView() {
                         setScheduleInput(toDatetimeLocalValue(a.scheduledAt));
                       }}
                     >
-                      <p className="font-bold text-gray-800 text-sm truncate hover:text-blue-600">
+                      <p className="font-bold text-gray-800 dark:text-gray-100 text-sm truncate hover:text-blue-600 dark:hover:text-blue-400">
                         {a.title}
                       </p>
                       <div className="flex items-center gap-2 flex-wrap mt-1">
@@ -227,7 +232,7 @@ export function EditorArticlesView() {
                           {getStatusConfig(a.status).label}
                         </span>
                         {schedLabel && (
-                          <span className="text-[11px] font-bold text-purple-700 inline-flex items-center gap-1">
+                          <span className="text-[11px] font-bold text-purple-700 dark:text-purple-300 inline-flex items-center gap-1">
                             <Clock className="w-3 h-3" /> {schedLabel}
                           </span>
                         )}
@@ -239,8 +244,8 @@ export function EditorArticlesView() {
                         onClick={() => void handleToggleStatus(a)}
                         className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-colors ${
                           a.status === "published"
-                            ? "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
-                            : "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100"
+                            ? "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/50 hover:bg-amber-100 dark:hover:bg-amber-900/40"
+                            : "bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800/50 hover:bg-blue-100 dark:hover:bg-blue-900/40"
                         }`}
                         title={a.status === "published" ? "下書きに戻す（非公開）" : "公開する"}
                       >
@@ -251,8 +256,8 @@ export function EditorArticlesView() {
                         onClick={() => void handleToggleComments(a)}
                         className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-colors ${
                           isCommentsOn
-                            ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
-                            : "bg-gray-100 text-gray-500 border-gray-300 hover:bg-gray-200"
+                            ? "bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800/50 hover:bg-green-100 dark:hover:bg-green-900/40"
+                            : "bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600"
                         }`}
                         title="この記事のコメント機能のオン/オフを切り替え"
                       >
@@ -270,7 +275,7 @@ export function EditorArticlesView() {
                       </button>
                       <button
                         onClick={() => handleDelete(a.id)}
-                        className="p-2 text-red-400 hover:bg-red-50 rounded-lg"
+                        className="p-2 text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg"
                       >
                         <X className="w-4 h-4" />
                       </button>
@@ -284,16 +289,18 @@ export function EditorArticlesView() {
       )}
       {previewArticle && (
         <div
-          className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-3 sm:p-4"
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4"
           onClick={() => setPreviewArticle(null)}
         >
           <div
-            className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden"
+            className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between p-4 border-b">
+            <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-gray-700">
               <div className="flex-1 min-w-0">
-                <p className="font-bold text-gray-900 text-base truncate">{previewArticle.title}</p>
+                <p className="font-bold text-gray-900 dark:text-gray-100 text-base truncate">
+                  {previewArticle.title}
+                </p>
                 <span
                   className={`text-xs font-bold px-2 py-0.5 rounded-full mt-1 inline-block ${getStatusConfig(previewArticle.status).badgeClass}`}
                 >
@@ -302,9 +309,9 @@ export function EditorArticlesView() {
               </div>
               <button
                 onClick={() => setPreviewArticle(null)}
-                className="ml-3 p-2 hover:bg-gray-100 rounded-full"
+                className="ml-3 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full text-gray-500 dark:text-gray-400"
               >
-                <X className="w-5 h-5 text-gray-500" />
+                <X className="w-5 h-5" />
               </button>
             </div>
             <div className={`flex-1 overflow-y-auto p-5 article-content ${getFontSizeClass()}`}>
@@ -314,24 +321,24 @@ export function EditorArticlesView() {
                 <p className="text-gray-400 text-sm text-center py-8">本文がありません</p>
               )}
             </div>
-            <div className="p-4 border-t bg-gray-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="p-4 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-2 flex-wrap">
-                <label className="text-xs font-bold text-gray-600 flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-purple-600" />
+                <label className="text-xs font-bold text-gray-600 dark:text-gray-300 flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
                   <span>公開予約:</span>
                 </label>
                 <input
                   type="datetime-local"
                   value={scheduleInput}
                   onChange={(e) => setScheduleInput(e.target.value)}
-                  className="text-xs border border-gray-300 rounded-lg px-2 py-1 bg-white"
+                  className="text-xs border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                 />
               </div>
               <div className="flex items-center gap-2 justify-end">
                 <button
                   type="button"
                   onClick={() => void handleUpdateScheduleOrStatus(previewArticle, "draft", null)}
-                  className="px-3 py-1.5 bg-white border border-gray-300 text-gray-700 text-xs font-bold rounded-lg hover:bg-gray-100"
+                  className="px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 text-xs font-bold rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600"
                 >
                   下書きへ
                 </button>

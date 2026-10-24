@@ -221,25 +221,28 @@ export const MfaEnrollModal = ({
         role="dialog"
         aria-modal="true"
         aria-labelledby="mfa-enroll-title"
-        className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-md overflow-hidden relative"
+        className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 w-full max-w-md overflow-hidden relative"
       >
-        <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gray-50/50">
+        <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/80">
           <div className="flex items-center gap-2">
-            <div className="p-1.5 bg-blue-100 text-blue-600 rounded-lg">
+            <div className="p-1.5 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-lg">
               {step === "backup" ? (
                 <KeyRound className="w-5 h-5" />
               ) : (
                 <ShieldCheck className="w-5 h-5" />
               )}
             </div>
-            <h3 id="mfa-enroll-title" className="font-bold text-gray-900 text-base">
+            <h3
+              id="mfa-enroll-title"
+              className="font-bold text-gray-900 dark:text-gray-100 text-base"
+            >
               {step === "backup" ? "バックアップコードの保存" : "2要素認証 (TOTP) の設定"}
             </h3>
           </div>
           <button
             onClick={() => void handleCancel()}
             aria-label="閉じる"
-            className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
+            className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -247,7 +250,7 @@ export const MfaEnrollModal = ({
 
         <div className="p-6 space-y-5">
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600 flex items-start gap-2">
+            <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl text-xs text-red-600 dark:text-red-400 flex items-start gap-2">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
@@ -255,23 +258,25 @@ export const MfaEnrollModal = ({
 
           {step === "backup" ? (
             <div className="space-y-4 animate-in fade-in duration-200">
-              <div className="p-3.5 bg-green-50 border border-green-200 rounded-xl space-y-1.5">
-                <p className="text-xs font-bold text-green-800 flex items-center gap-1.5">
-                  <Check className="w-4 h-4 text-green-600" />
+              <div className="p-3.5 bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 rounded-xl space-y-1.5">
+                <p className="text-xs font-bold text-green-800 dark:text-green-300 flex items-center gap-1.5">
+                  <Check className="w-4 h-4 text-green-600 dark:text-green-400" />
                   2要素認証が有効化されました！
                 </p>
-                <p className="text-xs text-green-700 leading-relaxed">
+                <p className="text-xs text-green-700 dark:text-green-400 leading-relaxed">
                   端末の紛失や機種変更時に備え、以下のバックアップコードを保存してください。各コードは認証アプリを使用できない場合に一度だけ利用可能です。
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 bg-gray-50 p-3 rounded-xl border border-gray-200">
+              <div className="grid grid-cols-2 gap-2 bg-gray-50 dark:bg-gray-900/60 p-3 rounded-xl border border-gray-200 dark:border-gray-700">
                 {backupCodes.map((code, idx) => (
                   <div
                     key={idx}
-                    className="flex items-center justify-between px-3 py-1.5 bg-white rounded-lg border border-gray-200 text-xs font-mono font-bold text-gray-700 shadow-sm"
+                    className="flex items-center justify-between px-3 py-1.5 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 text-xs font-mono font-bold text-gray-700 dark:text-gray-200 shadow-sm"
                   >
-                    <span className="text-gray-400 text-[10px] select-none">{idx + 1}.</span>
+                    <span className="text-gray-400 dark:text-gray-500 text-[10px] select-none">
+                      {idx + 1}.
+                    </span>
                     <span>{code}</span>
                   </div>
                 ))}
@@ -281,12 +286,12 @@ export const MfaEnrollModal = ({
                 <button
                   type="button"
                   onClick={() => void handleCopyAllCodes()}
-                  className="flex-1 py-2 px-3 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 border border-gray-200 transition-colors"
+                  className="flex-1 py-2 px-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 border border-gray-200 dark:border-gray-600 transition-colors cursor-pointer"
                 >
                   {copiedAll ? (
                     <>
-                      <Check className="w-3.5 h-3.5 text-green-600" />
-                      <span className="text-green-600">コピー完了</span>
+                      <Check className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
+                      <span className="text-green-600 dark:text-green-400">コピー完了</span>
                     </>
                   ) : (
                     <>
@@ -298,7 +303,7 @@ export const MfaEnrollModal = ({
                 <button
                   type="button"
                   onClick={handleDownloadCodes}
-                  className="flex-1 py-2 px-3 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 border border-gray-200 transition-colors"
+                  className="flex-1 py-2 px-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 border border-gray-200 dark:border-gray-600 transition-colors cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>テキスト保存</span>
@@ -308,27 +313,27 @@ export const MfaEnrollModal = ({
               <button
                 type="button"
                 onClick={handleFinish}
-                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl shadow-sm transition-colors mt-2"
+                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl shadow-sm transition-colors mt-2 cursor-pointer"
               >
                 安全な場所に保存しました（完了）
               </button>
             </div>
           ) : loading || generatingBackupCodes ? (
-            <div className="py-12 text-center text-gray-400 text-sm">
+            <div className="py-12 text-center text-gray-400 dark:text-gray-500 text-sm">
               <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
               {generatingBackupCodes ? "バックアップコードを生成中..." : "QRコードを生成中..."}
             </div>
           ) : (
             <>
               <div className="space-y-2">
-                <p className="text-xs font-bold text-gray-700">
+                <p className="text-xs font-bold text-gray-700 dark:text-gray-300">
                   ステップ 1: 認証アプリでQRコードを読み取る
                 </p>
-                <p className="text-xs text-gray-500 leading-relaxed">
+                <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
                   Google Authenticator、1Password、Authy
                   などの認証アプリを起動し、以下のQRコードをスキャンしてください。
                 </p>
-                <div className="flex justify-center p-3 bg-white border border-gray-200 rounded-xl shadow-inner w-fit mx-auto">
+                <div className="flex justify-center p-3 bg-white rounded-xl shadow-inner w-fit mx-auto">
                   {qrCode ? (
                     <img src={qrCode} alt="TOTP QR Code" className="w-44 h-44 object-contain" />
                   ) : (
@@ -340,22 +345,22 @@ export const MfaEnrollModal = ({
               </div>
 
               <div className="space-y-1.5">
-                <p className="text-xs font-bold text-gray-700">
+                <p className="text-xs font-bold text-gray-700 dark:text-gray-300">
                   QRコードをスキャンできない場合（手動キー）
                 </p>
-                <div className="flex items-center gap-2 p-2 bg-gray-50 border border-gray-200 rounded-lg">
-                  <span className="font-mono text-xs text-gray-700 select-all flex-1 truncate">
+                <div className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg">
+                  <span className="font-mono text-xs text-gray-700 dark:text-gray-200 select-all flex-1 truncate">
                     {secret}
                   </span>
                   <button
                     type="button"
                     onClick={() => void handleCopySecret()}
-                    className="p-1.5 text-xs text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1 shrink-0 bg-white border border-gray-200 rounded hover:bg-blue-50 transition-colors"
+                    className="p-1.5 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 font-bold flex items-center gap-1 shrink-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors cursor-pointer"
                   >
                     {copied ? (
                       <>
-                        <Check className="w-3.5 h-3.5 text-green-600" />
-                        <span className="text-green-600">コピー完了</span>
+                        <Check className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
+                        <span className="text-green-600 dark:text-green-400">コピー完了</span>
                       </>
                     ) : (
                       <>
@@ -369,7 +374,7 @@ export const MfaEnrollModal = ({
 
               <form onSubmit={(e) => void handleVerify(e)} className="space-y-4 pt-2">
                 <div className="space-y-1">
-                  <label className="block text-xs font-bold text-gray-700">
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300">
                     ステップ 2: 認証アプリに表示された6桁のコードを入力
                   </label>
                   <input
@@ -380,7 +385,7 @@ export const MfaEnrollModal = ({
                     placeholder="123456"
                     value={verifyCode}
                     onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, ""))}
-                    className="w-full text-center tracking-[0.4em] font-mono text-xl border border-gray-300 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full text-center tracking-[0.4em] font-mono text-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
 
@@ -388,14 +393,14 @@ export const MfaEnrollModal = ({
                   <button
                     type="submit"
                     disabled={verifying || verifyCode.length !== 6}
-                    className="flex-1 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                    className="flex-1 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors cursor-pointer"
                   >
                     {verifying ? "検証中..." : "有効化する"}
                   </button>
                   <button
                     type="button"
                     onClick={() => void handleCancel()}
-                    className="px-4 py-2.5 bg-gray-100 text-gray-600 text-sm font-bold rounded-xl hover:bg-gray-200 transition-colors"
+                    className="px-4 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-sm font-bold rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors cursor-pointer"
                   >
                     キャンセル
                   </button>

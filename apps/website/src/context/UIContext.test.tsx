@@ -164,4 +164,60 @@ describe("UIContext", () => {
     });
     expect(contextValue.toastMessage).toBe("");
   });
+
+  it("handles theme selection, toggling, and document element classes", () => {
+    let contextValue!: ReturnType<typeof useUI>;
+
+    const TestConsumer = () => {
+      contextValue = useUI();
+      return (
+        <div>
+          <span data-testid="theme">{contextValue.theme}</span>
+          <span data-testid="effectiveTheme">{contextValue.effectiveTheme}</span>
+          <button onClick={() => contextValue.setTheme("dark")}>Dark</button>
+          <button onClick={() => contextValue.setTheme("light")}>Light</button>
+          <button onClick={() => contextValue.toggleTheme()}>Toggle</button>
+        </div>
+      );
+    };
+
+    act(() => {
+      root!.render(
+        <UIProvider>
+          <TestConsumer />
+        </UIProvider>,
+      );
+    });
+
+    // デフォルトは system (jsdom では window.matchMedia が未定義か false なので light に判定)
+    expect(contextValue.theme).toBe("system");
+    expect(contextValue.effectiveTheme).toBe("light");
+    expect(document.documentElement.classList.contains("dark")).toBe(false);
+
+    // dark に変更
+    act(() => {
+      contextValue.setTheme("dark");
+    });
+    expect(contextValue.theme).toBe("dark");
+    expect(contextValue.effectiveTheme).toBe("dark");
+    expect(document.documentElement.classList.contains("dark")).toBe(true);
+    expect(localStorage.getItem("preferred_theme")).toBe("dark");
+
+    // toggleTheme で light に切り替え
+    act(() => {
+      contextValue.toggleTheme();
+    });
+    expect(contextValue.theme).toBe("light");
+    expect(contextValue.effectiveTheme).toBe("light");
+    expect(document.documentElement.classList.contains("dark")).toBe(false);
+    expect(localStorage.getItem("preferred_theme")).toBe("light");
+
+    // toggleTheme で再度 dark に切り替え
+    act(() => {
+      contextValue.toggleTheme();
+    });
+    expect(contextValue.theme).toBe("dark");
+    expect(contextValue.effectiveTheme).toBe("dark");
+    expect(document.documentElement.classList.contains("dark")).toBe(true);
+  });
 });
