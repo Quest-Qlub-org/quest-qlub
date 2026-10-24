@@ -37,3 +37,4 @@ supabase/.temp/
 .claude/worktrees/
 .vercel
 .env*
+*:Zone.Identifier
