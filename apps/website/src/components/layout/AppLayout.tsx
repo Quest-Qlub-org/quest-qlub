@@ -52,7 +52,7 @@ export function AppLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-20 sm:pb-10 text-gray-800 dark:text-gray-100 font-sans selection:bg-blue-200 dark:selection:bg-blue-900/50 flex flex-col justify-between overflow-x-hidden transition-colors">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-800 dark:text-gray-100 font-sans selection:bg-blue-200 dark:selection:bg-blue-900/50 flex flex-col justify-between overflow-x-hidden transition-colors">
       <div>
         <EnvironmentBanner />
         {!hideHeader && <Header />}
@@ -72,7 +72,7 @@ export function AppLayout() {
       </div>
 
       {!hideHeader && (
-        <footer className="bg-gray-50 dark:bg-gray-900/60 border-t border-gray-200 dark:border-gray-800 mt-12">
+        <footer className="bg-gray-50 dark:bg-gray-900/60 border-t border-gray-200 dark:border-gray-800 mt-12 pb-[calc(env(safe-area-inset-bottom)+3.5rem)] md:pb-0">
           <div className="max-w-6xl mx-auto px-4 py-8">
             <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-8 mb-6">
               <div className="flex flex-col gap-2">
@@ -179,7 +179,7 @@ export function AppLayout() {
       )}
 
       {toastMessage && (
-        <div className="fixed bottom-20 sm:bottom-8 left-1/2 -translate-x-1/2 max-w-[calc(100vw-2rem)] bg-gray-900/90 dark:bg-gray-800/95 dark:border dark:border-gray-700 backdrop-blur text-white px-5 py-3 rounded-2xl sm:rounded-full shadow-2xl z-[60] animate-in slide-in-from-bottom-5 fade-in duration-300 flex items-center gap-3 text-xs sm:text-sm font-bold break-words">
+        <div className="fixed bottom-20 md:bottom-8 left-1/2 -translate-x-1/2 max-w-[calc(100vw-2rem)] bg-gray-900/90 dark:bg-gray-800/95 dark:border dark:border-gray-700 backdrop-blur text-white px-5 py-3 rounded-2xl md:rounded-full shadow-2xl z-[60] animate-in slide-in-from-bottom-5 fade-in duration-300 flex items-center gap-3 text-xs md:text-sm font-bold break-words">
           <span className="min-w-0 break-words">{toastMessage}</span>
           <button
             onClick={hideToast}

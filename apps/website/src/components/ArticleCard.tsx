@@ -20,7 +20,7 @@ export const ArticleCard = ({
   return (
     <div
       className={`bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700/80 overflow-hidden cursor-pointer active:scale-[0.98] transition-all hover:border-gray-300 dark:hover:border-gray-600 ${
-        layout === "horizontal" ? "flex h-28" : "flex flex-col"
+        layout === "horizontal" ? "flex h-28" : "flex flex-col w-full h-full"
       }`}
       onClick={() => navigate("article", article.id)}
     >
@@ -53,7 +53,7 @@ export const ArticleCard = ({
       )}
       <div
         className={`p-3 flex flex-col justify-between ${
-          layout === "horizontal" ? "flex-1 min-w-0" : "w-full"
+          layout === "horizontal" ? "flex-1 min-w-0" : "w-full flex-1"
         }`}
       >
         <h3 className="font-bold text-gray-800 dark:text-gray-100 line-clamp-2 text-sm md:text-base leading-snug">

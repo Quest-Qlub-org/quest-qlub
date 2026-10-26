@@ -76,7 +76,10 @@ export const HomeView = () => {
         ) : (
           <div className="flex gap-4 overflow-x-auto pb-4 snap-x hide-scrollbar md:grid md:grid-cols-3 md:overflow-visible md:pb-0">
             {recommended.map((article) => (
-              <div key={article.id} className="min-w-[260px] snap-start md:min-w-0">
+              <div
+                key={article.id}
+                className="w-[260px] shrink-0 snap-start md:w-auto md:min-w-0 flex"
+              >
                 <ArticleCard article={article} layout="vertical" />
               </div>
             ))}
