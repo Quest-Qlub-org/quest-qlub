@@ -107,6 +107,13 @@ DB の `supabase_migrations.schema_migrations` に記録済みのバージョン
     - `enforce_article_update_rules()` トリガーおよび `articles_select_published` RLS ポリシーを更新し、公開予約記事（`status = 'scheduled'` または未来の `scheduled_at`）が予約時刻到来前に一般公開されないよう保護。
     - クライアント側（`utils/scheduledArticles.ts`）にも 42703 カラム未存在時の自動除外リトライと `localStorage` フォールバック（`quest_qlub_scheduled_articles_v1`）を実装。
 
+- `20261029143600_fix_article_comments_public_rls.sql`（適用済み）
+  - **未認証（anon）読者による記事コメント閲覧権限の修復**:
+    - `article_comments` の SELECT ポリシーにおいて、`check_is_editor()` 関数が単一の `FOR SELECT TO public` ポリシー内に含まれていたため、関数実行権限を持たない `anon`（未ログイン）ユーザーがコメントを取得する際に `ERROR 42501: permission denied for function check_is_editor` が発生し、コメントが確認できない不具合を根本解消。
+    - `anon` ロールへの `check_is_editor()` EXECUTE 権限を付与（内部で `auth.uid()` を参照するため安全に `false` を返却）。
+    - `article_comments` の SELECT ポリシーを `article_comments_select_public`（`TO public`、`comments_enabled = true` の記事コメントを誰でも閲覧可能）と `article_comments_select_staff`（`TO authenticated`、`comments_enabled = false` 時に記事ライターまたは編集長が閲覧可能）に分離。
+    - `article_comments` および `comment_edit_history` に対する `anon`, `authenticated` の `SELECT` 権限を明示的に GRANT。
+
 ## セキュリティ強化（コード・Edge Function）
 
 - **S4**: `send-contact-email` の CORS 許可リストを厳格化。任意の `*.vercel.app`

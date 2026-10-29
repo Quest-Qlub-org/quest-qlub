@@ -176,6 +176,61 @@ describe("ArticleComments (DB-backed, Auth-required, Role permissions, Pinning &
     unmount();
   });
 
+  it("allows unauthenticated guests to view all comments (including pinned and edited comments) and view edit history", async () => {
+    mockAuth("guest");
+
+    const { container, unmount } = renderWithRouter(
+      <ArticleComments articleId={articleId} writerId={writerId} commentsEnabled={true} />,
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    // ピン留めコメントと通常コメントの両方が確認できること
+    expect(container.textContent).toContain("ライターによって固定されたコメント");
+    expect(container.textContent).toContain("編集後のコメント本文");
+    expect(container.textContent).toContain("最初のコメントです");
+    expect(container.textContent).toContain("感想・コメント (2)");
+
+    // 未ログイン時はピン留め・編集・削除ボタンが表示されないこと
+    expect(container.querySelector('[data-testid="pin-comment-c-1"]')).toBeNull();
+    expect(container.querySelector('[data-testid="edit-comment-c-1"]')).toBeNull();
+    expect(container.querySelector('[data-testid="delete-comment-c-1"]')).toBeNull();
+
+    // 編集履歴ボタンは未ログインゲストでもクリックして閲覧可能
+    const viewHistoryBtn = container.querySelector('[data-testid="view-history-c-2"]');
+    expect(viewHistoryBtn).not.toBeNull();
+
+    await act(async () => {
+      viewHistoryBtn?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    // 編集履歴モーダルが表示され、過去の内容が確認できること
+    const modal = document.body.querySelector('[role="dialog"]');
+    expect(modal).not.toBeNull();
+    expect(modal?.textContent).toContain("コメントの編集履歴");
+    expect(modal?.textContent).toContain("編集前の初期コメント本文");
+
+    unmount();
+  });
+
+  it("handles 42501 check_is_editor permission error with graceful fallback in isCommentsSchemaError", async () => {
+    const { isCommentsSchemaError } = await import("./ArticleComments");
+    expect(
+      isCommentsSchemaError({
+        code: "42501",
+        message: "permission denied for function check_is_editor",
+      }),
+    ).toBe(true);
+    expect(
+      isCommentsSchemaError({
+        code: "42501",
+        message: "permission denied for table article_comments",
+      }),
+    ).toBe(true);
+  });
+
   it("completely hides all comments (including past comments) from regular viewers and guests when commentsEnabled is false", async () => {
     mockAuth("viewer", "viewer-1", "読者イチロー");
 

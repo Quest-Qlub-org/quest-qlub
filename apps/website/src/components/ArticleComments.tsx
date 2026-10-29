@@ -64,11 +64,14 @@ export function isCommentsSchemaError(error: unknown): boolean {
     err.code === "PGRST205" ||
     err.code === "42P01" ||
     err.code === "42703" ||
+    err.code === "42501" ||
     (typeof err.message === "string" &&
       (err.message.includes("article_comments") ||
         err.message.includes("comments_enabled") ||
+        err.message.includes("check_is_editor") ||
         err.message.includes("Could not find the table") ||
-        err.message.includes("schema cache")))
+        err.message.includes("schema cache") ||
+        err.message.includes("permission denied")))
   );
 }
 
@@ -153,6 +156,7 @@ export function ArticleComments({
         setLocalComments(articleId, loaded);
         setIsFallbackMode(false);
       } else if (fetchErr) {
+        console.warn("fetchComments failed:", fetchErr);
         const local = getLocalComments(articleId);
         if (local.length > 0) {
           setComments(sortComments(local));
@@ -161,7 +165,8 @@ export function ArticleComments({
           setIsFallbackMode(true);
         }
       }
-    } catch {
+    } catch (e) {
+      console.warn("fetchComments exception:", e);
       const local = getLocalComments(articleId);
       if (local.length > 0) {
         setComments(sortComments(local));
