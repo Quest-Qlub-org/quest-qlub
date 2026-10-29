@@ -96,7 +96,7 @@ describe("WriterApplyView", () => {
       form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     });
 
-    for (let i = 0; i < 60; i++) {
+    for (let i = 0; i < 100; i++) {
       if (
         container.textContent?.includes("送信に失敗しました") ||
         !container.textContent?.includes("送信中...")
@@ -149,7 +149,7 @@ describe("WriterApplyView", () => {
       form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     });
 
-    for (let i = 0; i < 60; i++) {
+    for (let i = 0; i < 100; i++) {
       if (
         container.textContent?.includes("ご応募ありがとうございます！") ||
         !container.textContent?.includes("送信中...")

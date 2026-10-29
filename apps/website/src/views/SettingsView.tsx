@@ -7,6 +7,7 @@ import { ProfileSettingsSection } from "./settings/ProfileSettingsSection";
 import { AppearanceSettingsSection } from "./settings/AppearanceSettingsSection";
 import { SecuritySettingsSection } from "./settings/SecuritySettingsSection";
 import { RoleSettingsSection } from "./settings/RoleSettingsSection";
+import { PwaInstallSettingsSection } from "./settings/PwaInstallSettingsSection";
 import { updateMetaTags } from "../utils/seo";
 
 export const SettingsView = () => {
@@ -94,6 +95,9 @@ export const SettingsView = () => {
           <SecuritySettingsSection showToast={showToast} />
         </>
       )}
+
+      {/* PWA インストール推奨設定セクション */}
+      <PwaInstallSettingsSection showToast={showToast} />
 
       {/* 表示設定（外観テーマ・フォントサイズなど） - 読者もゲストも利用可能 */}
       <AppearanceSettingsSection

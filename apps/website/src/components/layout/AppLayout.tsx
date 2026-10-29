@@ -5,6 +5,9 @@ import { supabase } from "../../supabase";
 import { Header } from "../navigation/Header";
 import { MobileNav } from "../navigation/MobileNav";
 import { EnvironmentBanner } from "../EnvironmentBanner";
+import { ErrorBoundary } from "../ErrorBoundary";
+import { OfflineBanner } from "../pwa/OfflineBanner";
+import { ReloadPrompt } from "../pwa/ReloadPrompt";
 import { MfaChallengeModal } from "../MfaChallengeModal";
 import { OpeningAnimation } from "../OpeningAnimation";
 import { LogoIcon } from "../icons/NavIcons";
@@ -56,18 +59,21 @@ export function AppLayout() {
       <div>
         <EnvironmentBanner />
         {!hideHeader && <Header />}
+        <OfflineBanner />
         {!hideHeader && <MobileNav />}
 
         <main className="max-w-6xl mx-auto flex-1 w-full min-w-0">
-          <Suspense
-            fallback={
-              <div className="flex items-center justify-center min-h-[50vh]">
-                <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-              </div>
-            }
-          >
-            <Outlet />
-          </Suspense>
+          <ErrorBoundary>
+            <Suspense
+              fallback={
+                <div className="flex items-center justify-center min-h-[50vh]">
+                  <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                </div>
+              }
+            >
+              <Outlet />
+            </Suspense>
+          </ErrorBoundary>
         </main>
       </div>
 
@@ -190,6 +196,9 @@ export function AppLayout() {
           </button>
         </div>
       )}
+
+      {/* PWA 更新プロンプト */}
+      <ReloadPrompt />
 
       {/* 初回アクセス時オープニングアニメーション */}
       <OpeningAnimation />

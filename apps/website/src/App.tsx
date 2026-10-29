@@ -38,6 +38,8 @@ const ContactView = lazy(() =>
 const WriterApplyView = lazy(() =>
   import("./views/WriterApplyView").then((m) => ({ default: m.WriterApplyView })),
 );
+import { OfflineFallbackView } from "./views/OfflineFallbackView";
+import { useNetworkStatus } from "./hooks/useNetworkStatus";
 
 // 認証関連ビュー
 const LoginView = lazy(() =>
@@ -106,6 +108,7 @@ export function parseLocation(pathname: string): { currentView: string; viewPara
   if (pathname === "/privacy") return { currentView: "privacy", viewParam: null };
   if (pathname === "/terms") return { currentView: "terms", viewParam: null };
   if (pathname === "/contact") return { currentView: "contact", viewParam: null };
+  if (pathname === "/offline") return { currentView: "offline", viewParam: null };
   if (pathname === "/writer-apply") return { currentView: "writerApply", viewParam: null };
   if (pathname === "/setup-profile") return { currentView: "setupProfile", viewParam: null };
   if (pathname === "/writer-dash") return { currentView: "writerDash", viewParam: null };
@@ -138,7 +141,8 @@ function ArticleEditWrapper() {
   return <ArticleEditorPage editingId={id || null} />;
 }
 
-function NotFoundView() {
+export function NotFoundView() {
+  const { isOnline } = useNetworkStatus();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -147,6 +151,10 @@ function NotFoundView() {
       noindex: true,
     });
   }, []);
+
+  if (!isOnline) {
+    return <OfflineFallbackView />;
+  }
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[70vh] px-6 text-center animate-in fade-in duration-300">
@@ -182,6 +190,7 @@ export default function App() {
           <Route path="/privacy" element={<PrivacyView />} />
           <Route path="/terms" element={<TermsView />} />
           <Route path="/contact" element={<ContactView />} />
+          <Route path="/offline" element={<OfflineFallbackView />} />
           <Route path="/writer-apply" element={<WriterApplyView />} />
 
           {/* Auth Views */}
