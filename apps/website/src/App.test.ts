@@ -15,6 +15,7 @@ describe("parseLocation", () => {
     expect(parseLocation("/privacy")).toEqual({ currentView: "privacy", viewParam: null });
     expect(parseLocation("/terms")).toEqual({ currentView: "terms", viewParam: null });
     expect(parseLocation("/contact")).toEqual({ currentView: "contact", viewParam: null });
+    expect(parseLocation("/offline")).toEqual({ currentView: "offline", viewParam: null });
     expect(parseLocation("/writers")).toEqual({ currentView: "writers", viewParam: null });
   });
 
