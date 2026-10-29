@@ -114,7 +114,7 @@ describe("ProfileView (Follow counts and owner-only detailed lists)", () => {
     }
   });
 
-  it("誰もがフォロー中・フォロワーの件数を確認でき、他人や未ログイン時は詳細一覧を開けないこと", async () => {
+  it("プロフィールにフォロー中の人数は表示されずフォロワー数のみ表示され、他人や未ログイン時は詳細一覧を開けないこと", async () => {
     mockCurrentUser = null;
     mockCurrentProfile = null;
 
@@ -128,7 +128,9 @@ describe("ProfileView (Follow counts and owner-only detailed lists)", () => {
 
     const followingEl = container.querySelector('[data-testid="public-following-count"]');
     const followersEl = container.querySelector('[data-testid="public-followers-count"]');
-    expect(followingEl?.textContent).toContain("14");
+    // フォロー中の人数は表示されないこと
+    expect(followingEl).toBeNull();
+    // フォロワー数は表示されること
     expect(followersEl?.textContent).toContain("28");
 
     // 本人以外の閲覧時は詳細ボタンが存在しない
@@ -180,33 +182,34 @@ describe("ProfileView (Follow counts and owner-only detailed lists)", () => {
       '[data-testid="open-followers-list"]',
     ) as HTMLButtonElement | null;
 
-    expect(openFollowingBtn).not.toBeNull();
+    // フォロー中の人数ボタンはプロフィールに表示されないこと
+    expect(openFollowingBtn).toBeNull();
+    // フォロワー数のボタンは表示されること
     expect(openFollowersBtn).not.toBeNull();
-    expect(openFollowingBtn?.textContent).toContain("14");
     expect(openFollowersBtn?.textContent).toContain("28");
 
     await act(async () => {
-      openFollowingBtn?.click();
+      openFollowersBtn?.click();
       await Promise.resolve();
       await Promise.resolve();
     });
 
     expect(mockFetchFollowDetails).toHaveBeenCalledWith("writer-1", "writer-1");
     expect(container.querySelector('[role="dialog"]')).not.toBeNull();
-    expect(container.textContent).toContain("アリス");
+    expect(container.textContent).toContain("ボブ");
 
-    // フォロワータブに切り替え
+    // フォロー中タブに切り替え
     const modalButtons = Array.from(
       container.querySelectorAll<HTMLButtonElement>('[role="dialog"] button'),
     );
-    const followersTabBtn = modalButtons.find((b) => b.textContent?.includes("フォロワー (1)"));
-    expect(followersTabBtn).toBeDefined();
+    const followingTabBtn = modalButtons.find((b) => b.textContent?.includes("フォロー中 (1)"));
+    expect(followingTabBtn).toBeDefined();
 
     await act(async () => {
-      followersTabBtn?.click();
+      followingTabBtn?.click();
     });
 
-    expect(container.textContent).toContain("ボブ");
+    expect(container.textContent).toContain("アリス");
   });
 
   it("queries writer articles using ARTICLE_LIST_FIELDS without comments_enabled", async () => {
