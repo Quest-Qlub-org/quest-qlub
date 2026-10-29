@@ -17,8 +17,8 @@ Quest Qlub の開発環境構築、開発フロー、コーディング規約、
 ### 1. リポジトリのクローン
 
 ```bash
-git clone https://github.com/SHARE-Quest-org/share-quest.git
-cd share-quest
+git clone https://github.com/Quest-Qlub-org/quest-qlub.git
+cd quest-qlub
 ```
 
 ### 2. 依存関係のインストール
