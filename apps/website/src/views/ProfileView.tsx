@@ -37,8 +37,7 @@ export const ProfileView = () => {
   const [loading, setLoading] = useState(!cachedWriter);
   const [notFound, setNotFound] = useState(false);
 
-  // フォロー数・フォロワー数（誰でも閲覧可能）
-  const [followingCount, setFollowingCount] = useState(0);
+  // フォロワー数（誰でも閲覧可能）
   const [followersCount, setFollowersCount] = useState(0);
 
   // 詳細アカウント一覧モーダル（本人のみ閲覧可能）
@@ -49,7 +48,6 @@ export const ProfileView = () => {
 
   const loadCounts = useCallback(async (userId: string) => {
     const counts = await fetchFollowCounts(userId);
-    setFollowingCount(counts.followingCount);
     setFollowersCount(counts.followersCount);
   }, []);
 
@@ -269,46 +267,26 @@ export const ProfileView = () => {
           )}
         </div>
 
-        {/* フォロー中・フォロワー数（誰でもカウントは確認可能、詳細一覧は本人のみクリック可能） */}
+        {/* フォロワー数（誰でもカウントは確認可能、詳細一覧は本人のみクリック可能） */}
         <div className="flex items-center justify-center gap-4 my-3">
           {isOwnProfile ? (
-            <>
-              <button
-                type="button"
-                data-testid="open-following-list"
-                onClick={() => void handleOpenFollowModal("following")}
-                className="px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 transition-colors text-xs font-bold flex items-center gap-1.5 cursor-pointer"
-              >
-                <span className="text-sm font-extrabold">{followingCount}</span>
-                <span className="text-white/90">フォロー中</span>
-              </button>
-              <button
-                type="button"
-                data-testid="open-followers-list"
-                onClick={() => void handleOpenFollowModal("followers")}
-                className="px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 transition-colors text-xs font-bold flex items-center gap-1.5 cursor-pointer"
-              >
-                <span className="text-sm font-extrabold">{followersCount}</span>
-                <span className="text-white/90">フォロワー</span>
-              </button>
-            </>
+            <button
+              type="button"
+              data-testid="open-followers-list"
+              onClick={() => void handleOpenFollowModal("followers")}
+              className="px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 transition-colors text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+            >
+              <span className="text-sm font-extrabold">{followersCount}</span>
+              <span className="text-white/90">フォロワー</span>
+            </button>
           ) : (
-            <>
-              <div
-                data-testid="public-following-count"
-                className="px-3 py-1.5 rounded-xl bg-white/10 text-xs font-bold flex items-center gap-1.5 select-none"
-              >
-                <span className="text-sm font-extrabold">{followingCount}</span>
-                <span className="text-white/90">フォロー中</span>
-              </div>
-              <div
-                data-testid="public-followers-count"
-                className="px-3 py-1.5 rounded-xl bg-white/10 text-xs font-bold flex items-center gap-1.5 select-none"
-              >
-                <span className="text-sm font-extrabold">{followersCount}</span>
-                <span className="text-white/90">フォロワー</span>
-              </div>
-            </>
+            <div
+              data-testid="public-followers-count"
+              className="px-3 py-1.5 rounded-xl bg-white/10 text-xs font-bold flex items-center gap-1.5 select-none"
+            >
+              <span className="text-sm font-extrabold">{followersCount}</span>
+              <span className="text-white/90">フォロワー</span>
+            </div>
           )}
         </div>
 
