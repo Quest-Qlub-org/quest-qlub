@@ -20,6 +20,21 @@ export const WriterApplyView = () => {
 
   const [name, setName] = useState(profile?.display_name || "");
   const [email, setEmail] = useState(user?.email || "");
+  const [hasEditedName, setHasEditedName] = useState(false);
+  const [hasEditedEmail, setHasEditedEmail] = useState(false);
+
+  useEffect(() => {
+    if (!hasEditedName && profile?.display_name) {
+      setName(profile.display_name);
+    }
+  }, [profile?.display_name, hasEditedName]);
+
+  useEffect(() => {
+    if (!hasEditedEmail && user?.email) {
+      setEmail(user.email);
+    }
+  }, [user?.email, hasEditedEmail]);
+
   const [genres, setGenres] = useState<string[]>([]);
   const [portfolio, setPortfolio] = useState("");
   const [motivation, setMotivation] = useState("");
@@ -187,7 +202,10 @@ export const WriterApplyView = () => {
             required
             placeholder="山田 太郎"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => {
+              setName(e.target.value);
+              setHasEditedName(true);
+            }}
             className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
@@ -201,7 +219,10 @@ export const WriterApplyView = () => {
             required
             placeholder="example@quest-qlub.com"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              setHasEditedEmail(true);
+            }}
             className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>

@@ -163,4 +163,53 @@ describe("WriterApplyView", () => {
     expect(container.textContent).toContain("ご応募ありがとうございます！");
     expect(mockShowToast).toHaveBeenCalledWith("ライター応募を受け付けました");
   });
+
+  it("autofills name and email when profile and user load asynchronously", async () => {
+    let mockContext: any = {
+      user: null,
+      profile: null,
+      showToast: mockShowToast,
+      navigate: mockNavigate,
+    };
+
+    const spy = vi.spyOn(AppContextModule, "useApp").mockImplementation(() => mockContext);
+
+    await act(async () => {
+      root!.render(
+        <BrowserRouter>
+          <WriterApplyView />
+        </BrowserRouter>,
+      );
+    });
+
+    const nameInput = container.querySelector('input[placeholder="山田 太郎"]') as HTMLInputElement;
+    const emailInput = container.querySelector(
+      'input[placeholder="example@quest-qlub.com"]',
+    ) as HTMLInputElement;
+
+    expect(nameInput.value).toBe("");
+    expect(emailInput.value).toBe("");
+
+    // Simulate session resolving asynchronously
+    mockContext = {
+      user: { id: "resolved-user", email: "resolved@example.com" },
+      profile: { display_name: "非同期表示名" },
+      showToast: mockShowToast,
+      navigate: mockNavigate,
+    };
+
+    // Re-render to propagate updated context
+    await act(async () => {
+      root!.render(
+        <BrowserRouter>
+          <WriterApplyView />
+        </BrowserRouter>,
+      );
+    });
+
+    expect(nameInput.value).toBe("非同期表示名");
+    expect(emailInput.value).toBe("resolved@example.com");
+
+    spy.mockRestore();
+  });
 });
