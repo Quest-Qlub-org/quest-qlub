@@ -2,13 +2,28 @@ import { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { CustomUserIcon, CustomSearchIcon } from "../components/icons/NavIcons";
-import { MOCK_TAGS } from "../types";
+import { MOCK_TAGS, mapDbArticleToArticle } from "../types";
+import type { Article } from "../types";
 import { ArticleCard } from "../components/ArticleCard";
 import { X } from "lucide-react";
 import { parseSearchKeywords, matchKeywords } from "../utils/normalizeJapanese";
-import { isArticlePubliclyVisible } from "../utils/scheduledArticles";
+import { getLocalScheduledAt, isArticlePubliclyVisible } from "../utils/scheduledArticles";
 import { profileHasRole } from "../utils/roles";
 import { updateMetaTags } from "../utils/seo";
+import { supabase, isTest } from "../supabase";
+import type { Profile } from "../supabase";
+import { fetchProfilesListWithFallback } from "../utils/profileQueries";
+
+const SEARCH_ARTICLE_FIELDS =
+  "id, title, content, summary, thumbnail, thumbnail_url, thumbnail_color, writer_id, views, likes, tags, is_recommended, is_popular, status, series_id, episode_number, created_at";
+
+function enrichMappedArticleSchedule(article: Article): Article {
+  const localSched = getLocalScheduledAt(article.id);
+  if (!article.scheduledAt && localSched) {
+    return { ...article, scheduledAt: localSched };
+  }
+  return article;
+}
 
 export const SearchView = () => {
   const { articles, writers } = useApp();
@@ -20,6 +35,12 @@ export const SearchView = () => {
   const [keyword, setKeyword] = useState(() => urlQ || "");
   const [selectedTags, setSelectedTags] = useState<string[]>(() => (urlTag ? [urlTag] : []));
   const [selectedWriterIds, setSelectedWriterIds] = useState<string[]>([]);
+
+  const [serverTags, setServerTags] = useState<string[]>([]);
+  const [serverWriters, setServerWriters] = useState<Profile[]>([]);
+  const [serverResults, setServerResults] = useState<Article[] | null>(null);
+  const [isLoadingServerResults, setIsLoadingServerResults] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(12);
 
   useEffect(() => {
     updateMetaTags({
@@ -41,22 +62,129 @@ export const SearchView = () => {
     }
   }, [urlQ]);
 
+  useEffect(() => {
+    if (isTest) return;
+    let isMounted = true;
+
+    void supabase
+      .from("articles")
+      .select("tags")
+      .eq("status", "published")
+      .then(({ data }) => {
+        if (!isMounted || !data) return;
+        const tags = Array.from(
+          new Set(data.flatMap((row) => (row.tags as string[]) ?? [])),
+        ).filter(Boolean);
+        if (tags.length > 0) setServerTags(tags);
+      });
+
+    void fetchProfilesListWithFallback({
+      inRole: ["writer", "editor"],
+      order: { column: "created_at", ascending: false },
+    }).then((profiles) => {
+      if (!isMounted || !profiles) return;
+      setServerWriters(profiles);
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const displayTags = useMemo(() => {
+    if (serverTags.length > 0) return serverTags;
     const publishedArticles = articles.filter((a) => isArticlePubliclyVisible(a));
     const allTags = Array.from(new Set(publishedArticles.flatMap((a) => a.tags ?? []))).filter(
       Boolean,
     );
     return allTags.length > 0 ? allTags : MOCK_TAGS;
-  }, [articles]);
+  }, [articles, serverTags]);
+
+  const effectiveWriters = useMemo(() => {
+    return serverWriters.length > 0 ? serverWriters : writers;
+  }, [serverWriters, writers]);
 
   const queryKeywords = useMemo(() => parseSearchKeywords(keyword), [keyword]);
+  const hasFilter = Boolean(keyword || selectedTags.length > 0 || selectedWriterIds.length > 0);
+
+  useEffect(() => {
+    setVisibleCount(12);
+  }, [keyword, selectedTags, selectedWriterIds]);
+
+  useEffect(() => {
+    if (isTest || !hasFilter) {
+      setServerResults(null);
+      setIsLoadingServerResults(false);
+      return;
+    }
+
+    let isMounted = true;
+    setIsLoadingServerResults(true);
+
+    const timer = setTimeout(async () => {
+      try {
+        let query = supabase
+          .from("articles")
+          .select(SEARCH_ARTICLE_FIELDS)
+          .eq("status", "published")
+          .order("created_at", { ascending: false });
+
+        if (selectedWriterIds.length > 0) {
+          query = query.in("writer_id", selectedWriterIds);
+        }
+        if (selectedTags.length > 0) {
+          query = query.overlaps("tags", selectedTags);
+        }
+
+        const { data, error } = await query;
+        if (!isMounted) return;
+
+        if (!error && data) {
+          let mapped = data
+            .map((item) => enrichMappedArticleSchedule(mapDbArticleToArticle(item)))
+            .filter((a) => isArticlePubliclyVisible(a));
+
+          if (queryKeywords.length > 0) {
+            mapped = mapped.filter((a) => {
+              const writer = effectiveWriters.find((w) => w.id === a.writerId);
+              const searchTargets = [
+                a.title,
+                a.summary,
+                a.content,
+                ...(a.tags ?? []),
+                writer?.display_name,
+                writer?.username,
+              ];
+              return matchKeywords(searchTargets, queryKeywords);
+            });
+          }
+          setServerResults(mapped);
+        } else {
+          setServerResults(null);
+        }
+      } catch (err) {
+        console.error("Search query failed", err);
+        if (isMounted) setServerResults(null);
+      } finally {
+        if (isMounted) setIsLoadingServerResults(false);
+      }
+    }, 250);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+  }, [hasFilter, keyword, selectedTags, selectedWriterIds, queryKeywords, effectiveWriters]);
 
   const results = useMemo(() => {
+    if (serverResults !== null) {
+      return serverResults;
+    }
     return articles.filter((a) => {
       if (!isArticlePubliclyVisible(a)) return false;
 
       if (queryKeywords.length > 0) {
-        const writer = writers.find((w) => w.id === a.writerId);
+        const writer = effectiveWriters.find((w) => w.id === a.writerId);
         const searchTargets = [
           a.title,
           a.summary,
@@ -75,7 +203,11 @@ export const SearchView = () => {
       if (selectedWriterIds.length > 0 && !selectedWriterIds.includes(a.writerId)) return false;
       return true;
     });
-  }, [articles, writers, queryKeywords, selectedTags, selectedWriterIds]);
+  }, [articles, effectiveWriters, queryKeywords, selectedTags, selectedWriterIds, serverResults]);
+
+  const pagedResults = useMemo(() => {
+    return results.slice(0, visibleCount);
+  }, [results, visibleCount]);
 
   const toggleTag = (tag: string) =>
     setSelectedTags((prev) => {
@@ -111,8 +243,6 @@ export const SearchView = () => {
       setSearchParams({}, { replace: true });
     }
   };
-
-  const hasFilter = Boolean(keyword || selectedTags.length > 0 || selectedWriterIds.length > 0);
 
   return (
     <div className="p-4 md:p-8 space-y-6 animate-in fade-in duration-300">
@@ -171,7 +301,7 @@ export const SearchView = () => {
                   : "grid-cols-2 sm:grid-cols-3"
               }`}
             >
-              {writers
+              {effectiveWriters
                 .filter((w) => profileHasRole(w, "writer") || profileHasRole(w, "editor"))
                 .sort((a, b) => {
                   const rank = (w: typeof a) => {
@@ -225,10 +355,13 @@ export const SearchView = () => {
         <div className="min-w-0">
           {hasFilter && (
             <div>
-              <div className="mb-3">
+              <div className="mb-3 flex items-center justify-between">
                 <p className="font-bold text-gray-700 dark:text-gray-200">
                   検索結果 ({results.length}件)
                 </p>
+                {isLoadingServerResults && (
+                  <span className="text-xs text-blue-500 font-medium">検索中...</span>
+                )}
               </div>
               <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
                 {results.length === 0 ? (
@@ -236,9 +369,20 @@ export const SearchView = () => {
                     該当する記事が見つかりませんでした
                   </p>
                 ) : (
-                  results.map((a) => <ArticleCard key={a.id} article={a} />)
+                  pagedResults.map((a) => <ArticleCard key={a.id} article={a} />)
                 )}
               </div>
+              {results.length > visibleCount && (
+                <div className="flex justify-center pt-6">
+                  <button
+                    type="button"
+                    onClick={() => setVisibleCount((prev) => prev + 12)}
+                    className="px-6 py-2.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-bold shadow-sm transition-colors cursor-pointer"
+                  >
+                    さらに表示する（残り {results.length - visibleCount} 件）
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

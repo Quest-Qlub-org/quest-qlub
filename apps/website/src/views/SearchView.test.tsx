@@ -287,4 +287,38 @@ describe("SearchView", () => {
     expect(container.textContent).toContain("マルチロールライター");
     expect(container.textContent).not.toContain("ただの読者");
   });
+
+  it("paginates results when matching articles exceed 12 items and loads more on button click", () => {
+    const articles = Array.from({ length: 15 }, (_, i) =>
+      createTestArticle({
+        id: `art-${i + 1}`,
+        title: `テスト記事第${i + 1}話`,
+        tags: ["連載"],
+        status: "published",
+      }),
+    );
+
+    setupAppMock({ articles, writers: [] });
+
+    renderSearchView("/search?tag=%E9%80%A3%E8%BC%89");
+
+    expect(container.textContent).toContain("検索結果 (15件)");
+    expect(container.textContent).toContain("テスト記事第1話");
+    expect(container.textContent).toContain("テスト記事第12話");
+    expect(container.textContent).not.toContain("テスト記事第13話");
+
+    const loadMoreButton = Array.from(container.querySelectorAll("button")).find((btn) =>
+      btn.textContent?.includes("さらに表示する"),
+    );
+    expect(loadMoreButton).toBeDefined();
+    expect(loadMoreButton?.textContent).toContain("残り 3 件");
+
+    act(() => {
+      loadMoreButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(container.textContent).toContain("テスト記事第13話");
+    expect(container.textContent).toContain("テスト記事第15話");
+    expect(container.textContent).not.toContain("さらに表示する");
+  });
 });
