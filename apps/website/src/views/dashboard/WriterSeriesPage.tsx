@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useApp } from "../../context/AppContext";
 import { supabase } from "../../supabase";
-import { ChevronLeft, Plus, X } from "lucide-react";
+import { ChevronLeft, Plus, X, Loader2 } from "lucide-react";
 import { ARTICLE_STATUS_CONFIG, mapDbArticleToArticle } from "../../types";
 import type { Article, ArticleStatus, Series } from "../../types";
 import { ARTICLE_LIST_FIELDS } from "../../context/DataContext";
@@ -13,8 +13,16 @@ import {
 import { updateMetaTags } from "../../utils/seo";
 
 export const WriterSeriesPage = () => {
-  const { profile, seriesList, setSeriesList, showToast, navigate, articles, setArticles } =
-    useApp();
+  const {
+    profile,
+    authLoading,
+    seriesList,
+    setSeriesList,
+    showToast,
+    navigate,
+    articles,
+    setArticles,
+  } = useApp();
 
   useEffect(() => {
     updateMetaTags({
@@ -58,37 +66,23 @@ export const WriterSeriesPage = () => {
 
     // 自分の全記事（下書き・承認待ち含む）も安全に取得して連載記事一覧に反映
     try {
-      const tableObj = supabase.from("articles") as unknown as {
-        select?: (cols: string) => {
-          eq?: (
-            col: string,
-            val: string,
-          ) => {
-            order?: (
-              col: string,
-              opts: { ascending: boolean },
-            ) => Promise<{ data?: unknown[]; error?: unknown }>;
-          };
-        };
-      };
-      if (tableObj && typeof tableObj.select === "function") {
-        const sel = tableObj.select(ARTICLE_LIST_FIELDS);
-        if (sel && typeof sel.eq === "function") {
-          const eqRes = sel.eq("writer_id", profile.id);
-          if (eqRes && typeof eqRes.order === "function") {
-            const { data, error } = await eqRes.order("created_at", { ascending: false });
-            if (!error && Array.isArray(data)) {
-              setWriterArticles(
-                data.map((r) =>
-                  mapDbArticleToArticle(r as Parameters<typeof mapDbArticleToArticle>[0]),
-                ),
-              );
-            }
-          }
+      const res = supabase.from("articles");
+      if (res && typeof res.select === "function") {
+        const { data, error } = await res
+          .select(ARTICLE_LIST_FIELDS)
+          .eq("writer_id", profile.id)
+          .order("created_at", { ascending: false });
+
+        if (!error && Array.isArray(data)) {
+          setWriterArticles(
+            data.map((r) =>
+              mapDbArticleToArticle(r as Parameters<typeof mapDbArticleToArticle>[0]),
+            ),
+          );
         }
       }
-    } catch {
-      // Ignore when articles table is not mocked in unit tests
+    } catch (e) {
+      console.error("Failed to load writer articles for series", e);
     }
   }, [profile?.id]);
 
@@ -104,15 +98,18 @@ export const WriterSeriesPage = () => {
   }, [localSeriesLoaded, localSeries, seriesList, profile?.id]);
 
   const mergedWriterArticles = useMemo(() => {
+    if (!profile?.id) return [];
     const map = new Map<string, Article>();
     for (const a of articles) {
-      if (!profile?.id || a.writerId === profile.id) {
+      if (a.writerId === profile.id) {
         map.set(a.id, a);
       }
     }
     for (const wa of writerArticles) {
-      const existing = map.get(wa.id);
-      map.set(wa.id, existing ? { ...existing, ...wa } : wa);
+      if (wa.writerId === profile.id) {
+        const existing = map.get(wa.id);
+        map.set(wa.id, existing ? { ...existing, ...wa } : wa);
+      }
     }
     return Array.from(map.values());
   }, [articles, writerArticles, profile?.id]);
@@ -301,6 +298,17 @@ export const WriterSeriesPage = () => {
       showToast("記事の追加に失敗しました");
     }
   };
+
+  if (authLoading || !profile?.id) {
+    return (
+      <div className="max-w-5xl mx-auto p-4 md:p-8 animate-in fade-in duration-300">
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600 mb-4" />
+          <p className="text-gray-500 dark:text-gray-400 text-sm">読み込み中...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto p-4 md:p-8 animate-in slide-in-from-right-8 duration-300">

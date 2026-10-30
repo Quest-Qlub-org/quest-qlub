@@ -570,4 +570,100 @@ describe("WriterSeriesPage", () => {
     // 「1件の記事」と表示され、連載に所属していることが認識されること
     expect(container.textContent).toContain("1件の記事");
   });
+
+  it("shows loading indicator while authLoading is true or profile.id is undefined", async () => {
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      profile: null,
+      authLoading: true,
+      seriesList: [],
+      setSeriesList: mockSetSeriesList,
+      showToast: mockShowToast,
+      navigate: mockNavigate,
+      articles: [],
+      setArticles: mockSetArticles,
+    } as any);
+
+    await act(async () => {
+      root!.render(<WriterSeriesPage />);
+    });
+
+    expect(container.textContent).toContain("読み込み中...");
+    expect(container.textContent).not.toContain("新しい連載を作成");
+  });
+
+  it("strictly filters merged articles to only the current writer's articles", async () => {
+    const mockWriter = createTestProfile({ id: "writer-me", role: "writer" });
+    const otherArticle = {
+      id: "art-other",
+      title: "他ライターの秘密記事",
+      writerId: "writer-other",
+      status: "published",
+      seriesId: null,
+      episodeNumber: null,
+    };
+    const myArticle = {
+      id: "art-mine",
+      title: "自分の記事",
+      writerId: "writer-me",
+      status: "published",
+      seriesId: null,
+      episodeNumber: null,
+    };
+
+    const mockSeries = createTestSeries({
+      id: "series-my-1",
+      title: "マイ連載",
+      writerId: "writer-me",
+    });
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "series") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({
+              data: [
+                {
+                  id: "series-my-1",
+                  title: "マイ連載",
+                  writer_id: "writer-me",
+                },
+              ],
+              error: null,
+            }),
+          }),
+        } as any;
+      }
+      return {} as any;
+    });
+
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      profile: mockWriter,
+      authLoading: false,
+      seriesList: [mockSeries],
+      setSeriesList: mockSetSeriesList,
+      showToast: mockShowToast,
+      navigate: mockNavigate,
+      articles: [otherArticle, myArticle],
+      setArticles: mockSetArticles,
+    } as any);
+
+    await act(async () => {
+      root!.render(<WriterSeriesPage />);
+    });
+
+    // 連載のアコーディオンを展開
+    const expandBtn = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("件の記事"),
+    );
+    expect(expandBtn).toBeDefined();
+
+    await act(async () => {
+      expandBtn!.click();
+    });
+
+    // 記事追加のセレクトボックスの選択肢に「自分の記事」はあり、「他ライターの秘密記事」は存在しないこと
+    const options = Array.from(container.querySelectorAll("option")).map((o) => o.textContent);
+    expect(options).toContain("自分の記事");
+    expect(options).not.toContain("他ライターの秘密記事");
+  });
 });
