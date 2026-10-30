@@ -537,4 +537,69 @@ describe("ArticleEditorView schema resilience", () => {
 
     vi.useRealTimers();
   });
+
+  it("navigates to editorArticles when editor saves another writer's article", async () => {
+    const targetArticle = {
+      id: "art-other-1",
+      title: "他ライターの記事",
+      writerId: "other-writer-id",
+      status: "published",
+      content: "<p>本文</p>",
+      summary: "",
+      tags: [],
+      thumbnailColor: "blue",
+      thumbnailUrl: null,
+      seriesId: null,
+      episodeNumber: null,
+      commentsEnabled: true,
+      scheduledAt: null,
+      createdAt: new Date().toISOString(),
+      views: 0,
+      likes: 0,
+    };
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") {
+        return {
+          update: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({ error: null }),
+          }),
+        } as any;
+      }
+      return {} as any;
+    });
+
+    const mockProfile = createTestProfile({ id: "editor-user-id", role: "editor" });
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      articles: [targetArticle],
+      setArticles: mockSetArticles,
+      seriesList: [],
+      profile: mockProfile,
+      user: { id: "editor-user-id" } as any,
+      userRole: "editor",
+      showToast: mockShowToast,
+      navigate: mockNavigate,
+      getFontSizeClass: () => "text-base",
+    } as any);
+
+    await act(async () => {
+      root!.render(
+        <ArticleEditorPage editingId="art-other-1" editingArticle={targetArticle as any} />,
+      );
+    });
+
+    // 「更新する」ボタンをクリック
+    const saveButton = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("更新する"),
+    );
+    expect(saveButton).toBeDefined();
+
+    await act(async () => {
+      saveButton!.click();
+      await Promise.resolve();
+    });
+
+    expect(mockNavigate).toHaveBeenCalledWith("editorArticles");
+    expect(mockShowToast).toHaveBeenCalledWith("記事を更新しました");
+  });
 });

@@ -386,17 +386,22 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
         setLastSavedAt(
           new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }),
         );
+        const isEditingOtherArticle =
+          isEditor &&
+          Boolean(effectiveEditingArticle && effectiveEditingArticle.writerId !== currentUserId);
+        const destination = isEditingOtherArticle ? "editorArticles" : "writerDash";
+
         if (submitForReview) {
           showToast(
             scheduledIso
               ? `公開予約（${formatScheduledDateTime(scheduledIso)}）で申請しました`
               : "投稿申請しました",
           );
-          navigate("writerDash");
+          navigate(destination);
         } else {
           showToast(effectiveEditingArticle ? "記事を更新しました" : "下書きを保存しました");
           if (effectiveEditingArticle) {
-            navigate("writerDash");
+            navigate(destination);
           }
         }
       } else {
