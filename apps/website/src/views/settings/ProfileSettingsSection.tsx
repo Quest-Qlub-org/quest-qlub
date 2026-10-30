@@ -351,20 +351,30 @@ function DisplayNameEdit({
   const handleSave = async () => {
     if (!profile) return;
     setSaving(true);
-    const { error } = await supabase
-      .from("profiles")
-      .update({ display_name: name })
-      .eq("id", profile.id);
-    if (!error) {
-      setProfile((p) => (p ? { ...p, display_name: name } : p));
-      if (setWriters) {
-        setWriters((ws) => ws.map((w) => (w.id === profile.id ? { ...w, display_name: name } : w)));
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ display_name: name })
+        .eq("id", profile.id);
+      if (error) {
+        showToast("表示名の更新に失敗しました: " + (error.message || "エラーが発生しました"));
+      } else {
+        setProfile((p) => (p ? { ...p, display_name: name } : p));
+        if (setWriters) {
+          setWriters((ws) =>
+            ws.map((w) => (w.id === profile.id ? { ...w, display_name: name } : w)),
+          );
+        }
+        notifyProfileUpdated();
+        setEditing(false);
+        showToast("表示名を更新しました");
       }
-      notifyProfileUpdated();
-      setEditing(false);
-      showToast("表示名を更新しました");
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "エラーが発生しました";
+      showToast("表示名の更新に失敗しました: " + message);
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   return (

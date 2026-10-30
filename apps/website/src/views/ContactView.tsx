@@ -85,20 +85,23 @@ export function ContactView() {
       return;
     }
 
-    const { error: fnError } = await supabase.functions.invoke("send-contact-email", {
-      body: {
-        name: name.trim(),
-        email: email.trim(),
-        subject: subject.trim(),
-        body: body.trim(),
-        _hp: honeypot,
-      },
-    });
+    // 運営者宛てメール通知（失敗してもDBにメッセージは記録されているため警告ログに留め、ユーザーには送信完了を表示）
+    try {
+      const { error: fnError } = await supabase.functions.invoke("send-contact-email", {
+        body: {
+          name: name.trim(),
+          email: email.trim(),
+          subject: subject.trim(),
+          body: body.trim(),
+          _hp: honeypot,
+        },
+      });
 
-    if (fnError) {
-      setSending(false);
-      setErr("メールの送信処理に失敗しました。しばらくたってから再度お試しください。");
-      return;
+      if (fnError) {
+        console.warn("send-contact-email notification returned error:", fnError);
+      }
+    } catch (fnErr) {
+      console.warn("send-contact-email invocation failed:", fnErr);
     }
 
     recordSubmissionTimestamp();
