@@ -342,6 +342,10 @@ describe("ArticleView", () => {
             <Routes>
               <Route path="/articles/:id" element={<ArticleView />} />
               <Route path="/search" element={<div data-testid="search-view">検索ビュー</div>} />
+              <Route
+                path="/writer-dash/edit/:id"
+                element={<div data-testid="edit-view">記事編集画面</div>}
+              />
             </Routes>
           </AppProviders>
         </MemoryRouter>,
@@ -359,17 +363,17 @@ describe("ArticleView", () => {
     expect(container.textContent).toContain("2026/10/24");
     expect(rpcSpy).not.toHaveBeenCalledWith("increment_views", expect.anything());
 
-    const tagBtn = Array.from(container.querySelectorAll("button")).find((b) =>
-      b.textContent?.includes("#下書きタグ"),
+    const editBtn = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("編集する"),
     );
-    expect(tagBtn).toBeDefined();
+    expect(editBtn).toBeDefined();
 
     await act(async () => {
-      tagBtn?.click();
+      editBtn?.click();
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("検索ビュー");
+    expect(container.textContent).toContain("記事編集画面");
   });
 
   it("allows author to withdraw pending article and editor to approve from preview banner", async () => {

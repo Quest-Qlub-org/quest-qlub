@@ -361,7 +361,7 @@ export const ArticleView = () => {
                     if (typeof appNavigate === "function") {
                       appNavigate("writerEdit", article.id);
                     } else {
-                      void navigate(`/dashboard/writer/edit/${article.id}`);
+                      void navigate(`/writer-dash/edit/${article.id}`);
                     }
                   }}
                   className="px-2.5 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-amber-300 dark:border-amber-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 inline-flex items-center gap-1 cursor-pointer"
