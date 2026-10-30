@@ -259,4 +259,115 @@ describe("DataContext", () => {
     expect(dataState.teamMembers.length).toBe(2);
     expect(dataState.teamMembers.map((m) => m.id)).toEqual(["p-editor", "p-writer"]);
   });
+
+  it("optimistically increments and decrements article likes when toggling favorite, rolling back on error", async () => {
+    const mockArticles = [
+      {
+        id: "art-fav-1",
+        title: "いいね対象記事",
+        status: "published",
+        writer_id: "w-1",
+        views: 10,
+        likes: 3,
+        created_at: new Date().toISOString(),
+      },
+    ];
+
+    let favoriteInsertCalled = false;
+    let shouldFail = false;
+
+    const createQueryChain = (data: any[] = []) => {
+      const chain: any = {
+        select: vi.fn(() => chain),
+        eq: vi.fn(() => chain),
+        in: vi.fn(() => chain),
+        order: vi.fn(() => chain),
+        range: vi.fn(() => Promise.resolve({ data, error: null })),
+        insert: vi.fn(() => {
+          favoriteInsertCalled = true;
+          if (shouldFail) {
+            return Promise.resolve({ error: { message: "Network error" } });
+          }
+          return Promise.resolve({ error: null });
+        }),
+        delete: vi.fn(() => {
+          if (shouldFail) {
+            return {
+              eq: vi.fn(() => ({
+                eq: vi.fn().mockResolvedValue({ error: { message: "Delete error" } }),
+              })),
+            };
+          }
+          return {
+            eq: vi.fn(() => ({
+              eq: vi.fn().mockResolvedValue({ error: null }),
+            })),
+          };
+        }),
+      };
+      return chain;
+    };
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") return createQueryChain(mockArticles);
+      if (table === "favorites") return createQueryChain([]);
+      return createQueryChain([]);
+    });
+
+    const mockProfile = createTestProfile({ id: "user-fav", role: "viewer" });
+    const mockAuthContextValue = {
+      user: { id: "user-fav", email: "viewer@example.com" } as any,
+      profile: mockProfile,
+      setProfile: vi.fn(),
+      userRole: "viewer" as const,
+      setUserRole: vi.fn(),
+      authLoading: false,
+      mfaChallengeRequired: false,
+      setMfaChallengeRequired: vi.fn(),
+      refreshProfile: vi.fn(),
+    };
+
+    let dataState!: ReturnType<typeof useData>;
+    const TestConsumer = () => {
+      dataState = useData();
+      return (
+        <div>
+          Likes: {dataState.articles[0]?.likes} Favs: {dataState.favorites.length}
+        </div>
+      );
+    };
+
+    await act(async () => {
+      root!.render(
+        <AuthContext.Provider value={mockAuthContextValue}>
+          <UIProvider>
+            <DataProvider>
+              <TestConsumer />
+            </DataProvider>
+          </UIProvider>
+        </AuthContext.Provider>,
+      );
+    });
+
+    expect(dataState.articles[0]?.likes).toBe(3);
+    expect(dataState.favorites).toEqual([]);
+
+    // お気に入り登録 (+1)
+    await act(async () => {
+      await dataState.toggleFavorite("art-fav-1");
+    });
+
+    expect(favoriteInsertCalled).toBe(true);
+    expect(dataState.articles[0]?.likes).toBe(4);
+    expect(dataState.favorites).toContain("art-fav-1");
+
+    // 失敗時のロールバック検証
+    shouldFail = true;
+    await act(async () => {
+      await dataState.toggleFavorite("art-fav-1");
+    });
+
+    expect(dataState.articles[0]?.likes).toBe(4);
+    expect(dataState.favorites).toContain("art-fav-1");
+  });
 });

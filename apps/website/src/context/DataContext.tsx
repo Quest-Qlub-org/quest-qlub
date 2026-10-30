@@ -367,8 +367,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       const isFav = favorites.includes(articleId);
       const prevFavorites = [...favorites];
 
-      // 楽観的UI更新
+      // 楽観的UI更新: favoritesと該当記事のlikesを即時反映
       setFavorites(isFav ? favorites.filter((id) => id !== articleId) : [...favorites, articleId]);
+      setArticles((prev) =>
+        prev.map((a) =>
+          a.id === articleId ? { ...a, likes: isFav ? Math.max(0, a.likes - 1) : a.likes + 1 } : a,
+        ),
+      );
 
       try {
         if (isFav) {
@@ -397,6 +402,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         console.error("Error toggling favorite, rolling back:", e);
         // ロールバック
         setFavorites(prevFavorites);
+        setArticles((prev) =>
+          prev.map((a) =>
+            a.id === articleId
+              ? { ...a, likes: isFav ? a.likes + 1 : Math.max(0, a.likes - 1) }
+              : a,
+          ),
+        );
         showToast("お気に入りの更新に失敗しました。もう一度お試しください。");
       }
     },

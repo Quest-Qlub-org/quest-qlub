@@ -178,6 +178,25 @@ export const ArticleView = () => {
       })()
     : undefined;
 
+  useEffect(() => {
+    if (detailedArticle && cachedArticle && cachedArticle.id === detailedArticle.id) {
+      if (detailedArticle.likes !== cachedArticle.likes) {
+        setDetailedArticle((prev) => (prev ? { ...prev, likes: cachedArticle.likes } : null));
+      }
+    }
+  }, [cachedArticle?.likes, detailedArticle?.id]);
+
+  const handleToggleFavorite = async () => {
+    if (!article) return;
+    const isCurrentlyFav = favorites.includes(article.id);
+    setDetailedArticle((prev) =>
+      prev
+        ? { ...prev, likes: isCurrentlyFav ? Math.max(0, prev.likes - 1) : prev.likes + 1 }
+        : null,
+    );
+    await toggleFavorite(article.id);
+  };
+
   // Issue #25 & #46: 個別記事のOGP・SEOメタタグ・JSON-LD構造化データの動的適用
   useEffect(() => {
     if (!article) return;
@@ -481,7 +500,7 @@ export const ArticleView = () => {
             </span>
           </div>
           <button
-            onClick={() => void toggleFavorite(article.id)}
+            onClick={() => void handleToggleFavorite()}
             className={`p-2 rounded-full border shadow-sm transition-all cursor-pointer ${
               isFav
                 ? "bg-yellow-50 dark:bg-yellow-950/40 border-yellow-300 dark:border-yellow-600 scale-110"
