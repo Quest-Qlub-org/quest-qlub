@@ -1,14 +1,17 @@
 import { useState, useEffect } from "react";
 import { LogoIcon } from "./icons/NavIcons";
 
-const STORAGE_KEY = "share_quest_has_seen_opening";
+const STORAGE_KEY = "quest_qlub_has_seen_opening";
+const LEGACY_STORAGE_KEY = "share_quest_has_seen_opening";
 const TITLE_TEXT = "QUEST QLUB";
 
 export function OpeningAnimation({ onFinished }: { onFinished?: () => void }) {
   const [visible, setVisible] = useState(() => {
     if (typeof window === "undefined" || !window.sessionStorage) return false;
     // 既に見たセッション、またはモーション軽減設定がある場合は表示しない
-    const hasSeen = window.sessionStorage.getItem(STORAGE_KEY);
+    const hasSeen =
+      window.sessionStorage.getItem(STORAGE_KEY) ||
+      window.sessionStorage.getItem(LEGACY_STORAGE_KEY);
     const prefersReducedMotion =
       typeof window.matchMedia === "function" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -23,6 +26,7 @@ export function OpeningAnimation({ onFinished }: { onFinished?: () => void }) {
     setFadingOut(true);
     if (typeof window !== "undefined" && window.sessionStorage) {
       window.sessionStorage.setItem(STORAGE_KEY, "true");
+      window.sessionStorage.setItem(LEGACY_STORAGE_KEY, "true");
     }
     setTimeout(() => {
       setVisible(false);

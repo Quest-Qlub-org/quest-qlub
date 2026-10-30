@@ -56,6 +56,7 @@ describe("OpeningAnimation", () => {
       skipButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
+    expect(sessionStorage.getItem("quest_qlub_has_seen_opening")).toBe("true");
     expect(sessionStorage.getItem("share_quest_has_seen_opening")).toBe("true");
 
     act(() => {
@@ -65,7 +66,18 @@ describe("OpeningAnimation", () => {
     expect(onFinished).toHaveBeenCalled();
   });
 
-  it("does not render if already seen in sessionStorage", () => {
+  it("does not render if already seen via quest_qlub_has_seen_opening in sessionStorage", () => {
+    sessionStorage.setItem("quest_qlub_has_seen_opening", "true");
+    const root = createRoot(container);
+
+    act(() => {
+      root.render(<OpeningAnimation />);
+    });
+
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it("does not render if already seen in sessionStorage (legacy key)", () => {
     sessionStorage.setItem("share_quest_has_seen_opening", "true");
     const root = createRoot(container);
 

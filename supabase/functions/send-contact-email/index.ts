@@ -207,9 +207,9 @@ serve(async (req) => {
 
     const receiverEmail = Deno.env.get("CONTACT_RECEIVER_EMAIL");
     if (!receiverEmail) {
-      console.warn("CONTACT_RECEIVER_EMAIL is not set. Defaulting to contact@share-quest.org");
+      console.warn("CONTACT_RECEIVER_EMAIL is not set. Defaulting to contact@quest-qlub.com");
     }
-    const toEmail = receiverEmail || "contact@share-quest.org";
+    const toEmail = receiverEmail || "contact@quest-qlub.com";
 
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
