@@ -84,10 +84,16 @@ function FollowManageSection({ profile }: { profile: Profile | null }) {
 
   useEffect(() => {
     if (!profile?.id) return;
+    let isMounted = true;
     void fetchFollowCounts(profile.id).then((c) => {
-      setFollowingCount(c.followingCount);
-      setFollowersCount(c.followersCount);
+      if (isMounted) {
+        setFollowingCount(c.followingCount);
+        setFollowersCount(c.followersCount);
+      }
     });
+    return () => {
+      isMounted = false;
+    };
   }, [profile?.id]);
 
   const openModal = async (tab: "following" | "followers") => {
