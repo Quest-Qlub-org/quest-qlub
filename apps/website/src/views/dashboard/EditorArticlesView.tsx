@@ -49,21 +49,22 @@ export function EditorArticlesView() {
 
   useEffect(() => {
     const fetchArticles = async () => {
-      let res = await supabase
+      const primaryRes = await supabase
         .from("articles")
         .select(EDITOR_ARTICLE_LIST_FIELDS)
         .order("created_at", { ascending: false });
 
-      if (res.error) {
-        // カラム欠落時のフォールバック
-        res = await supabase
-          .from("articles")
-          .select(ARTICLE_LIST_FIELDS)
-          .order("created_at", { ascending: false });
-      }
+      const data = primaryRes.error
+        ? (
+            await supabase
+              .from("articles")
+              .select(ARTICLE_LIST_FIELDS)
+              .order("created_at", { ascending: false })
+          ).data
+        : primaryRes.data;
 
-      if (res.data) {
-        setArticles(res.data.map((row) => enrichEditorArticle(mapDbArticleToArticle(row))));
+      if (data) {
+        setArticles(data.map((row) => enrichEditorArticle(mapDbArticleToArticle(row))));
       }
       setLoading(false);
     };

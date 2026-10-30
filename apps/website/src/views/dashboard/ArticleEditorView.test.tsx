@@ -583,9 +583,7 @@ describe("ArticleEditorView schema resilience", () => {
     } as any);
 
     await act(async () => {
-      root!.render(
-        <ArticleEditorPage editingId="art-other-1" editingArticle={targetArticle as any} />,
-      );
+      root!.render(<ArticleEditorPage editingId="art-other-1" />);
     });
 
     // 「更新する」ボタンをクリック
