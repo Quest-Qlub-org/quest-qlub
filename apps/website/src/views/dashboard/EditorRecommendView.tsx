@@ -3,6 +3,7 @@ import { supabase } from "../../supabase";
 import { ChevronLeft } from "lucide-react";
 import type { Article } from "../../types";
 import { mapDbArticleToArticle } from "../../types";
+import { ARTICLE_LIST_FIELDS } from "../../context/DataContext";
 import { useNavigate } from "react-router-dom";
 import { isArticlePubliclyVisible, enrichArticleWithSchedule } from "../../utils/scheduledArticles";
 import { updateMetaTags } from "../../utils/seo";
@@ -22,7 +23,7 @@ export function EditorRecommendView() {
   useEffect(() => {
     void supabase
       .from("articles")
-      .select("*")
+      .select(ARTICLE_LIST_FIELDS)
       .eq("status", "published")
       .then(({ data }) => {
         if (data) {

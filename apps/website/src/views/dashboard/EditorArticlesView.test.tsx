@@ -80,4 +80,71 @@ describe("EditorArticlesView", () => {
     expect(mockUpdate).toHaveBeenCalledWith({ status: "draft" });
     expect(mockShowToast).toHaveBeenCalledWith("記事を非公開（下書き）にしました");
   });
+
+  it("lazy loads article content when opening inline preview", async () => {
+    const mockMaybeSingle = vi.fn().mockResolvedValue({
+      data: { content: "<p>遅延取得された記事本文</p>", summary: "要約" },
+      error: null,
+    });
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") {
+        return {
+          select: vi.fn().mockImplementation((fields: string) => {
+            if (fields.includes("content")) {
+              return {
+                eq: vi.fn().mockReturnValue({
+                  maybeSingle: mockMaybeSingle,
+                }),
+              };
+            }
+            return {
+              order: vi.fn().mockResolvedValue({
+                data: [
+                  {
+                    id: "art-lazy",
+                    title: "遅延読み込みテスト記事",
+                    status: "published",
+                    writer_id: "w-1",
+                    created_at: new Date().toISOString(),
+                  },
+                ],
+                error: null,
+              }),
+            };
+          }),
+        } as any;
+      }
+      return {} as any;
+    });
+
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      getFontSizeClass: () => "text-base",
+      showToast: mockShowToast,
+      setArticles: mockSetArticles,
+    } as any);
+
+    let container: HTMLElement = document.createElement("div");
+
+    await act(async () => {
+      const rendered = renderWithRouter(<EditorArticlesView />);
+      container = rendered.container;
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const titleBtn = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("遅延読み込みテスト記事"),
+    );
+    expect(titleBtn).toBeDefined();
+
+    await act(async () => {
+      titleBtn!.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockMaybeSingle).toHaveBeenCalled();
+    expect(document.body.textContent).toContain("遅延取得された記事本文");
+  });
 });

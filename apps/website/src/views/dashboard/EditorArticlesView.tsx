@@ -1,9 +1,10 @@
 import { sanitizeHtml } from "../../utils/sanitize";
 import { useState, useEffect } from "react";
 import { supabase } from "../../supabase";
-import { ChevronLeft, X, MessageSquare, EyeOff, Clock, Check } from "lucide-react";
+import { ChevronLeft, X, MessageSquare, EyeOff, Clock, Check, Loader2 } from "lucide-react";
 import type { Article, ArticleStatus } from "../../types";
 import { mapDbArticleToArticle, ARTICLE_STATUS_CONFIG } from "../../types";
+import { ARTICLE_LIST_FIELDS } from "../../context/DataContext";
 import {
   formatScheduledDateTime,
   getEffectiveArticleStatus,
@@ -16,6 +17,8 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
 import { updateMetaTags } from "../../utils/seo";
+
+export const EDITOR_ARTICLE_LIST_FIELDS = `${ARTICLE_LIST_FIELDS}, comments_enabled, scheduled_at`;
 
 function enrichEditorArticle(article: Article): Article {
   const localSched = getLocalScheduledAt(article.id);
@@ -33,6 +36,7 @@ export function EditorArticlesView() {
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
   const [previewArticle, setPreviewArticle] = useState<Article | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [scheduleInput, setScheduleInput] = useState("");
   const nav = useNavigate();
 
@@ -44,15 +48,59 @@ export function EditorArticlesView() {
   }, []);
 
   useEffect(() => {
-    void supabase
-      .from("articles")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .then(({ data }) => {
-        if (data) setArticles(data.map((row) => enrichEditorArticle(mapDbArticleToArticle(row))));
-        setLoading(false);
-      });
+    const fetchArticles = async () => {
+      let res = await supabase
+        .from("articles")
+        .select(EDITOR_ARTICLE_LIST_FIELDS)
+        .order("created_at", { ascending: false });
+
+      if (res.error) {
+        // カラム欠落時のフォールバック
+        res = await supabase
+          .from("articles")
+          .select(ARTICLE_LIST_FIELDS)
+          .order("created_at", { ascending: false });
+      }
+
+      if (res.data) {
+        setArticles(res.data.map((row) => enrichEditorArticle(mapDbArticleToArticle(row))));
+      }
+      setLoading(false);
+    };
+
+    void fetchArticles();
   }, []);
+
+  const openInlinePreview = async (article: Article) => {
+    setPreviewArticle(article);
+    setScheduleInput(toDatetimeLocalValue(article.scheduledAt));
+    if (!article.content) {
+      setPreviewLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from("articles")
+          .select("content, summary")
+          .eq("id", article.id)
+          .maybeSingle();
+        if (!error && data) {
+          const row = data as { content?: string; summary?: string };
+          setPreviewArticle((prev) =>
+            prev && prev.id === article.id
+              ? {
+                  ...prev,
+                  content: typeof row.content === "string" ? row.content : prev.content,
+                  summary: typeof row.summary === "string" ? row.summary : prev.summary,
+                }
+              : prev,
+          );
+        }
+      } catch (err) {
+        console.error("プレビュー本文の取得に失敗しました:", err);
+      } finally {
+        setPreviewLoading(false);
+      }
+    }
+  };
 
   const handleDelete = async (id: string) => {
     if (!confirm("この記事を削除しますか？")) return;
@@ -216,11 +264,9 @@ export function EditorArticlesView() {
                 >
                   <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                     <button
+                      type="button"
                       className="flex-1 min-w-0 text-left"
-                      onClick={() => {
-                        setPreviewArticle(a);
-                        setScheduleInput(toDatetimeLocalValue(a.scheduledAt));
-                      }}
+                      onClick={() => void openInlinePreview(a)}
                     >
                       <p className="font-bold text-gray-800 dark:text-gray-100 text-sm truncate hover:text-blue-600 dark:hover:text-blue-400">
                         {a.title}
@@ -315,7 +361,11 @@ export function EditorArticlesView() {
               </button>
             </div>
             <div className={`flex-1 overflow-y-auto p-5 article-content ${getFontSizeClass()}`}>
-              {previewArticle.content ? (
+              {previewLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-6 h-6 animate-spin text-purple-600 dark:text-purple-400" />
+                </div>
+              ) : previewArticle.content ? (
                 <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(previewArticle.content) }} />
               ) : (
                 <p className="text-gray-400 text-sm text-center py-8">本文がありません</p>
