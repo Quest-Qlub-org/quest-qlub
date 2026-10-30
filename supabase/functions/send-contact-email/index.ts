@@ -207,18 +207,37 @@ serve(async (req) => {
 
     const receiverEmail = Deno.env.get("CONTACT_RECEIVER_EMAIL");
     if (!receiverEmail) {
-      console.warn("CONTACT_RECEIVER_EMAIL is not set. Defaulting to contact@quest-qlub.com");
+      console.warn(
+        "CONTACT_RECEIVER_EMAIL is not set. Defaulting to contact@quest-qlub.com. Note: With unverified onboarding@resend.dev, emails will fail if receiver does not match Resend account email.",
+      );
     }
     const toEmail = receiverEmail || "contact@quest-qlub.com";
+
+    const senderEmail =
+      Deno.env.get("CONTACT_SENDER_EMAIL") || "Quest Qlub <onboarding@resend.dev>";
+    if (!Deno.env.get("CONTACT_SENDER_EMAIL")) {
+      console.warn(
+        "CONTACT_SENDER_EMAIL is not configured. Falling back to 'Quest Qlub <onboarding@resend.dev>'. Ensure custom domain is configured in Resend to avoid delivery restrictions.",
+      );
+    }
+
+    const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    if (!resendApiKey) {
+      console.error("RESEND_API_KEY is not configured.");
+      return new Response(JSON.stringify({ error: "メール送信サービスの設定が不足しています。" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500,
+      });
+    }
 
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${Deno.env.get("RESEND_API_KEY")}`,
+        Authorization: `Bearer ${resendApiKey}`,
       },
       body: JSON.stringify({
-        from: "Quest Qlub <onboarding@resend.dev>",
+        from: senderEmail,
         to: toEmail,
         reply_to: email,
         subject: `【お問い合わせ】${subject}`,
