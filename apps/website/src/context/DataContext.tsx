@@ -58,7 +58,7 @@ export interface DataContextType {
   favorites: string[];
   setFavorites: React.Dispatch<React.SetStateAction<string[]>>;
   favoritesLoading: boolean;
-  toggleFavorite: (articleId: string) => Promise<void>;
+  toggleFavorite: (articleId: string) => Promise<boolean>;
 
   // Initial load complete flag (for Issue #30)
   dataLoaded: boolean;
@@ -359,12 +359,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user?.id, fetchFavorites]);
 
-  // Issue #29: お気に入りトグルの楽観的更新 + エラー時の確実なロールバック
+  // Issue #29 & #57: お気に入りトグルの楽観的更新 + エラー時の確実なロールバック
   const toggleFavorite = useCallback(
-    async (articleId: string) => {
+    async (articleId: string): Promise<boolean> => {
       if (!user?.id) {
         showToast("お気に入り登録にはログインが必要です");
-        return;
+        return false;
       }
 
       const isFav = favorites.includes(articleId);
@@ -390,6 +390,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             throw error;
           }
           showToast("お気に入りを解除しました");
+          return true;
         } else {
           const { error } = await supabase.from("favorites").insert({
             user_id: user.id,
@@ -400,6 +401,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             throw error;
           }
           showToast("お気に入りに追加しました");
+          return true;
         }
       } catch (e) {
         console.error("Error toggling favorite, rolling back:", e);
@@ -413,6 +415,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           ),
         );
         showToast("お気に入りの更新に失敗しました。もう一度お試しください。");
+        return false;
       }
     },
     [user?.id, favorites, showToast],

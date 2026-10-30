@@ -6,6 +6,7 @@ import { MemoryRouter } from "react-router-dom";
 import { SearchView } from "./SearchView";
 import * as AppContextModule from "../context/AppContext";
 import { createTestArticle, createTestProfile, setNativeValue } from "../test/test-utils";
+import { supabase } from "../supabase";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -320,5 +321,85 @@ describe("SearchView", () => {
     expect(container.textContent).toContain("テスト記事第13話");
     expect(container.textContent).toContain("テスト記事第15話");
     expect(container.textContent).not.toContain("さらに表示する");
+  });
+
+  it("fetches server tags and displays them in tag list", async () => {
+    const createChain = (data: any[]) => {
+      const p = Promise.resolve({ data, error: null });
+      const chain: any = Object.assign(p, {
+        select: vi.fn(() => chain),
+        eq: vi.fn(() => chain),
+        in: vi.fn(() => chain),
+        overlaps: vi.fn(() => chain),
+        order: vi.fn(() => chain),
+      });
+      return chain;
+    };
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") {
+        return createChain([{ tags: ["サーバー独自タグA", "サーバー独自タグB"] }]);
+      }
+      return createChain([]);
+    });
+
+    setupAppMock({ articles: [], writers: [] });
+
+    await act(async () => {
+      renderSearchView();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("サーバー独自タグA");
+    expect(container.textContent).toContain("サーバー独自タグB");
+  });
+
+  it("executes server-side search and matches keyword in article content", async () => {
+    const serverArticle = {
+      id: "art-server-content",
+      title: "量子技術の基礎",
+      summary: "概要説明",
+      content: "<p>この記事は超電導量子ビットの詳細解説です</p>",
+      tags: ["科学"],
+      writer_id: "w-1",
+      status: "published",
+      views: 10,
+      likes: 2,
+      created_at: new Date().toISOString(),
+    };
+
+    const createChain = (data: any[]) => {
+      const p = Promise.resolve({ data, error: null });
+      const chain: any = Object.assign(p, {
+        select: vi.fn(() => chain),
+        eq: vi.fn(() => chain),
+        in: vi.fn(() => chain),
+        overlaps: vi.fn(() => chain),
+        order: vi.fn(() => chain),
+      });
+      return chain;
+    };
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") {
+        return createChain([serverArticle]);
+      }
+      return createChain([]);
+    });
+
+    setupAppMock({ articles: [], writers: [] });
+
+    renderSearchView("/search?q=%E8%B6%85%E9%9B%BB%E5%B0%8E");
+
+    for (let i = 0; i < 50; i++) {
+      if (container.textContent?.includes("量子技術の基礎")) break;
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+    }
+
+    expect(container.textContent).toContain("量子技術の基礎");
+    expect(container.textContent).toContain("検索結果 (1件)");
   });
 });

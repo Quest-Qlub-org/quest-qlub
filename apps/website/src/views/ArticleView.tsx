@@ -48,6 +48,7 @@ export const ArticleView = () => {
     seriesList,
     userRole,
     profile,
+    user,
     navigate: appNavigate,
   } = useApp();
   const { isFollowing, toggleFollow, isAuthenticated, currentUserId } = useFollows();
@@ -188,13 +189,24 @@ export const ArticleView = () => {
 
   const handleToggleFavorite = async () => {
     if (!article) return;
+    if (!user?.id) {
+      showToast("お気に入り登録にはログインが必要です");
+      return;
+    }
     const isCurrentlyFav = favorites.includes(article.id);
     setDetailedArticle((prev) =>
       prev
         ? { ...prev, likes: isCurrentlyFav ? Math.max(0, prev.likes - 1) : prev.likes + 1 }
         : null,
     );
-    await toggleFavorite(article.id);
+    const success = await toggleFavorite(article.id);
+    if (!success) {
+      setDetailedArticle((prev) =>
+        prev
+          ? { ...prev, likes: isCurrentlyFav ? prev.likes + 1 : Math.max(0, prev.likes - 1) }
+          : null,
+      );
+    }
   };
 
   // Issue #25 & #46: 個別記事のOGP・SEOメタタグ・JSON-LD構造化データの動的適用

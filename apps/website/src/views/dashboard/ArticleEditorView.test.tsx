@@ -600,4 +600,72 @@ describe("ArticleEditorView schema resilience", () => {
     expect(mockNavigate).toHaveBeenCalledWith("editorArticles");
     expect(mockShowToast).toHaveBeenCalledWith("記事を更新しました");
   });
+
+  it("intercepts external navigation clicks with confirm dialog when unsaved changes exist", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+
+    vi.spyOn(supabase, "from").mockImplementation(
+      () =>
+        ({
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+            }),
+          }),
+        }) as any,
+    );
+
+    const mockProfile = createTestProfile({ id: "writer-1", role: "writer" });
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      articles: [],
+      setArticles: mockSetArticles,
+      seriesList: [],
+      profile: mockProfile,
+      user: { id: "writer-1" } as any,
+      showToast: mockShowToast,
+      navigate: mockNavigate,
+      getFontSizeClass: () => "text-base",
+    } as any);
+
+    // Create a mock header navigation button outside the editor
+    const mockHeader = document.createElement("header");
+    const mockNavButton = document.createElement("button");
+    mockNavButton.textContent = "記事を探す";
+    let navClicked = false;
+    mockNavButton.onclick = () => {
+      navClicked = true;
+    };
+    mockHeader.appendChild(mockNavButton);
+    document.body.appendChild(mockHeader);
+
+    await act(async () => {
+      root!.render(<ArticleEditorPage editingId={null} />);
+    });
+
+    // Make the form dirty
+    const titleInput = container.querySelector(
+      'input[placeholder="読者の目を引くタイトルを入力..."]',
+    ) as HTMLInputElement;
+    act(() => {
+      setNativeValue(titleInput, "未保存のタイトル変更");
+    });
+
+    // Click external navigation button while dirty and user cancels confirm
+    act(() => {
+      mockNavButton.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    });
+
+    expect(confirmSpy).toHaveBeenCalledWith("保存されていない変更があります。ページを離れますか？");
+    expect(navClicked).toBe(false);
+
+    // If user accepts confirm
+    confirmSpy.mockReturnValue(true);
+    act(() => {
+      mockNavButton.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    });
+
+    expect(navClicked).toBe(true);
+
+    document.body.removeChild(mockHeader);
+  });
 });

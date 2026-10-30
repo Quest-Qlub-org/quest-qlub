@@ -570,4 +570,86 @@ describe("ArticleView", () => {
 
     fromMock.mockRestore();
   });
+
+  it("does not increment likes when unauthenticated user clicks favorite button", async () => {
+    const articleData = {
+      id: "art-fav-test",
+      title: "お気に入りテスト記事",
+      writer_id: "writer-fav",
+      status: "published",
+      content: "<p>テスト本文</p>",
+      summary: "要約",
+      tags: ["テスト"],
+      views: 10,
+      likes: 5,
+      created_at: "2026-10-24T10:00:00Z",
+    };
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      const chain: any = {
+        select: vi.fn(() => chain),
+        eq: vi.fn(() => chain),
+        in: vi.fn(() => chain),
+        order: vi.fn(() => chain),
+        range: vi.fn(() => Promise.resolve({ data: [], error: null })),
+        maybeSingle: vi.fn(() => {
+          if (table === "articles") return Promise.resolve({ data: articleData, error: null });
+          return Promise.resolve({ data: null, error: null });
+        }),
+      };
+      return chain;
+    });
+
+    vi.spyOn(useFollowsModule, "useFollows").mockReturnValue({
+      followedIds: [],
+      isFollowing: vi.fn(() => false),
+      toggleFollow: vi.fn(async () => true),
+      isAuthenticated: false,
+      currentUserId: null,
+      loading: false,
+    });
+
+    await act(async () => {
+      root!.render(
+        <MemoryRouter initialEntries={["/articles/art-fav-test"]}>
+          <AppProviders>
+            <Routes>
+              <Route path="/articles/:id" element={<ArticleView />} />
+            </Routes>
+          </AppProviders>
+        </MemoryRouter>,
+      );
+    });
+
+    for (let i = 0; i < 100; i++) {
+      if (container.textContent?.includes("お気に入りテスト記事")) break;
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 20));
+      });
+    }
+
+    expect(container.textContent).toContain("お気に入りテスト記事");
+    expect(container.textContent).toContain("5");
+
+    // Click the favorite star button
+    const favButton = Array.from(container.querySelectorAll("button")).find(
+      (b) => b.querySelector("svg") && b.getAttribute("class")?.includes("rounded-full"),
+    );
+    expect(favButton).toBeDefined();
+
+    await act(async () => {
+      favButton!.click();
+      await Promise.resolve();
+    });
+
+    // Likes count must stay 5, never increment to 6 for unauthenticated user
+    const likesSpans = Array.from(container.querySelectorAll("span")).filter((s) =>
+      s.textContent?.includes("5"),
+    );
+    expect(likesSpans.length).toBeGreaterThan(0);
+    const hasSix = Array.from(container.querySelectorAll("span")).some(
+      (s) => s.textContent?.trim() === "6",
+    );
+    expect(hasSix).toBe(false);
+  });
 });

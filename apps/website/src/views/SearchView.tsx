@@ -10,9 +10,10 @@ import { parseSearchKeywords, matchKeywords } from "../utils/normalizeJapanese";
 import { getLocalScheduledAt, isArticlePubliclyVisible } from "../utils/scheduledArticles";
 import { profileHasRole } from "../utils/roles";
 import { updateMetaTags } from "../utils/seo";
-import { supabase, isTest } from "../supabase";
+import { supabase } from "../supabase";
 import type { Profile } from "../supabase";
 import { fetchProfilesListWithFallback } from "../utils/profileQueries";
+import { ARTICLE_LIST_FIELDS } from "../context/DataContext";
 
 const SEARCH_ARTICLE_FIELDS =
   "id, title, content, summary, thumbnail, thumbnail_url, thumbnail_color, writer_id, views, likes, tags, is_recommended, is_popular, status, series_id, episode_number, created_at";
@@ -63,28 +64,33 @@ export const SearchView = () => {
   }, [urlQ]);
 
   useEffect(() => {
-    if (isTest) return;
     let isMounted = true;
 
-    void supabase
-      .from("articles")
-      .select("tags")
-      .eq("status", "published")
-      .then(({ data }) => {
-        if (!isMounted || !data) return;
+    void (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("articles")
+          .select("tags")
+          .eq("status", "published");
+        if (!isMounted || error || !data) return;
         const tags = Array.from(
           new Set(data.flatMap((row) => (row.tags as string[]) ?? [])),
         ).filter(Boolean);
         if (tags.length > 0) setServerTags(tags);
-      });
+      } catch {
+        // ignore
+      }
+    })();
 
     void fetchProfilesListWithFallback({
       inRole: ["writer", "editor"],
       order: { column: "created_at", ascending: false },
-    }).then((profiles) => {
-      if (!isMounted || !profiles) return;
-      setServerWriters(profiles);
-    });
+    })
+      .then((profiles) => {
+        if (!isMounted || !profiles) return;
+        setServerWriters(profiles);
+      })
+      .catch(() => {});
 
     return () => {
       isMounted = false;
@@ -112,7 +118,7 @@ export const SearchView = () => {
   }, [keyword, selectedTags, selectedWriterIds]);
 
   useEffect(() => {
-    if (isTest || !hasFilter) {
+    if (!hasFilter) {
       setServerResults(null);
       setIsLoadingServerResults(false);
       return;
@@ -123,9 +129,10 @@ export const SearchView = () => {
 
     const timer = setTimeout(async () => {
       try {
-        let query = supabase
-          .from("articles")
-          .select(SEARCH_ARTICLE_FIELDS)
+        const selectFields = queryKeywords.length > 0 ? SEARCH_ARTICLE_FIELDS : ARTICLE_LIST_FIELDS;
+        const articlesTable: any = supabase.from("articles");
+        let query = articlesTable
+          .select(selectFields)
           .eq("status", "published")
           .order("created_at", { ascending: false });
 
@@ -139,13 +146,13 @@ export const SearchView = () => {
         const { data, error } = await query;
         if (!isMounted) return;
 
-        if (!error && data) {
-          let mapped = data
+        if (!error && Array.isArray(data)) {
+          let mapped: Article[] = (data as unknown as Parameters<typeof mapDbArticleToArticle>[0][])
             .map((item) => enrichMappedArticleSchedule(mapDbArticleToArticle(item)))
-            .filter((a) => isArticlePubliclyVisible(a));
+            .filter((a: Article) => isArticlePubliclyVisible(a));
 
           if (queryKeywords.length > 0) {
-            mapped = mapped.filter((a) => {
+            mapped = mapped.filter((a: Article) => {
               const writer = effectiveWriters.find((w) => w.id === a.writerId);
               const searchTargets = [
                 a.title,

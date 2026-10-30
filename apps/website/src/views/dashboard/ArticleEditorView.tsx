@@ -477,6 +477,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
 
   const [isDirty, setIsDirty] = useState(false);
   const autoSaveIdRef = useRef<string | null>(editingId);
+  const editorContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
@@ -491,19 +492,46 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
 
   useEffect(() => {
     if (!isDirty) return;
-    const handleAnchorClick = (e: MouseEvent) => {
-      const target = (e.target as HTMLElement)?.closest("a");
+    const handleDocumentClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
       if (!target) return;
-      const href = target.getAttribute("href");
-      if (href && !href.startsWith("#") && !href.startsWith("javascript:")) {
-        if (!window.confirm("保存されていない変更があります。ページを離れますか？")) {
-          e.preventDefault();
-          e.stopPropagation();
+
+      // 1. <a> タグによる画面遷移
+      const anchor = target.closest("a");
+      if (anchor) {
+        const href = anchor.getAttribute("href");
+        if (href && !href.startsWith("#") && !href.startsWith("javascript:")) {
+          if (!window.confirm("保存されていない変更があります。ページを離れますか？")) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          } else {
+            setIsDirty(false);
+            return;
+          }
+        }
+      }
+
+      // 2. エディタ外部（ヘッダー、ナビゲーション、フッターなど）のナビゲーション要素クリック
+      const isOutsideEditor =
+        editorContainerRef.current && !editorContainerRef.current.contains(target);
+      const isNavContainer = target.closest("header, nav, footer, [role='navigation']");
+      if (isOutsideEditor || isNavContainer) {
+        const clickable = target.closest(
+          "button, [role='button'], a, div[class*='cursor-pointer']",
+        );
+        if (clickable) {
+          if (!window.confirm("保存されていない変更があります。ページを離れますか？")) {
+            e.preventDefault();
+            e.stopPropagation();
+          } else {
+            setIsDirty(false);
+          }
         }
       }
     };
-    document.addEventListener("click", handleAnchorClick, true);
-    return () => document.removeEventListener("click", handleAnchorClick, true);
+    document.addEventListener("click", handleDocumentClick, true);
+    return () => document.removeEventListener("click", handleDocumentClick, true);
   }, [isDirty]);
 
   useEffect(() => {
@@ -618,7 +646,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
   const selectedSeries = seriesList.find((s) => s.id === formSeriesId);
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div ref={editorContainerRef} className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* エディタ上部アクションバー */}
       <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur border-b border-gray-200 dark:border-gray-700 px-3 sm:px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 sticky top-[52px] z-30 shadow-xs">
         <div className="flex items-center gap-2.5 min-w-0">

@@ -57,7 +57,7 @@ export interface AppContextType {
   // Favorites
   favorites: string[];
   setFavorites: React.Dispatch<React.SetStateAction<string[]>>;
-  toggleFavorite: (articleId: string) => Promise<void> | void;
+  toggleFavorite: (articleId: string) => Promise<boolean> | Promise<void> | void;
 
   // Font Settings
   fontSize: string;
