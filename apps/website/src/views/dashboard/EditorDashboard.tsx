@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useApp } from "../../context/AppContext";
 import { supabase } from "../../supabase";
-import { CustomUserIcon } from "../../App";
 import { sanitizeHtml } from "../../utils/sanitize";
 import { mapDbArticleToArticle, ARTICLE_STATUS_CONFIG, getThumbnailColor } from "../../types";
 import type { Article, ArticleStatus } from "../../types";
@@ -14,7 +13,7 @@ import {
   toDatetimeLocalValue,
   toSafeIsoString,
 } from "../../utils/scheduledArticles";
-import { LogoIcon } from "../../components/icons/NavIcons";
+import { LogoIcon, CustomUserIcon } from "../../components/icons/NavIcons";
 import {
   ChevronLeft,
   Check,
