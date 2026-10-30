@@ -453,4 +453,88 @@ describe("ArticleEditorView schema resilience", () => {
     // 下書き記事編集保存後、確実にダッシュボードへ戻ること！
     expect(mockNavigate).toHaveBeenCalledWith("writerDash");
   });
+
+  it("includes scheduled_at and replaces browser URL when auto-saving a new draft", async () => {
+    vi.useFakeTimers();
+    let insertedPayload: any = null;
+    const insertMock = vi.fn((payload: any) => {
+      insertedPayload = payload;
+      return {
+        select: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({
+            data: {
+              id: "art-autosave-new",
+              title: payload.title,
+              writer_id: payload.writer_id,
+              status: "draft",
+              scheduled_at: payload.scheduled_at,
+            },
+            error: null,
+          }),
+        }),
+      };
+    });
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") {
+        return {
+          insert: insertMock,
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+            }),
+          }),
+        } as any;
+      }
+      return {} as any;
+    });
+
+    const replaceStateSpy = vi.spyOn(window.history, "replaceState");
+
+    const mockProfile = createTestProfile({ id: "writer-1", role: "writer" });
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      articles: [],
+      setArticles: mockSetArticles,
+      seriesList: [],
+      profile: mockProfile,
+      user: { id: "writer-1" } as any,
+      showToast: mockShowToast,
+      navigate: mockNavigate,
+      getFontSizeClass: () => "text-base",
+    } as any);
+
+    await act(async () => {
+      root!.render(<ArticleEditorPage editingId={null} />);
+    });
+
+    const titleInput = container.querySelector(
+      'input[placeholder="読者の目を引くタイトルを入力..."]',
+    ) as HTMLInputElement;
+    act(() => {
+      setNativeValue(titleInput, "自動保存タイトル");
+    });
+
+    // 予約日時を入力
+    const scheduleInput = container.querySelector(
+      'input[type="datetime-local"]',
+    ) as HTMLInputElement;
+    expect(scheduleInput).not.toBeNull();
+    act(() => {
+      setNativeValue(scheduleInput, "2026-11-01T15:30");
+    });
+
+    // 5秒タイマーを進める
+    await act(async () => {
+      vi.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+
+    expect(insertedPayload).not.toBeNull();
+    expect(insertedPayload.title).toBe("自動保存タイトル");
+    expect(insertedPayload.scheduled_at).toContain("2026-11-01T");
+    expect(replaceStateSpy).toHaveBeenCalledWith(null, "", "/writer-dash/edit/art-autosave-new");
+    expect(mockShowToast).toHaveBeenCalledWith("自動保存しました");
+
+    vi.useRealTimers();
+  });
 });

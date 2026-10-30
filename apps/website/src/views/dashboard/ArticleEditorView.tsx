@@ -62,8 +62,9 @@ function buildBaseArticlePayload(params: {
   seriesId: string;
   episodeNumber: string;
   commentsEnabled: boolean;
+  scheduledAt?: string | null;
 }): Record<string, unknown> {
-  return {
+  const payload: Record<string, unknown> = {
     title: params.title,
     content: params.content,
     summary: params.summary || null,
@@ -74,6 +75,10 @@ function buildBaseArticlePayload(params: {
     episode_number: params.episodeNumber ? parseInt(params.episodeNumber, 10) : null,
     comments_enabled: params.commentsEnabled,
   };
+  if (params.scheduledAt !== undefined) {
+    payload.scheduled_at = params.scheduledAt;
+  }
+  return payload;
 }
 
 async function updateArticleWithFallback(targetId: string, payload: Record<string, unknown>) {
@@ -480,17 +485,30 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
   }, [isDirty]);
 
   useEffect(() => {
-    const handlePopState = () => {
-      if (isDirty) {
-        window.history.go(1);
-        setTimeout(() => {
-          if (window.confirm("保存されていない変更があります。ページを離れますか？")) {
-            setIsDirty(false);
-            window.history.go(-1);
-          }
-        }, 0);
+    if (!isDirty) return;
+    const handleAnchorClick = (e: MouseEvent) => {
+      const target = (e.target as HTMLElement)?.closest("a");
+      if (!target) return;
+      const href = target.getAttribute("href");
+      if (href && !href.startsWith("#") && !href.startsWith("javascript:")) {
+        if (!window.confirm("保存されていない変更があります。ページを離れますか？")) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
       }
     };
+    document.addEventListener("click", handleAnchorClick, true);
+    return () => document.removeEventListener("click", handleAnchorClick, true);
+  }, [isDirty]);
+
+  useEffect(() => {
+    if (!isDirty) return;
+    const handlePopState = () => {
+      if (!window.confirm("保存されていない変更があります。ページを離れますか？")) {
+        window.history.pushState(null, "", window.location.href);
+      }
+    };
+    window.history.pushState(null, "", window.location.href);
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, [isDirty]);
@@ -498,6 +516,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
   useEffect(() => {
     if (!isDirty || !formTitle.trim()) return;
     const timer = setTimeout(async () => {
+      const scheduledIso = toSafeIsoString(formScheduledAt);
       const currentValues = {
         title: formTitle,
         content: formContent,
@@ -508,11 +527,15 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
         seriesId: formSeriesId,
         episodeNumber: formEpisodeNumber,
         commentsEnabled: formCommentsEnabled,
+        scheduledAt: scheduledIso,
       };
 
       if (autoSaveIdRef.current) {
         const updatePayload = buildBaseArticlePayload(currentValues);
         await updateArticleWithFallback(autoSaveIdRef.current, updatePayload);
+        if (scheduledIso) {
+          setLocalScheduledAt(autoSaveIdRef.current, scheduledIso);
+        }
       } else {
         const insertPayload = buildBaseArticlePayload(currentValues);
         insertPayload.writer_id = currentUserId;
@@ -525,6 +548,10 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
         const { data } = await insertArticleWithFallback(insertPayload);
         if (data) {
           autoSaveIdRef.current = data.id;
+          if (scheduledIso) {
+            setLocalScheduledAt(data.id, scheduledIso);
+          }
+          window.history.replaceState(null, "", `/writer-dash/edit/${data.id}`);
           setArticles((prev) => [
             {
               id: data.id,
@@ -544,6 +571,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
               seriesId: formSeriesId || null,
               episodeNumber: formEpisodeNumber ? parseInt(formEpisodeNumber, 10) : null,
               commentsEnabled: formCommentsEnabled,
+              scheduledAt: scheduledIso,
             },
             ...prev,
           ]);
@@ -566,7 +594,11 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
     formSeriesId,
     formEpisodeNumber,
     formCommentsEnabled,
+    formScheduledAt,
     isDirty,
+    currentUserId,
+    setArticles,
+    showToast,
   ]);
 
   if (editorLoading) {
