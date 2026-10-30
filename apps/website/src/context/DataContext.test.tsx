@@ -370,4 +370,73 @@ describe("DataContext", () => {
     expect(dataState.articles[0]?.likes).toBe(4);
     expect(dataState.favorites).toContain("art-fav-1");
   });
+
+  it("awaits publish_due_scheduled_articles RPC before querying published articles", async () => {
+    const callOrder: string[] = [];
+
+    const mockRpc = vi.spyOn(supabase, "rpc").mockImplementation(((fn: string) => {
+      callOrder.push(`rpc:${fn}`);
+      return Promise.resolve({ error: null });
+    }) as any);
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              order: vi.fn(() => ({
+                range: vi.fn(() => {
+                  callOrder.push("select:articles");
+                  return Promise.resolve({ data: [], error: null });
+                }),
+              })),
+            })),
+          })),
+        } as any;
+      }
+      return {
+        select: vi.fn(() => ({
+          order: vi.fn(() => ({
+            range: vi.fn(() => Promise.resolve({ data: [], error: null })),
+          })),
+          eq: vi.fn(() => Promise.resolve({ data: [], error: null })),
+        })),
+      } as any;
+    });
+
+    const mockAuthContextValue: any = {
+      user: null,
+      setUser: vi.fn(),
+      profile: null,
+      setProfile: vi.fn(),
+      userRole: "guest" as const,
+      setUserRole: vi.fn(),
+      authLoading: false,
+      mfaChallengeRequired: false,
+      setMfaChallengeRequired: vi.fn(),
+      refreshProfile: vi.fn(),
+    };
+
+    const TestConsumer = () => {
+      useData();
+      return <div>Ready</div>;
+    };
+
+    await act(async () => {
+      root!.render(
+        <AuthContext.Provider value={mockAuthContextValue}>
+          <UIProvider>
+            <DataProvider>
+              <TestConsumer />
+            </DataProvider>
+          </UIProvider>
+        </AuthContext.Provider>,
+      );
+      await Promise.resolve();
+    });
+
+    expect(mockRpc).toHaveBeenCalledWith("publish_due_scheduled_articles");
+    expect(callOrder[0]).toBe("rpc:publish_due_scheduled_articles");
+    expect(callOrder[1]).toBe("select:articles");
+  });
 });

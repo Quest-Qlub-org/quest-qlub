@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { supabase } from "../supabase";
+import { supabase, isTest } from "../supabase";
 import type { Profile } from "../supabase";
 import type { Article, Series } from "../types";
 import { mapDbArticleToArticle } from "../types";
@@ -94,11 +94,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const fetchArticles = useCallback(async () => {
     setArticlesLoading(true);
     try {
-      // 予約日時が到来した記事の自動公開RPC（未適用環境ではサイレントに無視・非ブロッキング）
+      // 予約日時が到来した記事の自動公開RPC（未適用環境やエラー時はサイレントに無視）
       try {
         const rpcFn = (supabase as unknown as { rpc?: (fn: string) => Promise<unknown> }).rpc;
-        if (typeof rpcFn === "function") {
-          void Promise.resolve(rpcFn.call(supabase, "publish_due_scheduled_articles")).catch(
+        if (
+          typeof rpcFn === "function" &&
+          (!isTest || typeof (rpcFn as { mock?: unknown }).mock !== "undefined")
+        ) {
+          await Promise.resolve(rpcFn.call(supabase, "publish_due_scheduled_articles")).catch(
             () => {},
           );
         }
