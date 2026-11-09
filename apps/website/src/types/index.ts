@@ -5,6 +5,7 @@ export type Series = {
   title: string;
   description?: string | null;
   writerId: string;
+  collaboratorIds?: string[];
 };
 
 export type ArticleStatus = "draft" | "pending" | "scheduled" | "published";
@@ -29,6 +30,7 @@ export type Article = {
   commentsEnabled?: boolean;
   createdAt?: string | null;
   scheduledAt?: string | null;
+  collaboratorIds?: string[];
 };
 
 export interface ThumbnailColorOption {
@@ -91,6 +93,7 @@ export interface DbArticleRow {
   comments_enabled?: boolean | null;
   created_at?: string | null;
   scheduled_at?: string | null;
+  collaborator_ids?: string[] | null;
 }
 
 export function mapDbArticleToArticle(a: DbArticleRow): Article {
@@ -115,5 +118,6 @@ export function mapDbArticleToArticle(a: DbArticleRow): Article {
     commentsEnabled: a.comments_enabled !== false,
     createdAt: a.created_at ?? null,
     scheduledAt,
+    collaboratorIds: a.collaborator_ids ?? [],
   };
 }

@@ -668,4 +668,168 @@ describe("ArticleEditorView schema resilience", () => {
 
     document.body.removeChild(mockHeader);
   });
+
+  it("saves collaborator_ids in article insert payload", async () => {
+    let insertedPayload: any = null;
+    const insertMock = vi.fn((payload: any) => {
+      insertedPayload = payload;
+      return {
+        select: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({
+            data: { id: "new-collab-art", title: payload.title, writer_id: "writer-1" },
+            error: null,
+          }),
+        }),
+      };
+    });
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") {
+        return { insert: insertMock } as any;
+      }
+      return {} as any;
+    });
+
+    const mockWriter = createTestProfile({ id: "writer-1", role: "writer" });
+    const mockCoAuthor = createTestProfile({
+      id: "writer-2",
+      role: "writer",
+      display_name: "共同執筆者",
+    });
+
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      profile: mockWriter,
+      userRole: "writer",
+      articles: [],
+      setArticles: mockSetArticles,
+      seriesList: [],
+      showToast: mockShowToast,
+      navigate: mockNavigate,
+      getFontSizeClass: () => "text-base",
+      writers: [mockWriter, mockCoAuthor],
+    } as any);
+
+    await act(async () => {
+      root!.render(<ArticleEditorPage editingId={null} />);
+    });
+
+    const titleInput = container.querySelector(
+      'input[placeholder="読者の目を引くタイトルを入力..."]',
+    ) as HTMLInputElement;
+    act(() => {
+      setNativeValue(titleInput, "共同執筆テスト記事");
+    });
+
+    // Select co-author
+    const collabSelect = container.querySelector(
+      "select[data-testid='collaborator-select-input']",
+    ) as HTMLSelectElement;
+    expect(collabSelect).toBeTruthy();
+
+    act(() => {
+      setNativeValue(collabSelect, "writer-2");
+      collabSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    // Save draft
+    const saveBtn = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("下書き保存"),
+    );
+    expect(saveBtn).toBeTruthy();
+
+    await act(async () => {
+      saveBtn!.click();
+    });
+
+    expect(insertedPayload).toBeTruthy();
+    expect(insertedPayload.collaborator_ids).toEqual(["writer-2"]);
+    expect(mockShowToast).toHaveBeenCalledWith("下書きを保存しました");
+  });
+
+  it("retries insert without collaborator_ids when Supabase returns 42703 column does not exist", async () => {
+    const insertedPayloads: any[] = [];
+    const insertMock = vi.fn((payload: any) => {
+      insertedPayloads.push(payload);
+      if ("collaborator_ids" in payload && payload.collaborator_ids?.length > 0) {
+        return {
+          select: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({
+              data: null,
+              error: {
+                code: "42703",
+                message: 'column "collaborator_ids" of relation "articles" does not exist',
+              },
+            }),
+          }),
+        };
+      }
+      return {
+        select: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({
+            data: { id: "art-fallback", title: payload.title, writer_id: "writer-1" },
+            error: null,
+          }),
+        }),
+      };
+    });
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") {
+        return { insert: insertMock } as any;
+      }
+      return {} as any;
+    });
+
+    const mockWriter = createTestProfile({ id: "writer-1", role: "writer" });
+    const mockCoAuthor = createTestProfile({
+      id: "writer-2",
+      role: "writer",
+      display_name: "共同執筆者",
+    });
+
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      profile: mockWriter,
+      userRole: "writer",
+      articles: [],
+      setArticles: mockSetArticles,
+      seriesList: [],
+      showToast: mockShowToast,
+      navigate: mockNavigate,
+      getFontSizeClass: () => "text-base",
+      writers: [mockWriter, mockCoAuthor],
+    } as any);
+
+    await act(async () => {
+      root!.render(<ArticleEditorPage editingId={null} />);
+    });
+
+    const titleInput = container.querySelector(
+      'input[placeholder="読者の目を引くタイトルを入力..."]',
+    ) as HTMLInputElement;
+    act(() => {
+      setNativeValue(titleInput, "フォールバックテスト");
+    });
+
+    const collabSelect = container.querySelector(
+      "select[data-testid='collaborator-select-input']",
+    ) as HTMLSelectElement;
+
+    act(() => {
+      setNativeValue(collabSelect, "writer-2");
+      collabSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    const saveBtn = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("下書き保存"),
+    );
+
+    await act(async () => {
+      saveBtn!.click();
+    });
+
+    expect(insertedPayloads.length).toBe(2);
+    expect("collaborator_ids" in insertedPayloads[0]).toBe(true);
+    expect("collaborator_ids" in insertedPayloads[1]).toBe(false);
+    expect(mockShowToast).toHaveBeenCalledWith("下書きを保存しました");
+  });
 });

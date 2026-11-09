@@ -37,7 +37,7 @@ describe("supabaseErrors", () => {
   });
 
   describe("isArticleOptionalColumnSchemaError", () => {
-    it("returns true for 42703, comments_enabled, or scheduled_at", () => {
+    it("returns true for 42703, comments_enabled, scheduled_at, or collaborator_ids", () => {
       expect(isArticleOptionalColumnSchemaError({ code: "42703" })).toBe(true);
       expect(
         isArticleOptionalColumnSchemaError({
@@ -47,6 +47,11 @@ describe("supabaseErrors", () => {
       expect(
         isArticleOptionalColumnSchemaError({
           message: "column articles.scheduled_at does not exist",
+        }),
+      ).toBe(true);
+      expect(
+        isArticleOptionalColumnSchemaError({
+          message: "column articles.collaborator_ids does not exist",
         }),
       ).toBe(true);
     });

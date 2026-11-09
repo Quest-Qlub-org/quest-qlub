@@ -50,6 +50,7 @@ describe("types/index core logic", () => {
         summary: "要約です",
         series_id: "series-1",
         episode_number: 3,
+        collaborator_ids: ["writer-2", "writer-3"],
       };
 
       const article = mapDbArticleToArticle(row);
@@ -60,6 +61,7 @@ describe("types/index core logic", () => {
       expect(article.thumbnailUrl).toBe("https://example.com/thumb.png");
       expect(article.thumbnailColor).toBe("orange");
       expect(article.writerId).toBe("writer-1");
+      expect(article.collaboratorIds).toEqual(["writer-2", "writer-3"]);
       expect(article.views).toBe(120);
       expect(article.likes).toBe(15);
       expect(article.tags).toEqual(["数学", "理科"]);
@@ -94,6 +96,7 @@ describe("types/index core logic", () => {
       expect(article.summary).toBeUndefined();
       expect(article.seriesId).toBeNull();
       expect(article.episodeNumber).toBeNull();
+      expect(article.collaboratorIds).toEqual([]);
     });
   });
 });

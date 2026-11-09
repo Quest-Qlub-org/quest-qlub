@@ -15,7 +15,7 @@ const WRITER_PAGE_SIZE = 12;
 
 // 安全な記事一覧取得フィールド（巨大な本文 content を除外し、実DBで確実に存在するカラムのみ）
 export const ARTICLE_LIST_FIELDS =
-  "id, title, thumbnail, thumbnail_url, thumbnail_color, writer_id, views, likes, tags, is_recommended, is_popular, status, summary, series_id, episode_number, created_at";
+  "id, title, thumbnail, thumbnail_url, thumbnail_color, writer_id, views, likes, tags, is_recommended, is_popular, status, summary, series_id, episode_number, created_at, collaborator_ids";
 
 function enrichMappedArticleSchedule(article: Article): Article {
   const localSched = getLocalScheduledAt(article.id);
@@ -250,6 +250,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           title: s.title,
           description: s.description ?? null,
           writerId: s.writer_id,
+          collaboratorIds: s.collaborator_ids ?? [],
         }));
         setSeriesList(applySeriesOverrides(mapped));
       }

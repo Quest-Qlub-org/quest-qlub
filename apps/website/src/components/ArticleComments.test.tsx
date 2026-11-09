@@ -534,4 +534,37 @@ describe("ArticleComments (DB-backed, Auth-required, Role permissions, Pinning &
 
     unmount();
   });
+
+  it("displays 共同執筆者 badge for comments made by co-authors", async () => {
+    mockCommentsDb.push({
+      id: "c-collab-1",
+      article_id: articleId,
+      author_id: "collab-user-1",
+      author_name: "共同執筆ライター",
+      content: "共著者のコメントです",
+      is_pinned: false,
+      created_at: "2026-10-17T13:00:00.000Z",
+      updated_at: "2026-10-17T13:00:00.000Z",
+    });
+
+    mockAuth("viewer", "viewer-1", "一般読者");
+
+    const { container, unmount } = renderWithRouter(
+      <ArticleComments
+        articleId={articleId}
+        writerId={writerId}
+        collaboratorIds={["collab-user-1"]}
+        commentsEnabled={true}
+      />,
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("共同執筆ライター");
+    expect(container.textContent).toContain("共同執筆者");
+
+    unmount();
+  });
 });

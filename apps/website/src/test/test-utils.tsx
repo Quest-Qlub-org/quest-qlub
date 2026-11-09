@@ -33,6 +33,7 @@ export function createTestArticle(overrides?: Partial<Article>): Article {
     episodeNumber: null,
     commentsEnabled: true,
     createdAt: "2026-03-01T00:00:00Z",
+    collaboratorIds: [],
     ...overrides,
   };
 }
@@ -65,15 +66,16 @@ export function createTestSeries(overrides?: Partial<Series>): Series {
     title: "テスト連載",
     description: "テスト連載の説明です。",
     writerId: "writer-1",
+    collaboratorIds: [],
     ...overrides,
   };
 }
 
 /**
- * input / textarea の値を変更し、input と change イベントを発火するヘルパー
+ * input / textarea / select の値を変更し、input と change イベントを発火するヘルパー
  */
 export function setNativeValue(
-  element: HTMLInputElement | HTMLTextAreaElement,
+  element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
   value: string,
 ): void {
   const valueSetter = Object.getOwnPropertyDescriptor(element, "value")?.set;

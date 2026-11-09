@@ -78,6 +78,7 @@ export function isCommentsSchemaError(error: unknown): boolean {
 interface ArticleCommentsProps {
   articleId: string;
   writerId?: string;
+  collaboratorIds?: string[];
   commentsEnabled?: boolean;
   onToggleCommentsEnabled?: (nextEnabled: boolean) => Promise<void> | void;
 }
@@ -87,6 +88,7 @@ const MAX_PINNED_COMMENTS = 3;
 export function ArticleComments({
   articleId,
   writerId,
+  collaboratorIds,
   commentsEnabled = true,
   onToggleCommentsEnabled,
 }: ArticleCommentsProps) {
@@ -110,8 +112,11 @@ export function ArticleComments({
   const currentUserId = profile?.id || user?.id || null;
   const isAuthenticated = userRole !== "guest" && !!currentUserId;
   const isArticleWriter = Boolean(currentUserId && writerId && currentUserId === writerId);
+  const isCollaborator = Boolean(
+    currentUserId && collaboratorIds && collaboratorIds.includes(currentUserId),
+  );
   const isEditor = userRole === "editor" || profileHasRole(profile, "editor");
-  const canManageArticleComments = isArticleWriter || isEditor;
+  const canManageArticleComments = isArticleWriter || isCollaborator || isEditor;
 
   // コメントオフ時は、記事ライターまたは編集長のみ過去コメントを閲覧可能
   const canViewComments = commentsEnabled || canManageArticleComments;
@@ -592,11 +597,15 @@ export function ArticleComments({
                     <span className="font-bold text-sm text-gray-800 dark:text-gray-100">
                       {comment.authorName}
                     </span>
-                    {writerId && comment.authorId === writerId && (
+                    {writerId && comment.authorId === writerId ? (
                       <span className="text-[10px] font-bold bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full">
                         記事ライター
                       </span>
-                    )}
+                    ) : collaboratorIds?.includes(comment.authorId) ? (
+                      <span className="text-[10px] font-bold bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-full">
+                        共同執筆者
+                      </span>
+                    ) : null}
                     <span className="text-[11px] text-gray-400 dark:text-gray-500">
                       {formatDate(comment.createdAt)}
                     </span>

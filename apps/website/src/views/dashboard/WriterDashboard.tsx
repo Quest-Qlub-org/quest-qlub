@@ -13,6 +13,7 @@ import {
 } from "../../utils/scheduledArticles";
 import { ChevronLeft, Plus, Edit3, Loader2, Eye, X, Clock, RotateCcw } from "lucide-react";
 import { updateMetaTags } from "../../utils/seo";
+import { profileHasRole } from "../../utils/roles";
 
 function enrichWriterArticle(article: Article): Article {
   const localSched = getLocalScheduledAt(article.id);
@@ -26,8 +27,16 @@ function enrichWriterArticle(article: Article): Article {
 }
 
 export const WriterDashboard = () => {
-  const { profile, articles, setArticles, showToast, navigate, authLoading, getFontSizeClass } =
-    useApp();
+  const {
+    profile,
+    articles,
+    setArticles,
+    showToast,
+    navigate,
+    authLoading,
+    getFontSizeClass,
+    userRole,
+  } = useApp();
   const [writerArticles, setWriterArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
   const [previewArticle, setPreviewArticle] = useState<Article | null>(null);
@@ -48,22 +57,41 @@ export const WriterDashboard = () => {
     }
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("articles")
-        .select(ARTICLE_LIST_FIELDS)
-        .eq("writer_id", profile.id)
-        .order("created_at", { ascending: false });
+      const base = supabase.from("articles").select(ARTICLE_LIST_FIELDS);
+      let query;
+      if (typeof base.or === "function") {
+        query = base.or(`writer_id.eq.${profile.id},collaborator_ids.cs.{"${profile.id}"}`);
+      } else {
+        query = base.eq("writer_id", profile.id);
+      }
+      let { data, error } = await query.order("created_at", { ascending: false });
+
+      if (error) {
+        const fallbackRes = await supabase
+          .from("articles")
+          .select(ARTICLE_LIST_FIELDS)
+          .eq("writer_id", profile.id)
+          .order("created_at", { ascending: false });
+        data = fallbackRes.data;
+        error = fallbackRes.error;
+      }
 
       if (!error && data) {
         setWriterArticles(data.map((row) => enrichWriterArticle(mapDbArticleToArticle(row))));
       } else {
         setWriterArticles(
-          articles.filter((a) => a.writerId === profile.id).map(enrichWriterArticle),
+          articles
+            .filter((a) => a.writerId === profile.id || a.collaboratorIds?.includes(profile.id))
+            .map(enrichWriterArticle),
         );
       }
     } catch (e) {
       console.error("Failed to load writer articles", e);
-      setWriterArticles(articles.filter((a) => a.writerId === profile.id).map(enrichWriterArticle));
+      setWriterArticles(
+        articles
+          .filter((a) => a.writerId === profile.id || a.collaboratorIds?.includes(profile.id))
+          .map(enrichWriterArticle),
+      );
     } finally {
       setLoading(false);
     }
@@ -78,7 +106,11 @@ export const WriterDashboard = () => {
   const myArticles =
     writerArticles.length > 0
       ? writerArticles
-      : articles.filter((a) => a.writerId === profile?.id).map(enrichWriterArticle);
+      : articles
+          .filter(
+            (a) => a.writerId === profile?.id || a.collaboratorIds?.includes(profile?.id ?? ""),
+          )
+          .map(enrichWriterArticle);
 
   const openCreate = () => {
     navigate("writerNew");
@@ -182,6 +214,13 @@ export const WriterDashboard = () => {
   };
 
   const handleDelete = async (article: Article) => {
+    const isAuthor = article.writerId === profile?.id;
+    const isEditor =
+      userRole === "editor" || profile?.role === "editor" || profileHasRole(profile, "editor");
+    if (!isAuthor && !isEditor) {
+      showToast("共同編集記事の削除は主作成者のみ可能です");
+      return;
+    }
     if (!window.confirm(`「${article.title}」を削除しますか？`)) return;
     const { error } = await supabase.from("articles").delete().eq("id", article.id);
     if (!error) {
@@ -252,6 +291,12 @@ export const WriterDashboard = () => {
           {myArticles.map((article) => {
             const color = getThumbnailColor(article.thumbnailColor ?? null);
             const schedLabel = formatScheduledDateTime(article.scheduledAt);
+            const isAuthor = article.writerId === profile?.id;
+            const isEditor =
+              userRole === "editor" ||
+              profile?.role === "editor" ||
+              profileHasRole(profile, "editor");
+            const canDelete = isAuthor || isEditor;
             return (
               <div
                 key={article.id}
@@ -267,7 +312,18 @@ export const WriterDashboard = () => {
                     <h4 className="font-bold text-gray-800 dark:text-gray-100 text-sm truncate">
                       {article.title}
                     </h4>
-                    {statusLabel(article.status)}
+                    <div className="flex items-center gap-1 shrink-0">
+                      {article.collaboratorIds?.includes(profile?.id ?? "") &&
+                        article.writerId !== profile?.id && (
+                          <span
+                            data-testid="collaborator-article-badge"
+                            className="px-2 py-0.5 rounded text-[11px] font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300"
+                          >
+                            共同編集
+                          </span>
+                        )}
+                      {statusLabel(article.status)}
+                    </div>
                   </div>
                   {schedLabel && (
                     <p className="text-[11px] text-purple-700 dark:text-purple-300 font-bold mb-1.5 flex items-center gap-1">
@@ -321,7 +377,7 @@ export const WriterDashboard = () => {
                         非公開にする
                       </button>
                     )}
-                    {article.status !== "published" && (
+                    {canDelete && article.status !== "published" && (
                       <button
                         onClick={() => void handleDelete(article)}
                         className="py-1.5 px-2 bg-red-50 dark:bg-red-950/40 text-red-500 dark:text-red-400 text-xs font-bold rounded hover:bg-red-100 dark:hover:bg-red-900/40 border border-red-200 dark:border-red-800/50"

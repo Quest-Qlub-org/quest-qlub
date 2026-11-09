@@ -11,10 +11,14 @@ import {
   setLocalSeriesOverride,
 } from "../../utils/seriesOverrides";
 import { updateMetaTags } from "../../utils/seo";
+import { CollaboratorSelect } from "../../components/CollaboratorSelect";
+import { isArticleOptionalColumnSchemaError } from "../../utils/supabaseErrors";
+import { profileHasRole } from "../../utils/roles";
 
 export const WriterSeriesPage = () => {
   const {
     profile,
+    userRole,
     authLoading,
     seriesList,
     setSeriesList,
@@ -33,6 +37,7 @@ export const WriterSeriesPage = () => {
 
   const [newTitle, setNewTitle] = useState("");
   const [newDesc, setNewDesc] = useState("");
+  const [newCollaboratorIds, setNewCollaboratorIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [expandedSeriesId, setExpandedSeriesId] = useState<string | null>(null);
   const [localSeries, setLocalSeries] = useState<Series[]>([]);
@@ -41,13 +46,26 @@ export const WriterSeriesPage = () => {
   const [editingSeriesId, setEditingSeriesId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editDesc, setEditDesc] = useState("");
+  const [editCollaboratorIds, setEditCollaboratorIds] = useState<string[]>([]);
   const [updating, setUpdating] = useState(false);
   const [addingArticleBySeries, setAddingArticleBySeries] = useState<Record<string, string>>({});
 
   const fetchMySeries = useCallback(async () => {
     if (!profile?.id) return;
     try {
-      const { data, error } = await supabase.from("series").select("*").eq("writer_id", profile.id);
+      const baseQuery = supabase.from("series").select("*");
+      let query;
+      if (typeof baseQuery.or === "function") {
+        query = baseQuery.or(`writer_id.eq.${profile.id},collaborator_ids.cs.{"${profile.id}"}`);
+      } else {
+        query = baseQuery.eq("writer_id", profile.id);
+      }
+      let { data, error } = await query;
+      if (error) {
+        const fallbackRes = await supabase.from("series").select("*").eq("writer_id", profile.id);
+        data = fallbackRes.data;
+        error = fallbackRes.error;
+      }
 
       if (!error && data) {
         const mapped = data.map((s) => ({
@@ -55,6 +73,7 @@ export const WriterSeriesPage = () => {
           title: s.title,
           description: s.description ?? null,
           writerId: s.writer_id,
+          collaboratorIds: s.collaborator_ids ?? [],
         }));
         setLocalSeries(applySeriesOverrides(mapped));
       }
@@ -64,14 +83,26 @@ export const WriterSeriesPage = () => {
       setLocalSeriesLoaded(true);
     }
 
-    // 自分の全記事（下書き・承認待ち含む）も安全に取得して連載記事一覧に反映
+    // 自分の全記事（下書き・承認待ち・共同執筆含む）も安全に取得して連載記事一覧に反映
     try {
       const res = supabase.from("articles");
       if (res && typeof res.select === "function") {
-        const { data, error } = await res
-          .select(ARTICLE_LIST_FIELDS)
-          .eq("writer_id", profile.id)
-          .order("created_at", { ascending: false });
+        const artBase = res.select(ARTICLE_LIST_FIELDS);
+        let artQuery;
+        if (typeof artBase.or === "function") {
+          artQuery = artBase.or(`writer_id.eq.${profile.id},collaborator_ids.cs.{"${profile.id}"}`);
+        } else {
+          artQuery = artBase.eq("writer_id", profile.id);
+        }
+        let { data, error } = await artQuery.order("created_at", { ascending: false });
+        if (error) {
+          const fallbackRes = await res
+            .select(ARTICLE_LIST_FIELDS)
+            .eq("writer_id", profile.id)
+            .order("created_at", { ascending: false });
+          data = fallbackRes.data;
+          error = fallbackRes.error;
+        }
 
         if (!error && Array.isArray(data)) {
           setWriterArticles(
@@ -93,26 +124,37 @@ export const WriterSeriesPage = () => {
   const mySeries = useMemo(() => {
     const base = localSeriesLoaded
       ? localSeries
-      : seriesList.filter((s) => s.writerId === profile?.id);
+      : seriesList.filter(
+          (s) => s.writerId === profile?.id || s.collaboratorIds?.includes(profile?.id ?? ""),
+        );
     return applySeriesOverrides(base);
   }, [localSeriesLoaded, localSeries, seriesList, profile?.id]);
 
   const mergedWriterArticles = useMemo(() => {
     if (!profile?.id) return [];
+    const mySeriesIdSet = new Set(mySeries.map((s) => s.id));
     const map = new Map<string, Article>();
     for (const a of articles) {
-      if (a.writerId === profile.id) {
+      if (
+        a.writerId === profile.id ||
+        a.collaboratorIds?.includes(profile.id) ||
+        (a.seriesId && mySeriesIdSet.has(a.seriesId))
+      ) {
         map.set(a.id, a);
       }
     }
     for (const wa of writerArticles) {
-      if (wa.writerId === profile.id) {
+      if (
+        wa.writerId === profile.id ||
+        wa.collaboratorIds?.includes(profile.id) ||
+        (wa.seriesId && mySeriesIdSet.has(wa.seriesId))
+      ) {
         const existing = map.get(wa.id);
         map.set(wa.id, existing ? { ...existing, ...wa } : wa);
       }
     }
     return Array.from(map.values());
-  }, [articles, writerArticles, profile?.id]);
+  }, [articles, writerArticles, profile?.id, mySeries]);
 
   const handleCreate = async () => {
     if (!newTitle.trim()) {
@@ -120,21 +162,30 @@ export const WriterSeriesPage = () => {
       return;
     }
     setSaving(true);
-    const { data, error } = await supabase
-      .from("series")
-      .insert({
-        title: newTitle.trim(),
-        description: newDesc.trim() || null,
-        writer_id: profile?.id,
-      })
-      .select()
-      .single();
+    const insertPayload: Record<string, unknown> = {
+      title: newTitle.trim(),
+      description: newDesc.trim() || null,
+      writer_id: profile?.id,
+    };
+    if (newCollaboratorIds.length > 0) {
+      insertPayload.collaborator_ids = newCollaboratorIds;
+    }
+    let { data, error } = await supabase.from("series").insert(insertPayload).select().single();
+
+    if (error && isArticleOptionalColumnSchemaError(error)) {
+      const { collaborator_ids: _c, ...safePayload } = insertPayload;
+      const retryRes = await supabase.from("series").insert(safePayload).select().single();
+      data = retryRes.data;
+      error = retryRes.error;
+    }
+
     if (!error && data) {
       const createdItem: Series = {
         id: data.id,
         title: data.title,
         description: data.description ?? null,
         writerId: data.writer_id,
+        collaboratorIds: data.collaborator_ids ?? newCollaboratorIds,
       };
       setLocalSeriesOverride(createdItem.id, {
         title: createdItem.title,
@@ -144,6 +195,7 @@ export const WriterSeriesPage = () => {
       setSeriesList((prev) => [...prev, createdItem]);
       setNewTitle("");
       setNewDesc("");
+      setNewCollaboratorIds([]);
       showToast("連載を作成しました");
     } else {
       console.error("連載作成エラー:", error);
@@ -156,12 +208,14 @@ export const WriterSeriesPage = () => {
     setEditingSeriesId(s.id);
     setEditTitle(s.title);
     setEditDesc(s.description ?? "");
+    setEditCollaboratorIds(s.collaboratorIds ?? []);
   };
 
   const handleCancelEdit = () => {
     setEditingSeriesId(null);
     setEditTitle("");
     setEditDesc("");
+    setEditCollaboratorIds([]);
   };
 
   const handleSaveEdit = async (id: string) => {
@@ -172,22 +226,51 @@ export const WriterSeriesPage = () => {
     setUpdating(true);
     const nextTitle = editTitle.trim();
     const nextDesc = editDesc.trim() || null;
+    const currentSeries = mySeries.find((s) => s.id === id);
+    const updatePayload: Record<string, unknown> = {
+      title: nextTitle,
+      description: nextDesc,
+    };
+    if (
+      editCollaboratorIds.length > 0 ||
+      (currentSeries?.collaboratorIds && currentSeries.collaboratorIds.length > 0)
+    ) {
+      updatePayload.collaborator_ids = editCollaboratorIds;
+    }
     try {
-      const { error } = await supabase
-        .from("series")
-        .update({
-          title: nextTitle,
-          description: nextDesc,
-        })
-        .eq("id", id);
+      let { error } = await supabase.from("series").update(updatePayload).eq("id", id);
+
+      if (error && isArticleOptionalColumnSchemaError(error)) {
+        const { collaborator_ids: _c, ...safePayload } = updatePayload;
+        const retryRes = await supabase.from("series").update(safePayload).eq("id", id);
+        error = retryRes.error;
+      }
 
       if (!error) {
         setLocalSeriesOverride(id, { title: nextTitle, description: nextDesc });
         setLocalSeries((prev) =>
-          prev.map((s) => (s.id === id ? { ...s, title: nextTitle, description: nextDesc } : s)),
+          prev.map((s) =>
+            s.id === id
+              ? {
+                  ...s,
+                  title: nextTitle,
+                  description: nextDesc,
+                  collaboratorIds: editCollaboratorIds,
+                }
+              : s,
+          ),
         );
         setSeriesList((prev) =>
-          prev.map((s) => (s.id === id ? { ...s, title: nextTitle, description: nextDesc } : s)),
+          prev.map((s) =>
+            s.id === id
+              ? {
+                  ...s,
+                  title: nextTitle,
+                  description: nextDesc,
+                  collaboratorIds: editCollaboratorIds,
+                }
+              : s,
+          ),
         );
         showToast("連載を更新しました");
         handleCancelEdit();
@@ -204,6 +287,14 @@ export const WriterSeriesPage = () => {
   };
 
   const handleDelete = async (id: string, title: string) => {
+    const target = mySeries.find((s) => s.id === id);
+    const isOwner = target ? target.writerId === profile?.id : false;
+    const isEditor =
+      userRole === "editor" || profile?.role === "editor" || profileHasRole(profile, "editor");
+    if (!isOwner && !isEditor) {
+      showToast("連載の削除は作成者のみ可能です");
+      return;
+    }
     if (!window.confirm(`「${title}」を削除しますか？\n連載に紐づく記事の連載設定は解除されます。`))
       return;
     const { error } = await supabase.from("series").delete().eq("id", id);
@@ -338,6 +429,12 @@ export const WriterSeriesPage = () => {
             value={newDesc}
             onChange={(e) => setNewDesc(e.target.value)}
           />
+          <CollaboratorSelect
+            value={newCollaboratorIds}
+            onChange={setNewCollaboratorIds}
+            excludeUserIds={profile?.id ? [profile.id] : []}
+            label="共同編集者（任意）"
+          />
           <button
             onClick={handleCreate}
             disabled={saving}
@@ -383,6 +480,17 @@ export const WriterSeriesPage = () => {
                       value={editDesc}
                       onChange={(e) => setEditDesc(e.target.value)}
                     />
+                    <CollaboratorSelect
+                      value={editCollaboratorIds}
+                      onChange={setEditCollaboratorIds}
+                      excludeUserIds={Array.from(
+                        new Set([
+                          ...(s.writerId ? [s.writerId] : []),
+                          ...(profile?.id ? [profile.id] : []),
+                        ]),
+                      )}
+                      label="共同編集者"
+                    />
                     <div className="flex gap-2 justify-end">
                       <button
                         onClick={handleCancelEdit}
@@ -403,6 +511,15 @@ export const WriterSeriesPage = () => {
                 );
               }
 
+              const isOwner = s.writerId === profile?.id;
+              const isEditor =
+                userRole === "editor" ||
+                profile?.role === "editor" ||
+                profileHasRole(profile, "editor");
+              const canDelete = isOwner || isEditor;
+              const isCollaborator =
+                !isOwner && Boolean(s.collaboratorIds?.includes(profile?.id ?? ""));
+
               return (
                 <div
                   key={s.id}
@@ -410,9 +527,19 @@ export const WriterSeriesPage = () => {
                 >
                   <div className="p-4 flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <p className="font-bold text-gray-900 dark:text-gray-100 break-words">
-                        {s.title}
-                      </p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-bold text-gray-900 dark:text-gray-100 break-words">
+                          {s.title}
+                        </p>
+                        {isCollaborator && (
+                          <span
+                            data-testid="collaborator-series-badge"
+                            className="px-2 py-0.5 rounded text-[11px] font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300"
+                          >
+                            共同編集
+                          </span>
+                        )}
+                      </div>
                       {s.description && (
                         <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5 break-words">
                           {s.description}
@@ -433,12 +560,14 @@ export const WriterSeriesPage = () => {
                       >
                         編集
                       </button>
-                      <button
-                        onClick={() => handleDelete(s.id, s.title)}
-                        className="text-red-400 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 text-sm font-bold"
-                      >
-                        削除
-                      </button>
+                      {canDelete && (
+                        <button
+                          onClick={() => handleDelete(s.id, s.title)}
+                          className="text-red-400 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 text-sm font-bold"
+                        >
+                          削除
+                        </button>
+                      )}
                     </div>
                   </div>
                   {expanded && (

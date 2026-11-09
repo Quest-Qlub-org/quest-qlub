@@ -6,7 +6,7 @@ import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { ArticleView } from "./ArticleView";
 import { AppProviders } from "../context/AppContext";
 import { supabase } from "../supabase";
-import { createTestArticle } from "../test/test-utils";
+import { createTestArticle, createTestProfile } from "../test/test-utils";
 import * as useFollowsModule from "../hooks/useFollows";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -651,5 +651,254 @@ describe("ArticleView", () => {
       (s) => s.textContent?.trim() === "6",
     );
     expect(hasSix).toBe(false);
+  });
+
+  it("renders multiple authors (primary writer and co-authors) in この記事を書いた人 section", async () => {
+    const articleData = {
+      id: "art-collab-view",
+      title: "複数著者による共同記事",
+      content: "<p>複数人で書かれた記事の本文です</p>",
+      status: "published",
+      writer_id: "writer-primary",
+      collaborator_ids: ["writer-coauthor-1", "writer-coauthor-2"],
+      thumbnail_color: "blue",
+      thumbnail_url: null,
+      views: 10,
+      likes: 3,
+      tags: ["共同執筆"],
+      summary: "共同執筆の要約",
+      created_at: new Date().toISOString(),
+    };
+
+    const primaryWriter = {
+      id: "writer-primary",
+      role: "writer",
+      display_name: "メイン執筆者",
+      username: "main_author",
+      avatar_url: null,
+      bio: "メイン執筆者の紹介",
+    };
+
+    const coAuthor1 = {
+      id: "writer-coauthor-1",
+      role: "writer",
+      display_name: "共同執筆者A",
+      username: "coauthor_a",
+      avatar_url: null,
+    };
+
+    const coAuthor2 = {
+      id: "writer-coauthor-2",
+      role: "writer",
+      display_name: "共同執筆者B",
+      username: "coauthor_b",
+      avatar_url: null,
+    };
+
+    const createQueryChain = (data: any = null) => {
+      const arr = data ? (Array.isArray(data) ? data : [data]) : [];
+      const promise = Promise.resolve({ data: arr, error: null });
+      const chain: any = Object.assign(promise, {
+        select: vi.fn(() => chain),
+        eq: vi.fn(() => chain),
+        in: vi.fn(() => chain),
+        order: vi.fn(() => chain),
+        range: vi.fn(() => Promise.resolve({ data: [], error: null })),
+        maybeSingle: vi.fn(() => Promise.resolve({ data: arr[0] ?? null, error: null })),
+        single: vi.fn(() => Promise.resolve({ data: arr[0] ?? null, error: null })),
+      });
+      return chain;
+    };
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") return createQueryChain(articleData);
+      if (table === "profiles") return createQueryChain([primaryWriter, coAuthor1, coAuthor2]);
+      return createQueryChain(null);
+    });
+
+    const mockToggleFollow = vi.fn(async () => true);
+    vi.spyOn(useFollowsModule, "useFollows").mockReturnValue({
+      followedIds: [],
+      isFollowing: (id: string) => id === "writer-coauthor-1",
+      toggleFollow: mockToggleFollow,
+      isAuthenticated: true,
+      currentUserId: "reader-user",
+      loading: false,
+    });
+
+    await act(async () => {
+      root!.render(
+        <MemoryRouter initialEntries={["/articles/art-collab-view"]}>
+          <AppProviders>
+            <Routes>
+              <Route path="/articles/:id" element={<ArticleView />} />
+            </Routes>
+          </AppProviders>
+        </MemoryRouter>,
+      );
+    });
+
+    // 「この記事を書いた人」セクションが表示されていること
+    expect(container.textContent).toContain("この記事を書いた人");
+
+    // 主執筆者および共同執筆者全員の名前が表示されていること
+    expect(container.textContent).toContain("メイン執筆者");
+    expect(container.textContent).toContain("共同執筆者A");
+    expect(container.textContent).toContain("共同執筆者B");
+
+    // ラベルが表示されていること
+    expect(container.textContent).toContain("主執筆");
+    expect(container.textContent).toContain("共同執筆");
+
+    // 各著者カードが存在すること
+    expect(container.querySelector('[data-testid="author-card-writer-primary"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="author-card-writer-coauthor-1"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="author-card-writer-coauthor-2"]')).toBeTruthy();
+  });
+
+  it("allows collaborators to view and withdraw pending article from preview banner", async () => {
+    const pendingArticle = {
+      id: "art-collab-pending",
+      title: "共同執筆の審査中記事",
+      status: "pending",
+      writer_id: "other-writer",
+      collaborator_ids: ["my-collab-id"],
+      content: "<p>審査中の本文</p>",
+      created_at: new Date().toISOString(),
+    };
+
+    const mockUpdate = vi.fn().mockResolvedValue({ error: null });
+    const createQueryChain = (data: any = null) => {
+      const arr = data ? (Array.isArray(data) ? data : [data]) : [];
+      const promise = Promise.resolve({ data: arr, error: null });
+      const chain: any = Object.assign(promise, {
+        select: vi.fn(() => chain),
+        eq: vi.fn(() => chain),
+        in: vi.fn(() => chain),
+        order: vi.fn(() => chain),
+        range: vi.fn(() => Promise.resolve({ data: [], error: null })),
+        maybeSingle: vi.fn(() => Promise.resolve({ data: arr[0] ?? null, error: null })),
+        single: vi.fn(() => Promise.resolve({ data: arr[0] ?? null, error: null })),
+        update: vi.fn((_payload) => ({
+          eq: mockUpdate,
+        })),
+      });
+      return chain;
+    };
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") return createQueryChain(pendingArticle);
+      return createQueryChain(null);
+    });
+
+    vi.spyOn(useFollowsModule, "useFollows").mockReturnValue({
+      followedIds: [],
+      isFollowing: vi.fn(() => false),
+      toggleFollow: vi.fn(async () => true),
+      isAuthenticated: true,
+      currentUserId: "my-collab-id",
+      loading: false,
+    });
+
+    await act(async () => {
+      root!.render(
+        <MemoryRouter initialEntries={["/articles/art-collab-pending"]}>
+          <AppProviders>
+            <Routes>
+              <Route path="/articles/:id" element={<ArticleView />} />
+            </Routes>
+          </AppProviders>
+        </MemoryRouter>,
+      );
+    });
+
+    // 共同執筆者にもプレビューバナーが表示されること
+    const banner = container.querySelector('[data-testid="article-preview-banner"]');
+    expect(banner).toBeTruthy();
+    expect(container.textContent).toContain("共同執筆の審査中記事");
+
+    // 共同執筆者にも申請取消ボタンが表示され、クリックでステータスが更新されること
+    const withdrawBtn = container.querySelector(
+      '[data-testid="preview-banner-withdraw-btn"]',
+    ) as HTMLButtonElement;
+    expect(withdrawBtn).toBeTruthy();
+
+    await act(async () => {
+      withdrawBtn.click();
+    });
+
+    expect(mockUpdate).toHaveBeenCalled();
+  });
+
+  it("deduplicates collaborator IDs in この記事を書いた人 section", async () => {
+    const multiCollabArticle = {
+      id: "art-collab-duplicate",
+      title: "重複テスト記事",
+      writer_id: "author-main",
+      collaborator_ids: ["collab-1", "collab-1", "author-main"],
+      status: "published",
+      content: "<p>本文</p>",
+      created_at: "2026-10-24T12:00:00Z",
+    };
+
+    const mockAuthor = createTestProfile({
+      id: "author-main",
+      display_name: "メイン執筆者",
+      role: "writer",
+    });
+    const mockCollab = createTestProfile({
+      id: "collab-1",
+      display_name: "コラボレーター1",
+      role: "writer",
+    });
+
+    const createQueryChain = (data: any = null) => {
+      const arr = data ? (Array.isArray(data) ? data : [data]) : [];
+      const promise = Promise.resolve({ data: arr, error: null });
+      const chain: any = Object.assign(promise, {
+        select: vi.fn(() => chain),
+        eq: vi.fn(() => chain),
+        in: vi.fn(() => chain),
+        order: vi.fn(() => chain),
+        range: vi.fn(() => Promise.resolve({ data: [], error: null })),
+        maybeSingle: vi.fn(() => Promise.resolve({ data: arr[0] ?? null, error: null })),
+        single: vi.fn(() => Promise.resolve({ data: arr[0] ?? null, error: null })),
+      });
+      return chain;
+    };
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") return createQueryChain(multiCollabArticle);
+      if (table === "profiles") return createQueryChain([mockAuthor, mockCollab]);
+      return createQueryChain(null);
+    });
+
+    vi.spyOn(useFollowsModule, "useFollows").mockReturnValue({
+      followedIds: [],
+      isFollowing: vi.fn(() => false),
+      toggleFollow: vi.fn(async () => true),
+      isAuthenticated: false,
+      currentUserId: null,
+      loading: false,
+    });
+
+    await act(async () => {
+      root!.render(
+        <MemoryRouter initialEntries={["/articles/art-collab-duplicate"]}>
+          <AppProviders>
+            <Routes>
+              <Route path="/articles/:id" element={<ArticleView />} />
+            </Routes>
+          </AppProviders>
+        </MemoryRouter>,
+      );
+    });
+
+    expect(container.textContent).toContain("この記事を書いた人");
+    const mainCards = container.querySelectorAll('[data-testid="author-card-author-main"]');
+    expect(mainCards.length).toBe(1);
+
+    const collabCards = container.querySelectorAll('[data-testid="author-card-collab-1"]');
+    expect(collabCards.length).toBe(1);
   });
 });

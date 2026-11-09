@@ -666,4 +666,310 @@ describe("WriterSeriesPage", () => {
     expect(options).toContain("自分の記事");
     expect(options).not.toContain("他ライターの秘密記事");
   });
+
+  it("allows creating a new series with collaborators", async () => {
+    const mockWriter = createTestProfile({ id: "writer-me", role: "writer" });
+    const mockCollab = createTestProfile({
+      id: "writer-collab-1",
+      role: "writer",
+      display_name: "協力ライター",
+    });
+
+    let insertedPayload: any = null;
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "series") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+            or: vi.fn().mockResolvedValue({ data: [], error: null }),
+          }),
+          insert: vi.fn((payload) => {
+            insertedPayload = payload;
+            return {
+              select: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: {
+                    id: "series-new-1",
+                    title: payload.title,
+                    description: payload.description,
+                    writer_id: payload.writer_id,
+                    collaborator_ids: payload.collaborator_ids,
+                  },
+                  error: null,
+                }),
+              }),
+            };
+          }),
+        } as any;
+      }
+      return {} as any;
+    });
+
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      profile: mockWriter,
+      authLoading: false,
+      seriesList: [],
+      setSeriesList: mockSetSeriesList,
+      showToast: mockShowToast,
+      navigate: mockNavigate,
+      articles: [],
+      setArticles: mockSetArticles,
+      writers: [mockWriter, mockCollab],
+    } as any);
+
+    await act(async () => {
+      root!.render(<WriterSeriesPage />);
+    });
+
+    const titleInput = container.querySelector("input[placeholder='連載名 *']") as HTMLInputElement;
+    act(() => {
+      setNativeValue(titleInput, "共同連載プロジェクト");
+    });
+
+    // 共同編集者を選択
+    const select = container.querySelector(
+      "select[data-testid='collaborator-select-input']",
+    ) as HTMLSelectElement;
+    act(() => {
+      setNativeValue(select, "writer-collab-1");
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    // 「連載を作成」ボタンをクリック
+    const createBtn = Array.from(container.querySelectorAll("button")).find(
+      (b) => b.textContent?.trim() === "連載を作成",
+    );
+    await act(async () => {
+      createBtn!.click();
+    });
+
+    expect(insertedPayload).toEqual({
+      title: "共同連載プロジェクト",
+      description: null,
+      writer_id: "writer-me",
+      collaborator_ids: ["writer-collab-1"],
+    });
+    expect(mockShowToast).toHaveBeenCalledWith("連載を作成しました");
+  });
+
+  it("displays 共同編集 badge and hides delete button when current user is a collaborator", async () => {
+    const mockWriter = createTestProfile({ id: "writer-me", role: "writer" });
+    const mockSeries = createTestSeries({
+      id: "series-collab-1",
+      title: "共同制作連載",
+      description: "複数人で執筆する連載です",
+      writerId: "primary-writer",
+      collaboratorIds: ["writer-me"],
+    });
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "series") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({
+              data: [
+                {
+                  id: "series-collab-1",
+                  title: "共同制作連載",
+                  description: "複数人で執筆する連載です",
+                  writer_id: "primary-writer",
+                  collaborator_ids: ["writer-me"],
+                },
+              ],
+              error: null,
+            }),
+            or: vi.fn().mockResolvedValue({
+              data: [
+                {
+                  id: "series-collab-1",
+                  title: "共同制作連載",
+                  description: "複数人で執筆する連載です",
+                  writer_id: "primary-writer",
+                  collaborator_ids: ["writer-me"],
+                },
+              ],
+              error: null,
+            }),
+          }),
+        } as any;
+      }
+      return {} as any;
+    });
+
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      profile: mockWriter,
+      authLoading: false,
+      seriesList: [mockSeries],
+      setSeriesList: mockSetSeriesList,
+      showToast: mockShowToast,
+      navigate: mockNavigate,
+      articles: [],
+      setArticles: mockSetArticles,
+      writers: [mockWriter],
+    } as any);
+
+    await act(async () => {
+      root!.render(<WriterSeriesPage />);
+    });
+
+    // 共同編集バッジが表示されること
+    const badge = container.querySelector("[data-testid='collaborator-series-badge']");
+    expect(badge).toBeTruthy();
+    expect(badge?.textContent).toBe("共同編集");
+
+    // 編集ボタンは存在するが、削除ボタンは非表示であること（主作成者のみ）
+    const buttons = Array.from(container.querySelectorAll("button")).map((b) =>
+      b.textContent?.trim(),
+    );
+    expect(buttons).toContain("編集");
+    expect(buttons).not.toContain("削除");
+  });
+
+  it("shows series articles for collaborative series even when authored by primary writer", async () => {
+    const mockWriter = createTestProfile({ id: "writer-me", role: "writer" });
+    const mockSeries = createTestSeries({
+      id: "series-collab-1",
+      title: "共同制作連載",
+      writerId: "primary-writer",
+      collaboratorIds: ["writer-me"],
+    });
+
+    // 記事はprimary-writerが書いたもの（writer-meは記事のcollaboratorではない）
+    const seriesArticle = {
+      id: "art-primary-1",
+      title: "連載の第1話",
+      writerId: "primary-writer",
+      seriesId: "series-collab-1",
+      episodeNumber: 1,
+      status: "published" as const,
+    };
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "series") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({
+              data: [
+                {
+                  id: "series-collab-1",
+                  title: "共同制作連載",
+                  writer_id: "primary-writer",
+                  collaborator_ids: ["writer-me"],
+                },
+              ],
+              error: null,
+            }),
+            or: vi.fn().mockResolvedValue({
+              data: [
+                {
+                  id: "series-collab-1",
+                  title: "共同制作連載",
+                  writer_id: "primary-writer",
+                  collaborator_ids: ["writer-me"],
+                },
+              ],
+              error: null,
+            }),
+          }),
+        } as any;
+      }
+      return {} as any;
+    });
+
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      profile: mockWriter,
+      authLoading: false,
+      seriesList: [mockSeries],
+      setSeriesList: mockSetSeriesList,
+      showToast: mockShowToast,
+      navigate: mockNavigate,
+      articles: [seriesArticle],
+      setArticles: mockSetArticles,
+      writers: [mockWriter],
+    } as any);
+
+    await act(async () => {
+      root!.render(<WriterSeriesPage />);
+    });
+
+    // 連載の記事数表示に「1件の記事」が表示されること
+    expect(container.textContent).toContain("1件の記事");
+
+    // アコーディオンを開く
+    const expandBtn = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("1件の記事"),
+    );
+    expect(expandBtn).toBeDefined();
+
+    act(() => {
+      expandBtn!.click();
+    });
+
+    // 連載内の記事タイトルが表示されること
+    expect(container.textContent).toContain("連載の第1話");
+  });
+
+  it("allows editor to see delete button even if not the primary writer", async () => {
+    const mockEditor = createTestProfile({ id: "editor-user", role: "editor" });
+    const mockSeries = createTestSeries({
+      id: "series-other-1",
+      title: "他人の連載",
+      writerId: "someone-else",
+      collaboratorIds: [],
+    });
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "series") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({
+              data: [
+                {
+                  id: "series-other-1",
+                  title: "他人の連載",
+                  writer_id: "someone-else",
+                  collaborator_ids: [],
+                },
+              ],
+              error: null,
+            }),
+            or: vi.fn().mockResolvedValue({
+              data: [
+                {
+                  id: "series-other-1",
+                  title: "他人の連載",
+                  writer_id: "someone-else",
+                  collaborator_ids: [],
+                },
+              ],
+              error: null,
+            }),
+          }),
+        } as any;
+      }
+      return {} as any;
+    });
+
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      profile: mockEditor,
+      authLoading: false,
+      seriesList: [mockSeries],
+      setSeriesList: mockSetSeriesList,
+      showToast: mockShowToast,
+      navigate: mockNavigate,
+      articles: [],
+      setArticles: mockSetArticles,
+      writers: [mockEditor],
+      userRole: "editor",
+    } as any);
+
+    await act(async () => {
+      root!.render(<WriterSeriesPage />);
+    });
+
+    const buttons = Array.from(container.querySelectorAll("button")).map((b) =>
+      b.textContent?.trim(),
+    );
+    expect(buttons).toContain("削除");
+  });
 });

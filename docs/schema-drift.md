@@ -114,6 +114,19 @@ DB の `supabase_migrations.schema_migrations` に記録済みのバージョン
     - `article_comments` の SELECT ポリシーを `article_comments_select_public`（`TO public`、`comments_enabled = true` の記事コメントを誰でも閲覧可能）と `article_comments_select_staff`（`TO authenticated`、`comments_enabled = false` 時に記事ライターまたは編集長が閲覧可能）に分離。
     - `article_comments` および `comment_edit_history` に対する `anon`, `authenticated` の `SELECT` 権限を明示的に GRANT。
 
+- `20261109163000_add_collaborators_to_articles_and_series.sql`（未適用・次回デプロイ）
+  - **記事・連載の共同編集機能（collaborator_ids）と複数執筆者表示**:
+    - `public.articles` および `public.series` に `collaborator_ids text[] DEFAULT '{}'::text[]` カラムと GIN インデックスを追加。
+    - `articles` の下書き閲覧（`articles_select_own_drafts`）および更新（`articles_update_own_articles`）ポリシーを拡張し、共同編集者（`auth.uid() = ANY(collaborator_ids)`）による下書き閲覧・更新・申請を許可。ライター/編集長ロール検証を維持。
+    - `articles` 更新トリガー関数 `enforce_article_update_rules()` を更新し、共同編集者による `writer_id` 改ざんを防止（`NEW.writer_id := OLD.writer_id`）。
+    - `series` の更新ポリシー（`series_update_own_or_editor`）および `enforce_series_update_rules()` トリガーを追加し、共同編集者による連載の更新を許可しつつ作成者ID改ざんを抑止。
+    - 記事・連載の削除（DELETE）権限は主作成者および編集長のみに限定。共同編集者による削除操作はUIおよびDBポリシーで遮断。
+  - **クライアント側スキーマ耐障害性（Graceful Degradation）**:
+    - `isArticleOptionalColumnSchemaError` 判定ユーティリティに `collaborator_ids` を追加し、DB列未存在時（42703エラー）でも自動除外リトライで下書き保存や連載保存を継続可能に。
+    - 記事詳細画面（`ArticleView`）の「この記事を書いた人」セクションで、主執筆者＋共同執筆者のカードを重複排除した上で複数人並べて表示。各執筆者への個別フォローおよびプロフィール遷移に対応。
+    - コメント管理（`ArticleComments`）でも共同執筆者判定と「共同執筆者」バッジを導入。
+    - 連載管理（`WriterSeriesPage`）で共同編集連載のカード表示（「共同編集」バッジ）および連載内記事の表示・話数管理に対応。
+
 ## セキュリティ強化（コード・Edge Function）
 
 - **S4**: `send-contact-email` の CORS 許可リストを厳格化。任意の `*.vercel.app`

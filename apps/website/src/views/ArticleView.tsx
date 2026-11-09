@@ -63,6 +63,7 @@ export const ArticleView = () => {
   const [loading, setLoading] = useState(!cachedArticle || !cachedArticle.content);
   const [notFound, setNotFound] = useState(false);
   const [writerFallback, setWriterFallback] = useState<Profile | null>(null);
+  const [collaboratorFallbacks, setCollaboratorFallbacks] = useState<Profile[]>([]);
   const [seriesFallback, setSeriesFallback] = useState<Series | null>(null);
 
   // Issue #23: 一覧から除外された本文(content)を詳細画面で個別取得
@@ -119,6 +120,28 @@ export const ArticleView = () => {
                 .maybeSingle();
               if (isMounted && wData) {
                 setWriterFallback(wData);
+              }
+            }
+          }
+
+          // 共同執筆者情報のフェッチ（writersキャッシュに無い場合のフォールバック）
+          if (Array.isArray(enriched.collaboratorIds) && enriched.collaboratorIds.length > 0) {
+            const missingCollabIds = enriched.collaboratorIds.filter(
+              (id) => !writers.some((w) => w.id === id),
+            );
+            if (missingCollabIds.length > 0) {
+              const { data: collabData } = await supabase
+                .from("profiles")
+                .select(
+                  "id, role, roles, display_name, username, x_account, avatar_url, bio, created_at",
+                )
+                .in("id", missingCollabIds);
+              if (isMounted && Array.isArray(collabData)) {
+                setCollaboratorFallbacks((prev) => {
+                  const map = new Map(prev.map((p) => [p.id, p]));
+                  collabData.forEach((p) => map.set(p.id, p));
+                  return Array.from(map.values());
+                });
               }
             }
           }
@@ -293,9 +316,13 @@ export const ArticleView = () => {
     (profile?.id && profile.id === article.writerId) ||
     (currentUserId && currentUserId === article.writerId),
   );
+  const isCollaborator = Boolean(
+    (profile?.id && article.collaboratorIds?.includes(profile.id)) ||
+    (currentUserId && article.collaboratorIds?.includes(currentUserId)),
+  );
   const isEditor = userRole === "editor" || profileHasRole(profile, "editor");
 
-  if (!isArticlePubliclyVisible(article) && !isAuthor && !isEditor) {
+  if (!isArticlePubliclyVisible(article) && !isAuthor && !isCollaborator && !isEditor) {
     return (
       <div className="p-12 text-center space-y-4">
         <p className="text-gray-500 text-base font-bold">記事が見つかりません</p>
@@ -383,9 +410,9 @@ export const ArticleView = () => {
           </div>
 
           {/* プレビュー画面上でその場で操作できるアクションボタン (#54-12) */}
-          {(isEditor || isAuthor) && (
+          {(isEditor || isAuthor || isCollaborator) && (
             <div className="flex flex-wrap items-center gap-2 shrink-0">
-              {(isAuthor || isEditor) && (
+              {(isAuthor || isCollaborator || isEditor) && (
                 <button
                   type="button"
                   onClick={() => {
@@ -400,7 +427,7 @@ export const ArticleView = () => {
                   <Edit3 className="w-3.5 h-3.5" /> 編集する
                 </button>
               )}
-              {isAuthor && article.status === "draft" && (
+              {(isAuthor || isCollaborator) && article.status === "draft" && (
                 <button
                   type="button"
                   onClick={() => void handleQuickStatusChange("pending")}
@@ -409,7 +436,7 @@ export const ArticleView = () => {
                   投稿申請する
                 </button>
               )}
-              {isAuthor && !isEditor && article.status === "pending" && (
+              {(isAuthor || isCollaborator) && !isEditor && article.status === "pending" && (
                 <button
                   type="button"
                   data-testid="preview-banner-withdraw-btn"
@@ -536,82 +563,151 @@ export const ArticleView = () => {
           ))}
         </div>
 
-        {writer && (
-          <div
-            className="flex items-center justify-between p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors"
-            onClick={() => navigate(`/writers/${writer.username || writer.id}`)}
-          >
-            <div className="flex items-center gap-3">
-              <div className="bg-gray-100 dark:bg-gray-700 p-2 rounded-full border border-gray-200 dark:border-gray-600">
-                {writer.avatar_url ? (
-                  <img
-                    src={writer.avatar_url}
-                    className="w-8 h-8 rounded-full object-cover"
-                    alt=""
-                  />
-                ) : (
-                  <CustomUserIcon className="w-8 h-8" />
-                )}
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 font-bold mb-0.5">
-                  この記事を書いた人
-                </p>
-                <p className="font-bold text-gray-800 dark:text-gray-100">
-                  {writer.display_name ?? (writer.username ? `@${writer.username}` : "名称未設定")}
-                </p>
+        {(() => {
+          const uniqueCollaboratorIds = Array.from(
+            new Set((article.collaboratorIds ?? []).filter((id) => id && id !== article.writerId)),
+          );
+
+          const coAuthors = uniqueCollaboratorIds.map(
+            (id) =>
+              writers.find((w) => w.id === id) ||
+              collaboratorFallbacks.find((w) => w.id === id) ||
+              ({
+                id,
+                role: "writer" as const,
+                display_name: null,
+                username: null,
+                avatar_url: null,
+              } as Profile),
+          );
+
+          const authors: Array<{ profile: Profile; roleLabel: string; isPrimary: boolean }> = [];
+          if (article.writerId) {
+            const mainAuthor: Profile = writer || {
+              id: article.writerId,
+              role: "writer",
+              display_name: null,
+              username: null,
+              avatar_url: null,
+            };
+            authors.push({ profile: mainAuthor, roleLabel: "主執筆", isPrimary: true });
+          } else if (writer) {
+            authors.push({ profile: writer, roleLabel: "主執筆", isPrimary: true });
+          }
+
+          coAuthors.forEach((ca) => {
+            authors.push({ profile: ca, roleLabel: "共同執筆", isPrimary: false });
+          });
+
+          if (authors.length === 0) return null;
+
+          return (
+            <div className="space-y-3 pt-2">
+              <h3 className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">
+                この記事を書いた人
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {authors.map(({ profile: authorProfile, roleLabel, isPrimary }) => {
+                  const displayName =
+                    authorProfile.display_name ??
+                    (authorProfile.username ? `@${authorProfile.username}` : "名称未設定");
+                  const isMe = currentUserId === authorProfile.id;
+
+                  return (
+                    <div
+                      key={authorProfile.id}
+                      data-testid={`author-card-${authorProfile.id}`}
+                      className="flex items-center justify-between p-3.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xs cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors"
+                      onClick={() =>
+                        navigate(`/writers/${authorProfile.username || authorProfile.id}`)
+                      }
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="bg-gray-100 dark:bg-gray-700 p-2 rounded-full border border-gray-200 dark:border-gray-600 shrink-0">
+                          {authorProfile.avatar_url ? (
+                            <img
+                              src={authorProfile.avatar_url}
+                              className="w-8 h-8 rounded-full object-cover"
+                              alt=""
+                            />
+                          ) : (
+                            <CustomUserIcon className="w-8 h-8" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <span
+                              className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded ${
+                                isPrimary
+                                  ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+                                  : "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300"
+                              }`}
+                            >
+                              {roleLabel}
+                            </span>
+                          </div>
+                          <p className="font-bold text-gray-800 dark:text-gray-100 text-sm truncate">
+                            {displayName}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0 ml-2">
+                        {!isMe && (
+                          <button
+                            type="button"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (!isAuthenticated) {
+                                showToast("フォローするにはログインが必要です");
+                                void navigate("/login");
+                                return;
+                              }
+                              if (currentUserId === authorProfile.id) {
+                                showToast("自分自身をフォローすることはできません");
+                                return;
+                              }
+                              const wasFollowing = isFollowing(authorProfile.id);
+                              const ok = await toggleFollow(authorProfile.id);
+                              if (!ok) {
+                                showToast("フォロー処理に失敗しました");
+                                return;
+                              }
+                              showToast(
+                                wasFollowing
+                                  ? "フォローを解除しました"
+                                  : "ライターをフォローしました",
+                              );
+                            }}
+                            className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-xs cursor-pointer ${
+                              isFollowing(authorProfile.id)
+                                ? "bg-blue-600 text-white hover:bg-blue-700"
+                                : "bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
+                            }`}
+                          >
+                            {isFollowing(authorProfile.id) ? (
+                              <>
+                                <UserCheck className="w-3.5 h-3.5" />
+                                <span>フォロー中</span>
+                              </>
+                            ) : (
+                              <>
+                                <UserPlus className="w-3.5 h-3.5" />
+                                <span>フォロー</span>
+                              </>
+                            )}
+                          </button>
+                        )}
+                        <span className="text-xs font-bold text-blue-500 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 px-2.5 py-1 rounded-full hidden sm:inline-block">
+                          詳細
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              {currentUserId !== writer.id && (
-                <button
-                  type="button"
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    if (!isAuthenticated) {
-                      showToast("フォローするにはログインが必要です");
-                      void navigate("/login");
-                      return;
-                    }
-                    if (currentUserId === writer.id) {
-                      showToast("自分自身をフォローすることはできません");
-                      return;
-                    }
-                    const wasFollowing = isFollowing(writer.id);
-                    const ok = await toggleFollow(writer.id);
-                    if (!ok) {
-                      showToast("フォロー処理に失敗しました");
-                      return;
-                    }
-                    showToast(
-                      wasFollowing ? "フォローを解除しました" : "ライターをフォローしました",
-                    );
-                  }}
-                  className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm cursor-pointer ${
-                    isFollowing(writer.id)
-                      ? "bg-blue-600 text-white hover:bg-blue-700"
-                      : "bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
-                  }`}
-                >
-                  {isFollowing(writer.id) ? (
-                    <>
-                      <UserCheck className="w-3.5 h-3.5" />
-                      <span>フォロー中</span>
-                    </>
-                  ) : (
-                    <>
-                      <UserPlus className="w-3.5 h-3.5" />
-                      <span>フォロー</span>
-                    </>
-                  )}
-                </button>
-              )}
-              <span className="text-xs font-bold text-blue-500 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 px-3 py-1.5 rounded-full hidden sm:inline-block">
-                プロフィールへ
-              </span>
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         <div
           className={`py-4 text-gray-800 dark:text-gray-200 leading-loose article-content ${getFontSizeClass()}`}
@@ -669,6 +765,7 @@ export const ArticleView = () => {
         <ArticleComments
           articleId={article.id}
           writerId={article.writerId}
+          collaboratorIds={article.collaboratorIds}
           commentsEnabled={article.commentsEnabled !== false}
           onToggleCommentsEnabled={async (nextEnabled) => {
             const { error } = await supabase

@@ -258,4 +258,148 @@ describe("WriterDashboard", () => {
     expect(mockUpdate).toHaveBeenCalledWith({ status: "draft" });
     expect(mockShowToast).toHaveBeenCalledWith("投稿申請を取り消し、下書きに戻しました");
   });
+
+  it("displays collaborative articles with 共同編集 badge", async () => {
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn().mockReturnValue({
+              order: vi.fn().mockResolvedValue({
+                data: [
+                  {
+                    id: "art-collab-1",
+                    title: "共同執筆された記事",
+                    status: "draft",
+                    writer_id: "other-writer",
+                    collaborator_ids: ["w-1"],
+                    views: 0,
+                    likes: 0,
+                    created_at: new Date().toISOString(),
+                  },
+                ],
+                error: null,
+              }),
+            }),
+            or: vi.fn().mockReturnValue({
+              order: vi.fn().mockResolvedValue({
+                data: [
+                  {
+                    id: "art-collab-1",
+                    title: "共同執筆された記事",
+                    status: "draft",
+                    writer_id: "other-writer",
+                    collaborator_ids: ["w-1"],
+                    views: 0,
+                    likes: 0,
+                    created_at: new Date().toISOString(),
+                  },
+                ],
+                error: null,
+              }),
+            }),
+          })),
+        } as any;
+      }
+      return {} as any;
+    });
+
+    const mockProfile = createTestProfile({ id: "w-1", role: "writer" });
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      profile: mockProfile,
+      articles: [],
+      setArticles: vi.fn(),
+      showToast: vi.fn(),
+      navigate: vi.fn(),
+      authLoading: false,
+    } as any);
+
+    const { container } = renderWithRouter(<WriterDashboard />);
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("共同執筆された記事");
+    const badge = container.querySelector("[data-testid='collaborator-article-badge']");
+    expect(badge).toBeTruthy();
+    expect(badge?.textContent).toBe("共同編集");
+
+    // 共同編集者は削除ボタンが表示されないこと
+    const buttons = Array.from(container.querySelectorAll("button")).map((b) =>
+      b.textContent?.trim(),
+    );
+    expect(buttons).toContain("編集");
+    expect(buttons).not.toContain("削除");
+  });
+
+  it("shows delete button for collaborative articles when user is an editor", async () => {
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn().mockReturnValue({
+              order: vi.fn().mockResolvedValue({
+                data: [
+                  {
+                    id: "art-collab-1",
+                    title: "共同執筆された記事",
+                    status: "draft",
+                    writer_id: "other-writer",
+                    collaborator_ids: ["w-editor"],
+                    views: 0,
+                    likes: 0,
+                    created_at: new Date().toISOString(),
+                  },
+                ],
+                error: null,
+              }),
+            }),
+            or: vi.fn().mockReturnValue({
+              order: vi.fn().mockResolvedValue({
+                data: [
+                  {
+                    id: "art-collab-1",
+                    title: "共同執筆された記事",
+                    status: "draft",
+                    writer_id: "other-writer",
+                    collaborator_ids: ["w-editor"],
+                    views: 0,
+                    likes: 0,
+                    created_at: new Date().toISOString(),
+                  },
+                ],
+                error: null,
+              }),
+            }),
+          })),
+        } as any;
+      }
+      return {} as any;
+    });
+
+    const mockProfile = createTestProfile({ id: "w-editor", role: "editor" });
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      profile: mockProfile,
+      articles: [],
+      setArticles: vi.fn(),
+      showToast: vi.fn(),
+      navigate: vi.fn(),
+      authLoading: false,
+      userRole: "editor",
+    } as any);
+
+    const { container } = renderWithRouter(<WriterDashboard />);
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const buttons = Array.from(container.querySelectorAll("button")).map((b) =>
+      b.textContent?.trim(),
+    );
+    expect(buttons).toContain("削除");
+  });
 });

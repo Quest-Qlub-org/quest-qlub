@@ -31,7 +31,7 @@ export function isRolesColumnSchemaError(err: unknown): boolean {
 }
 
 /**
- * 記事保存時のオプショナルカラム（comments_enabled / scheduled_at）未存在エラー判定
+ * 記事保存時のオプショナルカラム（comments_enabled / scheduled_at / collaborator_ids）未存在エラー判定
  */
 export function isArticleOptionalColumnSchemaError(err: unknown): boolean {
   if (!err || typeof err !== "object") return false;
@@ -39,6 +39,8 @@ export function isArticleOptionalColumnSchemaError(err: unknown): boolean {
   return (
     e.code === "42703" ||
     (typeof e.message === "string" &&
-      (e.message.includes("comments_enabled") || e.message.includes("scheduled_at")))
+      (e.message.includes("comments_enabled") ||
+        e.message.includes("scheduled_at") ||
+        e.message.includes("collaborator_ids")))
   );
 }

@@ -32,6 +32,7 @@ import {
 import { profileHasRole } from "../../utils/roles";
 import { updateMetaTags } from "../../utils/seo";
 import { isArticleOptionalColumnSchemaError } from "../../utils/supabaseErrors";
+import { CollaboratorSelect } from "../../components/CollaboratorSelect";
 
 export const ArticleEditorTabs = ({
   settingsPanel,
@@ -63,6 +64,7 @@ function buildBaseArticlePayload(params: {
   episodeNumber: string;
   commentsEnabled: boolean;
   scheduledAt?: string | null;
+  collaboratorIds?: string[];
 }): Record<string, unknown> {
   const payload: Record<string, unknown> = {
     title: params.title,
@@ -74,6 +76,7 @@ function buildBaseArticlePayload(params: {
     series_id: params.seriesId || null,
     episode_number: params.episodeNumber ? parseInt(params.episodeNumber, 10) : null,
     comments_enabled: params.commentsEnabled,
+    collaborator_ids: params.collaboratorIds ?? [],
   };
   if (params.scheduledAt !== undefined) {
     payload.scheduled_at = params.scheduledAt;
@@ -84,7 +87,12 @@ function buildBaseArticlePayload(params: {
 async function updateArticleWithFallback(targetId: string, payload: Record<string, unknown>) {
   let { error } = await supabase.from("articles").update(payload).eq("id", targetId);
   if (error && isArticleOptionalColumnSchemaError(error)) {
-    const { comments_enabled: _c, scheduled_at: _s, ...safePayload } = payload;
+    const {
+      comments_enabled: _c,
+      scheduled_at: _s,
+      collaborator_ids: _collab,
+      ...safePayload
+    } = payload;
     if (safePayload.status === "scheduled") {
       safePayload.status = "published";
     }
@@ -97,7 +105,12 @@ async function updateArticleWithFallback(targetId: string, payload: Record<strin
 async function insertArticleWithFallback(payload: Record<string, unknown>) {
   let { data, error } = await supabase.from("articles").insert(payload).select().single();
   if (error && isArticleOptionalColumnSchemaError(error)) {
-    const { comments_enabled: _c, scheduled_at: _s, ...safePayload } = payload;
+    const {
+      comments_enabled: _c,
+      scheduled_at: _s,
+      collaborator_ids: _collab,
+      ...safePayload
+    } = payload;
     if (safePayload.status === "scheduled") {
       safePayload.status = "published";
     }
@@ -127,6 +140,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
     getFontSizeClass,
   } = useApp();
   const currentUserId = profile?.id ?? null;
+  const isEditor = userRole === "editor" || profileHasRole(profile, "editor");
   const editingArticle = editingId ? (articles.find((a) => a.id === editingId) ?? null) : null;
   const [loadedArticle, setLoadedArticle] = useState<typeof editingArticle>(null);
   const effectiveEditingArticle = editingArticle || loadedArticle;
@@ -149,6 +163,9 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
   const [formSummary, setFormSummary] = useState(editingArticle?.summary ?? "");
   const [formCommentsEnabled, setFormCommentsEnabled] = useState<boolean>(
     editingArticle?.commentsEnabled !== false,
+  );
+  const [collaboratorIds, setCollaboratorIds] = useState<string[]>(
+    editingArticle?.collaboratorIds ?? [],
   );
   const [formScheduledAt, setFormScheduledAt] = useState<string>(
     toDatetimeLocalValue(
@@ -194,6 +211,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
           setFormEpisodeNumber(mapped.episodeNumber?.toString() ?? "");
           setThumbnailUrl(mapped.thumbnailUrl ?? null);
           setFormSummary(mapped.summary ?? "");
+          setCollaboratorIds(mapped.collaboratorIds ?? []);
           setFormCommentsEnabled(mapped.commentsEnabled !== false);
           setFormScheduledAt(
             toDatetimeLocalValue(mapped.scheduledAt ?? getLocalScheduledAt(mapped.id)),
@@ -224,6 +242,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
       setFormEpisodeNumber("");
       setThumbnailUrl(null);
       setFormSummary("");
+      setCollaboratorIds([]);
       setFormCommentsEnabled(true);
       setFormScheduledAt("");
       setTagInput("");
@@ -309,7 +328,6 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
     }
     const isFutureSchedule = isArticleScheduledFuture(scheduledIso);
 
-    const isEditor = userRole === "editor" || profileHasRole(profile, "editor");
     const currentValues = {
       title: formTitle,
       content: formContent,
@@ -320,6 +338,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
       seriesId: formSeriesId,
       episodeNumber: formEpisodeNumber,
       commentsEnabled: formCommentsEnabled,
+      collaboratorIds,
     };
 
     if (targetId) {
@@ -358,6 +377,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
           seriesId: formSeriesId || null,
           episodeNumber: formEpisodeNumber ? parseInt(formEpisodeNumber, 10) : null,
           commentsEnabled: formCommentsEnabled,
+          collaboratorIds,
           scheduledAt: scheduledIso,
           status: resolvedStatus,
           writerId: effectiveEditingArticle?.writerId ?? currentUserId ?? "",
@@ -386,8 +406,12 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
         setLastSavedAt(
           new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }),
         );
+        const isCollaborator = Boolean(
+          effectiveEditingArticle?.collaboratorIds?.includes(currentUserId ?? ""),
+        );
         const isEditingOtherArticle =
           isEditor &&
+          !isCollaborator &&
           Boolean(effectiveEditingArticle && effectiveEditingArticle.writerId !== currentUserId);
         const destination = isEditingOtherArticle ? "editorArticles" : "writerDash";
 
@@ -449,6 +473,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
             seriesId: formSeriesId || null,
             episodeNumber: formEpisodeNumber ? parseInt(formEpisodeNumber, 10) : null,
             commentsEnabled: formCommentsEnabled,
+            collaboratorIds: data.collaborator_ids ?? collaboratorIds,
             scheduledAt: scheduledIso,
           },
           ...prev,
@@ -561,6 +586,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
         episodeNumber: formEpisodeNumber,
         commentsEnabled: formCommentsEnabled,
         scheduledAt: scheduledIso,
+        collaboratorIds,
       };
 
       if (autoSaveIdRef.current) {
@@ -604,6 +630,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
               seriesId: formSeriesId || null,
               episodeNumber: formEpisodeNumber ? parseInt(formEpisodeNumber, 10) : null,
               commentsEnabled: formCommentsEnabled,
+              collaboratorIds,
               scheduledAt: scheduledIso,
             },
             ...prev,
@@ -963,6 +990,26 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                             </div>
                           </div>
                         )}
+
+                        <div className="pt-2 border-t border-gray-100 dark:border-gray-700/60">
+                          <CollaboratorSelect
+                            value={collaboratorIds}
+                            onChange={(ids) => {
+                              setCollaboratorIds(ids);
+                              setIsDirty(true);
+                            }}
+                            excludeUserIds={Array.from(
+                              new Set([
+                                ...(effectiveEditingArticle?.writerId
+                                  ? [effectiveEditingArticle.writerId]
+                                  : []),
+                                ...(currentUserId ? [currentUserId] : []),
+                              ]),
+                            )}
+                            label="共同執筆者（共同編集者）"
+                            description="他のライターと共同執筆・編集できます"
+                          />
+                        </div>
                       </div>
 
                       {/* 右カラム: タグ＆連載設定 */}
@@ -1029,7 +1076,14 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                             >
                               <option value="">連載なし（単発記事）</option>
                               {seriesList
-                                .filter((s) => s.writerId === currentUserId)
+                                .filter(
+                                  (s) =>
+                                    s.writerId === currentUserId ||
+                                    s.collaboratorIds?.includes(currentUserId ?? "") ||
+                                    (effectiveEditingArticle &&
+                                      s.id === effectiveEditingArticle.seriesId) ||
+                                    isEditor,
+                                )
                                 .map((s) => (
                                   <option key={s.id} value={s.id}>
                                     {s.title}
