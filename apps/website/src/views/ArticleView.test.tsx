@@ -653,7 +653,98 @@ describe("ArticleView", () => {
     expect(hasSix).toBe(false);
   });
 
-  it("renders multiple authors (primary writer and co-authors) in この記事を書いた人 section", async () => {
+  it("renders single author with full-width layout when no collaborators exist", async () => {
+    const singleArticleData = {
+      id: "art-single-view",
+      title: "単独著者による記事",
+      content: "<p>単独執筆の記事本文です</p>",
+      status: "published",
+      writer_id: "writer-single",
+      collaborator_ids: [],
+      comments_enabled: true,
+      created_at: new Date().toISOString(),
+    };
+
+    const mockSingleWriter = createTestProfile({
+      id: "writer-single",
+      display_name: "ソロ執筆者",
+      username: "solowriter",
+      role: "writer",
+    });
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: singleArticleData,
+                error: null,
+              }),
+            }),
+          }),
+        } as any;
+      }
+      if (table === "profiles") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: mockSingleWriter,
+                error: null,
+              }),
+            }),
+            in: vi.fn().mockReturnValue({
+              data: [],
+              error: null,
+            }),
+          }),
+        } as any;
+      }
+      if (table === "article_comments") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              order: vi.fn().mockReturnValue({
+                order: vi.fn().mockResolvedValue({
+                  data: [],
+                  error: null,
+                }),
+              }),
+            }),
+          }),
+        } as any;
+      }
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+        }),
+      } as any;
+    });
+
+    await act(async () => {
+      root!.render(
+        <MemoryRouter initialEntries={["/articles/art-single-view"]}>
+          <AppProviders>
+            <Routes>
+              <Route path="/articles/:id" element={<ArticleView />} />
+            </Routes>
+          </AppProviders>
+        </MemoryRouter>,
+      );
+    });
+
+    // 「この記事を執筆した人」が表示されていること
+    expect(container.textContent).toContain("この記事を執筆した人");
+    expect(container.textContent).toContain("ソロ執筆者");
+    // 単独執筆では「主執筆」「共同執筆」バッジは表示されないこと
+    expect(container.textContent).not.toContain("主執筆");
+    expect(container.textContent).not.toContain("共同執筆");
+    // 単一のカードが存在すること
+    expect(container.querySelector('[data-testid="author-card-writer-single"]')).toBeTruthy();
+  });
+
+  it("renders multiple authors (primary writer and co-authors) in この記事を執筆した人 section", async () => {
     const articleData = {
       id: "art-collab-view",
       title: "複数著者による共同記事",
@@ -738,8 +829,8 @@ describe("ArticleView", () => {
       );
     });
 
-    // 「この記事を書いた人」セクションが表示されていること
-    expect(container.textContent).toContain("この記事を書いた人");
+    // 「この記事を執筆した人」セクションが表示されていること
+    expect(container.textContent).toContain("この記事を執筆した人");
 
     // 主執筆者および共同執筆者全員の名前が表示されていること
     expect(container.textContent).toContain("メイン執筆者");
@@ -830,7 +921,7 @@ describe("ArticleView", () => {
     expect(mockUpdate).toHaveBeenCalled();
   });
 
-  it("deduplicates collaborator IDs in この記事を書いた人 section", async () => {
+  it("deduplicates collaborator IDs in この記事を執筆した人 section", async () => {
     const multiCollabArticle = {
       id: "art-collab-duplicate",
       title: "重複テスト記事",
@@ -894,7 +985,7 @@ describe("ArticleView", () => {
       );
     });
 
-    expect(container.textContent).toContain("この記事を書いた人");
+    expect(container.textContent).toContain("この記事を執筆した人");
     const mainCards = container.querySelectorAll('[data-testid="author-card-author-main"]');
     expect(mainCards.length).toBe(1);
 
