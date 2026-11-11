@@ -20,6 +20,10 @@ import {
 import { sanitizeHtml } from "../utils/sanitize";
 import { supabase } from "../supabase";
 import type { Profile } from "../supabase";
+import {
+  fetchProfilesListWithFallback,
+  fetchSingleProfileWithFallback,
+} from "../utils/profileQueries";
 import { ArticleComments } from "../components/ArticleComments";
 import { useFollows } from "../hooks/useFollows";
 import { updateMetaTags, resetMetaTags, generateArticleJsonLd } from "../utils/seo";
@@ -113,11 +117,7 @@ export const ArticleView = () => {
           if (enriched.writerId) {
             const cachedW = writers.find((w) => w.id === enriched.writerId);
             if (!cachedW) {
-              const { data: wData } = await supabase
-                .from("profiles")
-                .select("id, role, display_name, username, x_account, avatar_url, bio, created_at")
-                .eq("id", enriched.writerId)
-                .maybeSingle();
+              const wData = await fetchSingleProfileWithFallback({ id: enriched.writerId });
               if (isMounted && wData) {
                 setWriterFallback(wData);
               }
@@ -130,12 +130,7 @@ export const ArticleView = () => {
               (id) => !writers.some((w) => w.id === id),
             );
             if (missingCollabIds.length > 0) {
-              const { data: collabData } = await supabase
-                .from("profiles")
-                .select(
-                  "id, role, roles, display_name, username, x_account, avatar_url, bio, created_at",
-                )
-                .in("id", missingCollabIds);
+              const collabData = await fetchProfilesListWithFallback({ inIds: missingCollabIds });
               if (isMounted && Array.isArray(collabData)) {
                 setCollaboratorFallbacks((prev) => {
                   const map = new Map(prev.map((p) => [p.id, p]));
