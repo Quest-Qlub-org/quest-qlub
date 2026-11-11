@@ -8,6 +8,7 @@ import { AppProviders } from "../context/AppContext";
 import { supabase } from "../supabase";
 import { createTestArticle, createTestProfile } from "../test/test-utils";
 import * as useFollowsModule from "../hooks/useFollows";
+import * as profileQueriesModule from "../utils/profileQueries";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -991,5 +992,86 @@ describe("ArticleView", () => {
 
     const collabCards = container.querySelectorAll('[data-testid="author-card-collab-1"]');
     expect(collabCards.length).toBe(1);
+  });
+
+  it("fetches author and collaborator fallbacks via profileQueries utilities", async () => {
+    const testArticle = {
+      id: "art-fallback-test",
+      title: "フォールバックテスト記事",
+      writer_id: "writer-fb-id",
+      collaborator_ids: ["collab-fb-id"],
+      status: "published",
+      content: "<p>フォールバック本文</p>",
+      created_at: "2026-10-24T12:00:00Z",
+    };
+
+    const mockWriter = createTestProfile({
+      id: "writer-fb-id",
+      display_name: "フォールバックライター",
+      role: "writer",
+      roles: ["writer"],
+    });
+
+    const mockCollab = createTestProfile({
+      id: "collab-fb-id",
+      display_name: "フォールバック共同執筆者",
+      role: "writer",
+      roles: ["writer"],
+    });
+
+    const createQueryChain = (data: any = null) => {
+      const arr = data ? (Array.isArray(data) ? data : [data]) : [];
+      const promise = Promise.resolve({ data: arr, error: null });
+      const chain: any = Object.assign(promise, {
+        select: vi.fn(() => chain),
+        eq: vi.fn(() => chain),
+        in: vi.fn(() => chain),
+        order: vi.fn(() => chain),
+        range: vi.fn(() => Promise.resolve({ data: [], error: null })),
+        maybeSingle: vi.fn(() => Promise.resolve({ data: arr[0] ?? null, error: null })),
+        single: vi.fn(() => Promise.resolve({ data: arr[0] ?? null, error: null })),
+      });
+      return chain;
+    };
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") return createQueryChain(testArticle);
+      return createQueryChain(null);
+    });
+
+    const fetchSingleSpy = vi
+      .spyOn(profileQueriesModule, "fetchSingleProfileWithFallback")
+      .mockResolvedValue(mockWriter);
+    const fetchListSpy = vi
+      .spyOn(profileQueriesModule, "fetchProfilesListWithFallback")
+      .mockResolvedValue([mockCollab]);
+
+    vi.spyOn(useFollowsModule, "useFollows").mockReturnValue({
+      followedIds: [],
+      isFollowing: vi.fn(() => false),
+      toggleFollow: vi.fn(async () => true),
+      isAuthenticated: false,
+      currentUserId: null,
+      loading: false,
+    });
+
+    await act(async () => {
+      root!.render(
+        <MemoryRouter initialEntries={["/articles/art-fallback-test"]}>
+          <AppProviders>
+            <Routes>
+              <Route path="/articles/:id" element={<ArticleView />} />
+            </Routes>
+          </AppProviders>
+        </MemoryRouter>,
+      );
+    });
+
+    expect(fetchSingleSpy).toHaveBeenCalledWith({ id: "writer-fb-id" });
+    expect(fetchListSpy).toHaveBeenCalledWith({ inIds: ["collab-fb-id"] });
+
+    expect(container.textContent).toContain("フォールバックテスト記事");
+    expect(container.textContent).toContain("フォールバックライター");
+    expect(container.textContent).toContain("フォールバック共同執筆者");
   });
 });
