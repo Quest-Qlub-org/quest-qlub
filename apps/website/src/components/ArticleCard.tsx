@@ -15,7 +15,7 @@ export const ArticleCard = ({
 }) => {
   const { writers, favorites, navigate } = useApp();
   const writer = writers.find((w) => w.id === article.writerId);
-  const isFav = favorites.includes(article.id);
+  const isFav = favorites?.includes(article.id) ?? false;
   const color = getThumbnailColor(article.thumbnailColor ?? null);
   const formattedDate = formatArticleDate(article.createdAt);
 

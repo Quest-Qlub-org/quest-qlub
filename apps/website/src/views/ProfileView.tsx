@@ -94,21 +94,46 @@ export const ProfileView = () => {
         if (profileData) {
           void loadCounts(profileData.id);
 
-          const { data: artsData } = await supabase
+          const base = supabase
             .from("articles")
             .select(ARTICLE_LIST_FIELDS)
-            .eq("writer_id", profileData.id)
-            .eq("status", "published")
-            .order("created_at", { ascending: false });
+            .eq("status", "published");
+
+          let query;
+          if (typeof base.or === "function") {
+            query = base.or(
+              `writer_id.eq.${profileData.id},collaborator_ids.cs.{"${profileData.id}"}`,
+            );
+          } else {
+            query = base.eq("writer_id", profileData.id);
+          }
+
+          let { data: artsData, error: artsError } = await query.order("created_at", {
+            ascending: false,
+          });
+
+          // スキーマエラー等で失敗した場合は writer_id のみで安全に再取得
+          if (artsError) {
+            const fallbackRes = await supabase
+              .from("articles")
+              .select(ARTICLE_LIST_FIELDS)
+              .eq("writer_id", profileData.id)
+              .eq("status", "published")
+              .order("created_at", { ascending: false });
+            artsData = fallbackRes.data;
+            artsError = fallbackRes.error;
+          }
 
           if (!isMounted) return;
 
-          if (artsData && artsData.length > 0) {
+          if (!artsError && artsData && artsData.length > 0) {
             setWriterArticles(artsData.map((item) => mapDbArticleToArticle(item)));
           } else {
-            // グローバルarticlesからフォールバック
+            // グローバルarticlesからフォールバック（主執筆および共同執筆記事を含む）
             const fallback = articles.filter(
-              (a) => a.writerId === profileData?.id && a.status === "published",
+              (a) =>
+                (a.writerId === profileData?.id || a.collaboratorIds?.includes(profileData?.id)) &&
+                a.status === "published",
             );
             setWriterArticles(fallback);
           }
@@ -322,7 +347,13 @@ export const ProfileView = () => {
           </h3>
           <div className="space-y-3 md:grid md:grid-cols-2 md:gap-4 md:space-y-0">
             {writerArticles.length > 0 ? (
-              writerArticles.map((article) => <ArticleCard key={article.id} article={article} />)
+              writerArticles.map((article) => (
+                <ArticleCard
+                  key={article.id}
+                  article={article}
+                  isCollaborator={writer ? article.writerId !== writer.id : false}
+                />
+              ))
             ) : (
               <p className="text-gray-500 dark:text-gray-400 text-sm text-center py-8 bg-gray-50 dark:bg-gray-800 rounded-xl border border-dashed border-gray-300 dark:border-gray-700">
                 まだ記事がありません
