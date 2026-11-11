@@ -32,6 +32,7 @@
     "workbox-window": "catalog:"
   },
   "devDependencies": {
+    "@testing-library/react": "catalog:",
     "@types/dompurify": "catalog:",
     "@types/jsdom": "catalog:",
     "@types/react": "^18.3.31",

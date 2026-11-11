@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vite-plus/test"
 import { createRoot } from "react-dom/client";
 import { act } from "react";
 import { BrowserRouter } from "react-router-dom";
+import { waitFor } from "@testing-library/react";
 import { WriterApplyView } from "./WriterApplyView";
 import * as AppContextModule from "../context/AppContext";
 import { supabase } from "../supabase";
@@ -96,19 +97,13 @@ describe("WriterApplyView", () => {
       form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     });
 
-    for (let i = 0; i < 100; i++) {
-      if (
-        container.textContent?.includes("送信に失敗しました") ||
-        !container.textContent?.includes("送信中...")
-      )
-        break;
-      await act(async () => {
-        await new Promise((r) => setTimeout(r, 20));
-      });
-    }
-
     // 虚偽の成功画面にならず、エラーメッセージが表示されること
-    expect(container.textContent).toContain("送信に失敗しました");
+    await waitFor(
+      () => {
+        expect(container.textContent).toContain("送信に失敗しました");
+      },
+      { timeout: 10000, interval: 50 },
+    );
     expect(mockShowToast).not.toHaveBeenCalledWith("ライター応募を受け付けました");
   });
 
@@ -149,18 +144,12 @@ describe("WriterApplyView", () => {
       form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     });
 
-    for (let i = 0; i < 100; i++) {
-      if (
-        container.textContent?.includes("ご応募ありがとうございます！") ||
-        !container.textContent?.includes("送信中...")
-      )
-        break;
-      await act(async () => {
-        await new Promise((r) => setTimeout(r, 20));
-      });
-    }
-
-    expect(container.textContent).toContain("ご応募ありがとうございます！");
+    await waitFor(
+      () => {
+        expect(container.textContent).toContain("ご応募ありがとうございます！");
+      },
+      { timeout: 10000, interval: 50 },
+    );
     expect(mockShowToast).toHaveBeenCalledWith("ライター応募を受け付けました");
   });
 
