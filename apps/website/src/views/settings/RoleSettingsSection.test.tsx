@@ -34,7 +34,7 @@ describe("RoleSettingsSection", () => {
     act(() => {
       applyBtn?.click();
     });
-    expect(mockNavigate).toHaveBeenCalledWith("/contact");
+    expect(mockNavigate).toHaveBeenCalledWith("/writer-apply");
 
     unmount();
   });

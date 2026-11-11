@@ -120,7 +120,7 @@ export function RoleSettingsSection({ profile }: { profile: Profile | null }) {
             </div>
             <button
               type="button"
-              onClick={() => navigate("/contact")}
+              onClick={() => navigate("/writer-apply")}
               className="px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-xs font-bold rounded-lg transition-colors cursor-pointer"
             >
               ライターに応募
