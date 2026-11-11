@@ -4,7 +4,7 @@ import { supabase } from "../../supabase";
 import { ChevronLeft, Plus, X, Loader2 } from "lucide-react";
 import { ARTICLE_STATUS_CONFIG, mapDbArticleToArticle } from "../../types";
 import type { Article, ArticleStatus, Series } from "../../types";
-import { ARTICLE_LIST_FIELDS } from "../../context/DataContext";
+import { ARTICLE_LIST_FIELDS, WRITER_ARTICLE_LIST_FIELDS } from "../../context/DataContext";
 import {
   applySeriesOverrides,
   removeLocalSeriesOverride,
@@ -87,14 +87,17 @@ export const WriterSeriesPage = () => {
     try {
       const res = supabase.from("articles");
       if (res && typeof res.select === "function") {
-        const artBase = res.select(ARTICLE_LIST_FIELDS);
+        const artBase = res.select(WRITER_ARTICLE_LIST_FIELDS);
         let artQuery;
         if (typeof artBase.or === "function") {
           artQuery = artBase.or(`writer_id.eq.${profile.id},collaborator_ids.cs.{"${profile.id}"}`);
         } else {
           artQuery = artBase.eq("writer_id", profile.id);
         }
-        let { data, error } = await artQuery.order("created_at", { ascending: false });
+        const artPrimaryRes = await artQuery.order("created_at", { ascending: false });
+        let data: Parameters<typeof mapDbArticleToArticle>[0][] | null = artPrimaryRes.data;
+        let error = artPrimaryRes.error;
+        // スキーマドリフト（collaborator_ids未存在の42703エラー等）発生時は安全な ARTICLE_LIST_FIELDS でフォールバック
         if (error) {
           const fallbackRes = await res
             .select(ARTICLE_LIST_FIELDS)

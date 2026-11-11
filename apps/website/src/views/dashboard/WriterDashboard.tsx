@@ -4,7 +4,7 @@ import { supabase } from "../../supabase";
 import { LogoIcon } from "../../components/icons/NavIcons";
 import { getThumbnailColor, ARTICLE_STATUS_CONFIG, mapDbArticleToArticle } from "../../types";
 import type { Article, ArticleStatus } from "../../types";
-import { ARTICLE_LIST_FIELDS } from "../../context/DataContext";
+import { ARTICLE_LIST_FIELDS, WRITER_ARTICLE_LIST_FIELDS } from "../../context/DataContext";
 import { sanitizeHtml } from "../../utils/sanitize";
 import {
   formatScheduledDateTime,
@@ -57,15 +57,18 @@ export const WriterDashboard = () => {
     }
     setLoading(true);
     try {
-      const base = supabase.from("articles").select(ARTICLE_LIST_FIELDS);
+      const base = supabase.from("articles").select(WRITER_ARTICLE_LIST_FIELDS);
       let query;
       if (typeof base.or === "function") {
         query = base.or(`writer_id.eq.${profile.id},collaborator_ids.cs.{"${profile.id}"}`);
       } else {
         query = base.eq("writer_id", profile.id);
       }
-      let { data, error } = await query.order("created_at", { ascending: false });
+      const primaryRes = await query.order("created_at", { ascending: false });
+      let data: Parameters<typeof mapDbArticleToArticle>[0][] | null = primaryRes.data;
+      let error = primaryRes.error;
 
+      // スキーマドリフト（collaborator_ids未存在の42703エラー等）発生時は安全な ARTICLE_LIST_FIELDS でフォールバック
       if (error) {
         const fallbackRes = await supabase
           .from("articles")

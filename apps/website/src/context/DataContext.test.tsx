@@ -106,8 +106,9 @@ describe("DataContext", () => {
     expect(dataState.articles[0].status).toBe("published");
   });
 
-  it("ensures ARTICLE_LIST_FIELDS excludes comments_enabled to remain resilient against schema drift", () => {
+  it("ensures ARTICLE_LIST_FIELDS excludes comments_enabled and collaborator_ids to remain resilient against schema drift", () => {
     expect(ARTICLE_LIST_FIELDS).not.toContain("comments_enabled");
+    expect(ARTICLE_LIST_FIELDS).not.toContain("collaborator_ids");
     expect(ARTICLE_LIST_FIELDS).toContain("id");
     expect(ARTICLE_LIST_FIELDS).toContain("title");
     expect(ARTICLE_LIST_FIELDS).toContain("status");
