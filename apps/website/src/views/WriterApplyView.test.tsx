@@ -18,7 +18,7 @@ vi.mock("../utils/antiSpam", async (importOriginal) => {
     ...actual,
     verifySpamCheck: vi.fn().mockReturnValue({ isSpam: false }),
     getRemainingCooldownSeconds: vi.fn().mockReturnValue(0),
-    recordContactSubmission: vi.fn(),
+    recordSubmissionTimestamp: vi.fn(),
   };
 });
 

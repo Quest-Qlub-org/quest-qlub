@@ -7,7 +7,7 @@ import { updateMetaTags } from "../utils/seo";
 import {
   verifySpamCheck,
   getRemainingCooldownSeconds,
-  recordContactSubmission,
+  recordSubmissionTimestamp,
 } from "../utils/antiSpam";
 import { validateContactForm } from "../utils/validation";
 
@@ -152,7 +152,7 @@ export const WriterApplyView = () => {
         return;
       }
 
-      recordContactSubmission();
+      recordSubmissionTimestamp();
       setCooldown(getRemainingCooldownSeconds());
 
       // 2. send-contact-email Edge Function で運営者にメール通知
