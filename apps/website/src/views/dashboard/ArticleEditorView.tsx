@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   ChevronLeft,
   ChevronDown,
@@ -139,6 +140,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
     navigate,
     getFontSizeClass,
   } = useApp();
+  const routerNavigate = useNavigate();
   const currentUserId = profile?.id ?? null;
   const isEditor = userRole === "editor" || profileHasRole(profile, "editor");
   const editingArticle = editingId ? (articles.find((a) => a.id === editingId) ?? null) : null;
@@ -610,31 +612,30 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
           if (scheduledIso) {
             setLocalScheduledAt(data.id, scheduledIso);
           }
-          window.history.replaceState(null, "", `/writer-dash/edit/${data.id}`);
-          setArticles((prev) => [
-            {
-              id: data.id,
-              title: formTitle,
-              thumbnail: "",
-              thumbnailColor: formColor,
-              thumbnailUrl,
-              writerId: currentUserId ?? "",
-              views: 0,
-              likes: 0,
-              tags,
-              isRecommended: false,
-              isPopular: false,
-              status: "draft",
-              content: formContent,
-              summary: formSummary || undefined,
-              seriesId: formSeriesId || null,
-              episodeNumber: formEpisodeNumber ? parseInt(formEpisodeNumber, 10) : null,
-              commentsEnabled: formCommentsEnabled,
-              collaboratorIds,
-              scheduledAt: scheduledIso,
-            },
-            ...prev,
-          ]);
+          void routerNavigate(`/writer-dash/edit/${data.id}`, { replace: true });
+          const newArticle: Article = {
+            id: data.id,
+            title: formTitle,
+            thumbnail: "",
+            thumbnailColor: formColor,
+            thumbnailUrl,
+            writerId: currentUserId ?? "",
+            views: 0,
+            likes: 0,
+            tags,
+            isRecommended: false,
+            isPopular: false,
+            status: "draft",
+            content: formContent,
+            summary: formSummary || undefined,
+            seriesId: formSeriesId || null,
+            episodeNumber: formEpisodeNumber ? parseInt(formEpisodeNumber, 10) : null,
+            commentsEnabled: formCommentsEnabled,
+            collaboratorIds,
+            scheduledAt: scheduledIso,
+          };
+          setLoadedArticle(newArticle);
+          setArticles((prev) => [newArticle, ...prev]);
         }
       }
       setIsDirty(false);

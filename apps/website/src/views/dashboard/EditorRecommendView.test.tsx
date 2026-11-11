@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vite-plus/test";
 import { act } from "react";
 import { EditorRecommendView } from "./EditorRecommendView";
+import * as AppContextModule from "../../context/AppContext";
 import { renderWithRouter } from "../../test/test-utils";
 import { supabase } from "../../supabase";
 import { ARTICLE_LIST_FIELDS } from "../../context/DataContext";
@@ -9,6 +10,8 @@ import { ARTICLE_LIST_FIELDS } from "../../context/DataContext";
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 describe("EditorRecommendView", () => {
+  const mockSetGlobalArticles = vi.fn();
+
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -17,11 +20,15 @@ describe("EditorRecommendView", () => {
     vi.restoreAllMocks();
   });
 
-  it("queries ARTICLE_LIST_FIELDS and toggles is_recommended and is_popular", async () => {
+  it("queries ARTICLE_LIST_FIELDS and toggles is_recommended and is_popular with global state sync", async () => {
     const mockSelect = vi.fn();
     const mockUpdate = vi.fn().mockReturnValue({
       eq: vi.fn().mockResolvedValue({ error: null }),
     });
+
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      setArticles: mockSetGlobalArticles,
+    } as any);
 
     vi.spyOn(supabase, "from").mockImplementation((table: string) => {
       if (table === "articles") {
@@ -71,5 +78,31 @@ describe("EditorRecommendView", () => {
     });
 
     expect(mockUpdate).toHaveBeenCalledWith({ is_recommended: true });
+    expect(mockSetGlobalArticles).toHaveBeenCalled();
+    const updaterRec = mockSetGlobalArticles.mock.calls[0][0];
+    expect(typeof updaterRec).toBe("function");
+    const updatedRec = updaterRec([{ id: "art-1", isRecommended: false, isPopular: true }]);
+    expect(updatedRec[0].isRecommended).toBe(true);
+    expect(updatedRec[0].isPopular).toBe(true);
+
+    mockSetGlobalArticles.mockClear();
+
+    // Click 人気 button
+    const popularBtn = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("人気"),
+    );
+    expect(popularBtn).toBeDefined();
+
+    await act(async () => {
+      popularBtn!.click();
+    });
+
+    expect(mockUpdate).toHaveBeenCalledWith({ is_popular: false });
+    expect(mockSetGlobalArticles).toHaveBeenCalled();
+    const updaterPop = mockSetGlobalArticles.mock.calls[0][0];
+    expect(typeof updaterPop).toBe("function");
+    const updatedPop = updaterPop([{ id: "art-1", isRecommended: true, isPopular: true }]);
+    expect(updatedPop[0].isRecommended).toBe(true);
+    expect(updatedPop[0].isPopular).toBe(false);
   });
 });

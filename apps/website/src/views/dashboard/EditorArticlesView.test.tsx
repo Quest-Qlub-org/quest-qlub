@@ -147,4 +147,67 @@ describe("EditorArticlesView", () => {
     expect(mockMaybeSingle).toHaveBeenCalled();
     expect(document.body.textContent).toContain("遅延取得された記事本文");
   });
+
+  it("deletes article and updates both local articles and global articles via setGlobalArticles", async () => {
+    const mockDelete = vi.fn().mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    });
+
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") {
+        return {
+          select: vi.fn().mockReturnValue({
+            order: vi.fn().mockResolvedValue({
+              data: [
+                {
+                  id: "art-del",
+                  title: "削除対象記事",
+                  status: "draft",
+                  writer_id: "w-1",
+                  created_at: new Date().toISOString(),
+                },
+              ],
+              error: null,
+            }),
+          }),
+          delete: mockDelete,
+        } as any;
+      }
+      return {} as any;
+    });
+
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      getFontSizeClass: () => "text-base",
+      showToast: mockShowToast,
+      setArticles: mockSetArticles,
+    } as any);
+
+    let container: HTMLElement = document.createElement("div");
+
+    await act(async () => {
+      const rendered = renderWithRouter(<EditorArticlesView />);
+      container = rendered.container;
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("削除対象記事");
+
+    const deleteBtn = container.querySelector("button.text-red-400");
+    expect(deleteBtn).not.toBeNull();
+
+    await act(async () => {
+      (deleteBtn as HTMLButtonElement).click();
+      await Promise.resolve();
+    });
+
+    expect(mockDelete).toHaveBeenCalled();
+    expect(mockSetArticles).toHaveBeenCalled();
+    const updater = mockSetArticles.mock.calls[0][0];
+    expect(typeof updater).toBe("function");
+    const filtered = updater([{ id: "art-del" }, { id: "art-other" }]);
+    expect(filtered).toEqual([{ id: "art-other" }]);
+  });
 });
