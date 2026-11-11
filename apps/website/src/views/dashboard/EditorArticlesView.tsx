@@ -108,7 +108,8 @@ export function EditorArticlesView() {
     const { error } = await supabase.from("articles").delete().eq("id", id);
     if (!error) {
       setLocalScheduledAt(id, null);
-      setArticles(articles.filter((a) => a.id !== id));
+      setArticles((prev) => prev.filter((a) => a.id !== id));
+      setGlobalArticles((prev) => prev.filter((a) => a.id !== id));
     }
   };
 
