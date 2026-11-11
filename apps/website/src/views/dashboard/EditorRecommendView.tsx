@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useApp } from "../../context/AppContext";
 import { supabase } from "../../supabase";
 import { ChevronLeft } from "lucide-react";
 import type { Article } from "../../types";
@@ -9,6 +10,7 @@ import { isArticlePubliclyVisible, enrichArticleWithSchedule } from "../../utils
 import { updateMetaTags } from "../../utils/seo";
 
 export function EditorRecommendView() {
+  const { setArticles: setGlobalArticles } = useApp();
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
   const nav = useNavigate();
@@ -43,9 +45,9 @@ export function EditorRecommendView() {
       .from("articles")
       .update({ [field]: !current })
       .eq("id", id);
-    if (!error)
-      setArticles(
-        articles.map((a) =>
+    if (!error) {
+      setArticles((prev) =>
+        prev.map((a) =>
           a.id === id
             ? {
                 ...a,
@@ -55,6 +57,18 @@ export function EditorRecommendView() {
             : a,
         ),
       );
+      setGlobalArticles((prev) =>
+        prev.map((a) =>
+          a.id === id
+            ? {
+                ...a,
+                isRecommended: field === "is_recommended" ? !current : a.isRecommended,
+                isPopular: field === "is_popular" ? !current : a.isPopular,
+              }
+            : a,
+        ),
+      );
+    }
   };
 
   return (
