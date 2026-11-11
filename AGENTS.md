@@ -55,6 +55,18 @@ pnpm run ready
 - **ユニットテスト**: `apps/website/src/supabase.ts` の `isTest` により、自動テスト実行時は実DBへの通信が完全に遮断され、テスト用モックが適用されます。実DBへ通信するようなテストコードを書かないでください。
 - **マイグレーション**: データベースの変更は必ず `supabase/migrations/` に新規 SQL ファイルとして記録してください。既存のマイグレーション履歴やドリフト状況は必ず `docs/schema-drift.md` を参照してください。
 
+### スキーマ耐障害性原則 (Graceful Degradation against Schema Drift)
+
+本番 DB とローカル / プレビュー環境の差異、またはマイグレーション適用とフロントエンドデプロイのタイミングラグに起因するスキーマドリフト（PostgREST 42703 `undefined_column`, 42P01 `undefined_table`, 42883 `undefined_function` 等）に対して、UI がクラッシュ・白画面・強制リダイレクトしない **Graceful Degradation（段階的縮退）** 原則を徹底してください。
+
+1. **安全な一覧クエリ (`ARTICLE_LIST_FIELDS`)**:
+   - 記事一覧クエリでは、巨大な本文（`content`）や未適用リスクのあるオプショナルカラムを除外し、実DBで確実に存在するカラムのみで構成された `ARTICLE_LIST_FIELDS` を利用してください。
+2. **オプショナル機能の自動フォールバック**:
+   - `comments_enabled`、`scheduled_at`、`collaborator_ids` などのオプショナルカラムは、DB エラー検知時に自動除外リトライや `localStorage`（コメント、フォロー、予約投稿日時の退避等）へ透過的にフォールバックする設計を維持してください。
+   - エラー判定には `utils/supabaseErrors.ts` の判定関数（`isUndefinedColumnError`, `isRolesColumnSchemaError`, `isArticleOptionalColumnSchemaError` 等）を利用してください。
+3. **プロフィール情報の安全取得**:
+   - プロフィール取得時は、`roles` 列未存在時の 42703 フォールバックとローカルロールオーバーライドが組み込まれた `utils/profileQueries.ts`（`fetchSingleProfileWithFallback`, `fetchProfilesListWithFallback`）を経由してください。
+
 ---
 
 ## 4. アーキテクチャ & ディレクトリ責務
@@ -70,16 +82,41 @@ apps/website/src/
 ├── components/        # 再利用可能な共通UIコンポーネント
 │   ├── navigation/    # ヘッダー・モバイルナビゲーション
 │   ├── icons/         # 画像アイコン・ブランドロゴ
-│   └── layout/        # アプリ全体共通レイアウト（AppLayout）
+│   ├── layout/        # アプリ全体共通レイアウト（AppLayout）
+│   ├── ArticleComments.tsx    # コメント・ピン留め・編集履歴コンポーネント
+│   ├── CollaboratorSelect.tsx # 共同執筆者選択UI
+│   ├── RichTextEditor.tsx     # Tiptap ベースのリッチテキストエディタ
+│   ├── RoleRoute.tsx          # ロール認可 & Sudo Mode ガード
+│   └── SudoConfirmModal.tsx   # Sudo 再認証 & インライン 2FA モーダル
 ├── context/           # グローバル状態管理
 │   ├── AuthContext.tsx# ユーザー認証・ロール・セッション復元
 │   ├── DataContext.tsx# 記事・ライター・連載・お気に入りの取得・更新
 │   ├── UIContext.tsx  # トースト通知・フォントサイズ設定
 │   └── AppContext.tsx # 上記を集約した Facade（useApp フック）
 ├── hooks/             # カスタム React フック（useFollows, useFocusTrap 等）
-├── utils/             # 純粋関数ユーティリティ（sanitize, validation, antiSpam 等）
+├── utils/             # 純粋関数ユーティリティ
+│   ├── roles.ts           # 複数ロール判定・優先順位・ラベル定義
+│   ├── profileQueries.ts  # スキーマ耐障害性対応プロフィール取得
+│   ├── scheduledArticles.ts # 予約投稿ローカル退避 & 日時判定
+│   ├── seriesOverrides.ts # 連載ローカル退避ユーティリティ
+│   ├── supabaseErrors.ts  # PostgREST スキーマエラー判定
+│   ├── sanitize.ts        # DOMPurify 記事本文サニタイズ
+│   ├── validation.ts      # バリデーション関数
+│   └── antiSpam.ts        # スパム検知・レート制限
 ├── types/             # 共通型定義（Article, Profile, Series 等）
 └── test/              # テスト共通基盤（test-utils.tsx）
+```
+
+バックエンド・データベース構成：
+
+```text
+supabase/
+├── migrations/        # 冪等性を担保した SQL マイグレーション履歴
+└── functions/         # Supabase Edge Functions (Deno)
+    └── send-contact-email/ # お問い合わせ通知メール送信（Resend連携・多層防御）
+docs/
+├── schema-drift.md    # 実DBとマイグレーションの差分記録・適用状況
+└── EMERGENCY_MFA_RESET.md # 緊急時 MFA リセット運用手順書
 ```
 
 ### 設計・コーディングの指針
@@ -88,20 +125,39 @@ apps/website/src/
   - コンポーネント間でのバケツリレー（Props Drilling）を避け、各画面は `useApp()` フック（または分割された `useAuth()`, `useData()`, `useUI()`）からグローバル状態を取得・更新してください。
 - **画面遷移 (Navigation)**:
   - `react-router-dom` を採用しています。画面遷移には `useApp().navigate(viewName, param)` または標準の `useNavigate()` を使用してください。
-- **ユーザーロール**:
-  - `guest`（未ログイン） / `viewer`（一般読者） / `writer`（ライター） / `editor`（編集長）の4段階です。
+- **ユーザーロールと複数ロール設計**:
+  - ロール体系:
+    - `guest`: 未ログイン訪問者
+    - `viewer`: 一般登録読者
+    - `writer`: 記事・連載の執筆・審査申請を行うライター
+    - `editor`: 全記事・連載の審査・承認・編集・ユーザーロール管理を行う編集長
+    - `engineer`: 開発・運用・システム保守担当エンジニア
+  - **複数ロールの所持（`profiles.roles text[]`）**:
+    - 1アカウントが複数のロール（例: ライター兼エンジニア、編集長兼エンジニア等）を同時に保持できます。
+    - 単一列 `profile.role === "writer"` による安易な比較は行わず、**必ず `utils/roles.ts` のヘルパー関数群（`profileHasRole`, `getProfileRoles`, `getPrimaryRole`, `isStaffRole`）を使用してください**。
   - ルートのアクセス制限は `components/RoleRoute.tsx` で制御されます。
+- **記事・連載の共同編集（Collaborator）**:
+  - 記事（`articles.collaborator_ids`）および連載（`series.collaborator_ids`）には共同編集者を指定可能です。
+  - 共同編集者は下書きの閲覧・更新・審査申請を行えますが、主作成者（`writer_id`）の改ざんや削除（DELETE）権限は持たず、削除は主作成者および編集長のみに限定されます。
+- **予約投稿（Scheduled Publishing）**:
+  - `articles.scheduled_at` および `status = 'scheduled'` により未来日時の自動公開が可能です。予約時刻到来前の記事は一般公開（`articles_select_published` RLS）から厳格に保護されます。
+  - 公開時刻到来後は RPC 関数 `publish_due_scheduled_articles()` により公開状態へ昇格します。
 
 ---
 
 ## 5. セキュリティ規範
 
+- **Sudo Mode（ステップアップ再認証 + MFA一気通貫）**:
+  - ライターおよび編集長専用ダッシュボード（`/writer/*`, `/editor/*`）へのアクセスには、端末放置やセッション乗っ取りを防止するための Sudo Mode が必須です。
+  - **メモリ内プライベート認可 (`inMemorySudoAuthorized`)**: ブラウザの DevTools やストレージ改ざんによる権限バイパスを遮断するため、Sudo 認可フラグはメモリ内変数としてのみ保持されます。
+  - **Leave-to-Lock 原則**: 管理エリアから一般画面等へアンマウント離脱した際、Sudo 認可は即座に自動失効します。ただし、Sudo 再認証に伴う一時的な 2FA チャレンジ（`mfaChallengeRequired` または MFA ハンドシェイク猶予 `SUDO_MFA_HANDSHAKE_GRACE_MS`）によるアンマウント時は失効させず維持されます。
+  - Sudo タイムアウトは 15 分（`SUDO_TIMEOUT_MS = 15 * 60 * 1000`）です。
 - **XSS の防止**:
   - 記事本文など動的な HTML をブラウザにレンダリングする際は、**必ず `utils/sanitize.ts` の `sanitizeHtml`（DOMPurify 許可リスト）を通してください**。サニタイズを経由しない `dangerouslySetInnerHTML` は禁止です。
 - **ロール権限の改ざん防止**:
-  - `profiles.role` 列はクライアント（`authenticated` ロール）からの直接 UPDATE 権限が DB レベルで剥奪されています。ロールの変更は必ず Supabase の管理用 RPC 関数（`admin_change_user_role` 等）経由で行ってください。
+  - `profiles.role` および `profiles.roles` 列はクライアント（`authenticated` ロール）からの直接 UPDATE 権限が DB レベルで剥奪されています。ロールの変更は必ず Supabase の管理用 RPC 関数（単一ロール: `admin_change_user_role` / 複数ロール一括: `admin_set_user_roles`）経由で行ってください。
 - **お問い合わせスパム・レート制限**:
-  - お問い合わせ機能（`ContactView` / Edge Function / DBトリガー）にはレート制限と多層防御が組み込まれています。
+  - お問い合わせ機能（`ContactView` / Edge Function `send-contact-email` / DBトリガー）にはレート制限と多層防御（ハニーポット、文字数・改行制限、IP & メールアドレスレート制限）が組み込まれています。
 
 ---
 
