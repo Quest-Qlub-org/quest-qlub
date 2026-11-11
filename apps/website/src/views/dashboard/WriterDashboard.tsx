@@ -64,7 +64,9 @@ export const WriterDashboard = () => {
       } else {
         query = base.eq("writer_id", profile.id);
       }
-      let { data, error } = await query.order("created_at", { ascending: false });
+      const primaryRes = await query.order("created_at", { ascending: false });
+      let data: Parameters<typeof mapDbArticleToArticle>[0][] | null = primaryRes.data;
+      let error = primaryRes.error;
 
       // スキーマドリフト（collaborator_ids未存在の42703エラー等）発生時は安全な ARTICLE_LIST_FIELDS でフォールバック
       if (error) {
