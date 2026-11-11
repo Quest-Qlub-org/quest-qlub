@@ -10,6 +10,8 @@ export const PROFILE_SELECT_FIELDS_BASE =
 
 export interface ProfileListQueryOptions {
   inRole?: string[];
+  inIds?: string[];
+  in?: { column: string; values: string[] };
   eq?: { column: string; value: string };
   order?: { column: string; ascending?: boolean };
   range?: { from: number; to: number };
@@ -36,6 +38,17 @@ export async function fetchProfilesListWithFallback(
     let query: any = supabase.from("profiles").select(selectFields);
     if (options.inRole && options.inRole.length > 0 && typeof query.in === "function") {
       query = query.in("role", options.inRole);
+    }
+    if (options.inIds && options.inIds.length > 0 && typeof query.in === "function") {
+      query = query.in("id", options.inIds);
+    }
+    if (
+      options.in &&
+      options.in.values &&
+      options.in.values.length > 0 &&
+      typeof query.in === "function"
+    ) {
+      query = query.in(options.in.column, options.in.values);
     }
     if (options.eq && typeof query.eq === "function") {
       query = query.eq(options.eq.column, options.eq.value);
