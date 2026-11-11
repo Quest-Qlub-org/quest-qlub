@@ -127,6 +127,12 @@ DB の `supabase_migrations.schema_migrations` に記録済みのバージョン
     - コメント管理（`ArticleComments`）でも共同執筆者判定と「共同執筆者」バッジを導入。
     - 連載管理（`WriterSeriesPage`）で共同編集連載のカード表示（「共同編集」バッジ）および連載内記事の表示・話数管理に対応。
 
+- `20261111205000_harden_collaborator_permissions_and_comments.sql`（未適用・次回デプロイ / Issue #71）
+  - **共同編集者の collaborator_ids 改ざん防止 & コメント削除権限付与**:
+    - トリガー関数 `enforce_article_update_rules()` および `enforce_series_update_rules()` を更新し、主作成者（`writer_id`）以外の共同編集者が更新した際に `NEW.collaborator_ids := OLD.collaborator_ids;` を強制。主作成者または編集長のみが共同編集者を変更できるようにガードを追加。
+    - `article_comments_delete` RLS ポリシーに共同編集者（`(auth.uid())::text = ANY(COALESCE(articles.collaborator_ids, '{}'::text[]))`）を追加し、共同執筆記事に対するコメント削除（モデレーション）を共同編集者にも許可。
+    - `article_comments_select_staff` RLS ポリシーにも同様に共同編集者を追加し、コメント機能オフ時の整合性を担保。
+
 ## セキュリティ強化（コード・Edge Function）
 
 - **S4**: `send-contact-email` の CORS 許可リストを厳格化。任意の `*.vercel.app`
