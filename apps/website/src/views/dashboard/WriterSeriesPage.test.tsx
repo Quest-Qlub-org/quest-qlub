@@ -6,6 +6,7 @@ import { WriterSeriesPage } from "./WriterSeriesPage";
 import * as AppContextModule from "../../context/AppContext";
 import { createTestProfile, createTestSeries, setNativeValue } from "../../test/test-utils";
 import { supabase } from "../../supabase";
+import { ARTICLE_LIST_FIELDS, WRITER_ARTICLE_LIST_FIELDS } from "../../context/DataContext";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -971,5 +972,109 @@ describe("WriterSeriesPage", () => {
       b.textContent?.trim(),
     );
     expect(buttons).toContain("削除");
+  });
+
+  it("gracefully falls back to ARTICLE_LIST_FIELDS when querying writer articles if 42703 schema drift occurs", async () => {
+    const mockWriter = createTestProfile({ id: "writer-fallback-user", role: "writer" });
+    const queriedArticleFields: string[] = [];
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "series") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({
+              data: [
+                {
+                  id: "series-fb-1",
+                  title: "テスト連載",
+                  writer_id: "writer-fallback-user",
+                  collaborator_ids: [],
+                },
+              ],
+              error: null,
+            }),
+            or: vi.fn().mockResolvedValue({
+              data: [
+                {
+                  id: "series-fb-1",
+                  title: "テスト連載",
+                  writer_id: "writer-fallback-user",
+                  collaborator_ids: [],
+                },
+              ],
+              error: null,
+            }),
+          }),
+        } as any;
+      }
+      if (table === "articles") {
+        return {
+          select: vi.fn((fields: string) => {
+            queriedArticleFields.push(fields);
+            return {
+              eq: vi.fn().mockReturnValue({
+                order: vi.fn().mockImplementation(() => {
+                  if (fields.includes("collaborator_ids")) {
+                    return Promise.resolve({
+                      data: null,
+                      error: { code: "42703", message: 'column "collaborator_ids" does not exist' },
+                    });
+                  }
+                  return Promise.resolve({
+                    data: [
+                      {
+                        id: "art-series-fb-1",
+                        title: "フォールバック記事",
+                        status: "published",
+                        writer_id: "writer-fallback-user",
+                        created_at: new Date().toISOString(),
+                      },
+                    ],
+                    error: null,
+                  });
+                }),
+              }),
+              or: vi.fn().mockReturnValue({
+                order: vi.fn().mockImplementation(() => {
+                  if (fields.includes("collaborator_ids")) {
+                    return Promise.resolve({
+                      data: null,
+                      error: { code: "42703", message: 'column "collaborator_ids" does not exist' },
+                    });
+                  }
+                  return Promise.resolve({
+                    data: [],
+                    error: null,
+                  });
+                }),
+              }),
+            };
+          }),
+        } as any;
+      }
+      return {} as any;
+    });
+
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      profile: mockWriter,
+      authLoading: false,
+      seriesList: [],
+      setSeriesList: mockSetSeriesList,
+      showToast: mockShowToast,
+      navigate: mockNavigate,
+      articles: [],
+      setArticles: mockSetArticles,
+      writers: [mockWriter],
+      userRole: "writer",
+    } as any);
+
+    await act(async () => {
+      root!.render(<WriterSeriesPage />);
+    });
+
+    expect(queriedArticleFields).toContain(WRITER_ARTICLE_LIST_FIELDS);
+    expect(queriedArticleFields).toContain(ARTICLE_LIST_FIELDS);
+    expect(queriedArticleFields[queriedArticleFields.length - 1]).toBe(ARTICLE_LIST_FIELDS);
+    expect(queriedArticleFields[queriedArticleFields.length - 1]).not.toContain("collaborator_ids");
   });
 });

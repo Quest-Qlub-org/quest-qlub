@@ -122,6 +122,9 @@ DB の `supabase_migrations.schema_migrations` に記録済みのバージョン
     - `series` の更新ポリシー（`series_update_own_or_editor`）および `enforce_series_update_rules()` トリガーを追加し、共同編集者による連載の更新を許可しつつ作成者ID改ざんを抑止。
     - 記事・連載の削除（DELETE）権限は主作成者および編集長のみに限定。共同編集者による削除操作はUIおよびDBポリシーで遮断。
   - **クライアント側スキーマ耐障害性（Graceful Degradation）**:
+    - 安全な記事一覧取得フィールド（`ARTICLE_LIST_FIELDS`）から `collaborator_ids` を除外し、未適用環境での 42703 エラー（`column articles.collaborator_ids does not exist`）による一覧取得失敗（`DataContext` の `fetchArticles`, `loadMoreArticles` や `ProfileView`, `SearchView` 等）を根絶。
+    - ライター・連載管理（`WriterDashboard`, `WriterSeriesPage`）では共同執筆記事のオプショナル取得フィールド（`WRITER_ARTICLE_LIST_FIELDS = \`${ARTICLE_LIST_FIELDS}, collaborator_ids\``）を利用し、DB未適用時の 42703 エラー検知で安全な `ARTICLE_LIST_FIELDS` へ自動フォールバック。未適用DBでもマイ記事が確実に表示され、適用後DBでは共同編集記事や「共同編集」バッジがシームレスに表示される多層防御を構築。
+    - 編集長管理（`EditorArticlesView`）でもオプショナルフィールド `EDITOR_ARTICLE_LIST_FIELDS` に `collaborator_ids` を含め、未適用時は安全な `ARTICLE_LIST_FIELDS` に自動縮退。
     - `isArticleOptionalColumnSchemaError` 判定ユーティリティに `collaborator_ids` を追加し、DB列未存在時（42703エラー）でも自動除外リトライで下書き保存や連載保存を継続可能に。
     - 記事詳細画面（`ArticleView`）の「この記事を書いた人」セクションで、主執筆者＋共同執筆者のカードを重複排除した上で複数人並べて表示。各執筆者への個別フォローおよびプロフィール遷移に対応。
     - コメント管理（`ArticleComments`）でも共同執筆者判定と「共同執筆者」バッジを導入。

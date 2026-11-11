@@ -15,7 +15,10 @@ const WRITER_PAGE_SIZE = 12;
 
 // 安全な記事一覧取得フィールド（巨大な本文 content を除外し、実DBで確実に存在するカラムのみ）
 export const ARTICLE_LIST_FIELDS =
-  "id, title, thumbnail, thumbnail_url, thumbnail_color, writer_id, views, likes, tags, is_recommended, is_popular, status, summary, series_id, episode_number, created_at, collaborator_ids";
+  "id, title, thumbnail, thumbnail_url, thumbnail_color, writer_id, views, likes, tags, is_recommended, is_popular, status, summary, series_id, episode_number, created_at";
+
+// 共同執筆者を含むオプショナル記事一覧取得フィールド（ダッシュボード等での利用向け。未適用環境では ARTICLE_LIST_FIELDS へのフォールバック必須）
+export const WRITER_ARTICLE_LIST_FIELDS = `${ARTICLE_LIST_FIELDS}, collaborator_ids`;
 
 function enrichMappedArticleSchedule(article: Article): Article {
   const localSched = getLocalScheduledAt(article.id);

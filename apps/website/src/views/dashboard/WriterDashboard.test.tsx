@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vite-plus/test"
 import { act } from "react";
 import { WriterDashboard } from "./WriterDashboard";
 import { renderWithRouter, createTestProfile } from "../../test/test-utils";
-import { ARTICLE_LIST_FIELDS } from "../../context/DataContext";
+import { ARTICLE_LIST_FIELDS, WRITER_ARTICLE_LIST_FIELDS } from "../../context/DataContext";
 import * as AppContextModule from "../../context/AppContext";
 import { supabase } from "../../supabase";
 
@@ -60,7 +60,7 @@ describe("WriterDashboard", () => {
     vi.restoreAllMocks();
   });
 
-  it("queries writer articles using ARTICLE_LIST_FIELDS without comments_enabled", async () => {
+  it("queries writer articles using WRITER_ARTICLE_LIST_FIELDS without comments_enabled", async () => {
     const { container } = renderWithRouter(<WriterDashboard />);
 
     await act(async () => {
@@ -68,9 +68,77 @@ describe("WriterDashboard", () => {
       await Promise.resolve();
     });
 
-    expect(lastSelectFields).toBe(ARTICLE_LIST_FIELDS);
+    expect(lastSelectFields).toBe(WRITER_ARTICLE_LIST_FIELDS);
     expect(lastSelectFields).not.toContain("comments_enabled");
     expect(container.textContent).toContain("マイ記事");
+  });
+
+  it("gracefully falls back to ARTICLE_LIST_FIELDS without collaborator_ids when primary query fails due to 42703 schema drift", async () => {
+    const queriedFields: string[] = [];
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") {
+        return {
+          select: vi.fn((fields: string) => {
+            queriedFields.push(fields);
+            return {
+              eq: vi.fn().mockReturnValue({
+                order: vi.fn().mockImplementation(() => {
+                  if (fields.includes("collaborator_ids")) {
+                    return Promise.resolve({
+                      data: null,
+                      error: { code: "42703", message: 'column "collaborator_ids" does not exist' },
+                    });
+                  }
+                  return Promise.resolve({
+                    data: [
+                      {
+                        id: "art-fallback-1",
+                        title: "フォールバック記事",
+                        status: "draft",
+                        writer_id: "w-1",
+                        views: 0,
+                        likes: 0,
+                        created_at: new Date().toISOString(),
+                      },
+                    ],
+                    error: null,
+                  });
+                }),
+              }),
+              or: vi.fn().mockReturnValue({
+                order: vi.fn().mockImplementation(() => {
+                  if (fields.includes("collaborator_ids")) {
+                    return Promise.resolve({
+                      data: null,
+                      error: { code: "42703", message: 'column "collaborator_ids" does not exist' },
+                    });
+                  }
+                  return Promise.resolve({
+                    data: [],
+                    error: null,
+                  });
+                }),
+              }),
+            };
+          }),
+        } as any;
+      }
+      return {} as any;
+    });
+
+    const { container } = renderWithRouter(<WriterDashboard />);
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // 1回目の一次試行で WRITER_ARTICLE_LIST_FIELDS が呼ばれ、42703 エラー検知後に ARTICLE_LIST_FIELDS にフォールバックする
+    expect(queriedFields).toContain(WRITER_ARTICLE_LIST_FIELDS);
+    expect(queriedFields).toContain(ARTICLE_LIST_FIELDS);
+    expect(queriedFields[queriedFields.length - 1]).toBe(ARTICLE_LIST_FIELDS);
+    expect(queriedFields[queriedFields.length - 1]).not.toContain("collaborator_ids");
+    expect(container.textContent).toContain("フォールバック記事");
   });
 
   it("navigates to article preview when clicking 確認 button", async () => {

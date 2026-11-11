@@ -18,7 +18,7 @@ import { useNavigate } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
 import { updateMetaTags } from "../../utils/seo";
 
-export const EDITOR_ARTICLE_LIST_FIELDS = `${ARTICLE_LIST_FIELDS}, comments_enabled, scheduled_at`;
+export const EDITOR_ARTICLE_LIST_FIELDS = `${ARTICLE_LIST_FIELDS}, comments_enabled, scheduled_at, collaborator_ids`;
 
 function enrichEditorArticle(article: Article): Article {
   const localSched = getLocalScheduledAt(article.id);
