@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { AccessDeniedView } from "../views/dashboard/AccessDeniedView";
 import { SudoConfirmModal } from "./SudoConfirmModal";
@@ -26,7 +26,7 @@ export function setInMemorySudoAuthorized(active: boolean, isMfaHandshake = fals
 
 interface RoleRouteProps {
   requiredRole: "writer" | "editor" | "authenticated";
-  children: React.ReactElement;
+  children?: React.ReactElement;
 }
 
 export function RoleRoute({ requiredRole, children }: RoleRouteProps) {
@@ -105,5 +105,5 @@ export function RoleRoute({ requiredRole, children }: RoleRouteProps) {
     return <AccessDeniedView requiredRole="authenticated" />;
   }
 
-  return children;
+  return children ?? <Outlet />;
 }

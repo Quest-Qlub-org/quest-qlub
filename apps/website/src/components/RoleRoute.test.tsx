@@ -4,7 +4,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vite-plus/test"
 import { createRoot } from "react-dom/client";
 import { act } from "react";
 import { BrowserRouter } from "react-router-dom";
-import { RoleRoute, setInMemorySudoAuthorized } from "./RoleRoute";
+import { RoleRoute, setInMemorySudoAuthorized, checkIsSudoActive } from "./RoleRoute";
 import { UIProvider } from "../context/UIContext";
 import { DataProvider } from "../context/DataContext";
 import * as AuthContextModule from "../context/AuthContext";
@@ -611,6 +611,65 @@ describe("RoleRoute access control", () => {
 
       expect(container.querySelector("#editor-content")).not.toBeNull();
       expect(container.textContent).toContain("編集長画面");
+    });
+
+    it("maintains Sudo authorization when navigating between child routes in Layout Route", async () => {
+      setInMemorySudoAuthorized(true);
+      vi.spyOn(AuthContextModule, "useAuth").mockReturnValue({
+        userRole: "writer" as any,
+        authLoading: false,
+        user: { id: "user-writer-1", email: "writer@example.com" } as any,
+        profile: {
+          id: "user-writer-1",
+          role: "writer",
+          roles: ["writer"],
+          email: "writer@example.com",
+          display_name: "ライター1",
+        } as any,
+        setProfile: vi.fn(),
+        setUserRole: vi.fn(),
+        mfaChallengeRequired: false,
+        setMfaChallengeRequired: vi.fn(),
+        refreshProfile: vi.fn(),
+      });
+
+      const { MemoryRouter, Routes, Route, Link } = await import("react-router-dom");
+
+      act(() => {
+        root!.render(
+          <MemoryRouter initialEntries={["/writer-dash"]}>
+            <UIProvider>
+              <DataProvider>
+                <Routes>
+                  <Route element={<RoleRoute requiredRole="writer" />}>
+                    <Route
+                      path="/writer-dash"
+                      element={
+                        <div>
+                          <span>ダッシュボードトップ</span>
+                          <Link to="/writer-dash/series">連載へ</Link>
+                        </div>
+                      }
+                    />
+                    <Route path="/writer-dash/series" element={<span>連載ページ</span>} />
+                  </Route>
+                </Routes>
+              </DataProvider>
+            </UIProvider>
+          </MemoryRouter>,
+        );
+      });
+
+      expect(container.textContent).toContain("ダッシュボードトップ");
+      expect(checkIsSudoActive()).toBe(true);
+
+      const link = container.querySelector("a")!;
+      act(() => {
+        link.click();
+      });
+
+      expect(container.textContent).toContain("連載ページ");
+      expect(checkIsSudoActive()).toBe(true);
     });
   });
 });

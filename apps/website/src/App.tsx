@@ -201,81 +201,22 @@ export default function App() {
           <Route path="/reset-password" element={<ResetPasswordView />} />
           <Route path="/setup-profile" element={<SetupProfileView />} />
 
-          {/* Protected Writer Views */}
-          <Route
-            path="/writer-dash"
-            element={
-              <RoleRoute requiredRole="writer">
-                <WriterDashboard />
-              </RoleRoute>
-            }
-          />
-          <Route
-            path="/writer-dash/new"
-            element={
-              <RoleRoute requiredRole="writer">
-                <ArticleEditorPage editingId={null} />
-              </RoleRoute>
-            }
-          />
-          <Route
-            path="/writer-dash/edit/:id"
-            element={
-              <RoleRoute requiredRole="writer">
-                <ArticleEditWrapper />
-              </RoleRoute>
-            }
-          />
-          <Route
-            path="/writer-dash/series"
-            element={
-              <RoleRoute requiredRole="writer">
-                <WriterSeriesPage />
-              </RoleRoute>
-            }
-          />
+          {/* Protected Writer Views (Layout Route maintains single RoleRoute lifecycle across dashboard pages) */}
+          <Route element={<RoleRoute requiredRole="writer" />}>
+            <Route path="/writer-dash" element={<WriterDashboard />} />
+            <Route path="/writer-dash/new" element={<ArticleEditorPage editingId={null} />} />
+            <Route path="/writer-dash/edit/:id" element={<ArticleEditWrapper />} />
+            <Route path="/writer-dash/series" element={<WriterSeriesPage />} />
+          </Route>
 
-          {/* Protected Editor Views */}
-          <Route
-            path="/editor-dash"
-            element={
-              <RoleRoute requiredRole="editor">
-                <EditorDashboard />
-              </RoleRoute>
-            }
-          />
-          <Route
-            path="/editor-dash/articles"
-            element={
-              <RoleRoute requiredRole="editor">
-                <EditorArticlesView />
-              </RoleRoute>
-            }
-          />
-          <Route
-            path="/editor-dash/recommend"
-            element={
-              <RoleRoute requiredRole="editor">
-                <EditorRecommendView />
-              </RoleRoute>
-            }
-          />
-          <Route
-            path="/editor-dash/writers"
-            element={
-              <RoleRoute requiredRole="editor">
-                <EditorWritersView />
-              </RoleRoute>
-            }
-          />
-          <Route
-            path="/editor-dash/applications"
-            element={
-              <RoleRoute requiredRole="editor">
-                <EditorApplicationsView />
-              </RoleRoute>
-            }
-          />
+          {/* Protected Editor Views (Layout Route maintains single RoleRoute lifecycle across editor pages) */}
+          <Route element={<RoleRoute requiredRole="editor" />}>
+            <Route path="/editor-dash" element={<EditorDashboard />} />
+            <Route path="/editor-dash/articles" element={<EditorArticlesView />} />
+            <Route path="/editor-dash/recommend" element={<EditorRecommendView />} />
+            <Route path="/editor-dash/writers" element={<EditorWritersView />} />
+            <Route path="/editor-dash/applications" element={<EditorApplicationsView />} />
+          </Route>
 
           {/* 404 Fallback */}
           <Route path="*" element={<NotFoundView />} />
