@@ -1,6 +1,6 @@
 # スキーマ・マイグレーションの現状記録
 
-最終更新: 2026-11-11
+最終更新: 2026-11-12
 
 このドキュメントは、Supabase の実DB（本番プロジェクト `uksgnlfnxytqljrctiqg`）と
 `supabase/migrations/` の間の差分、および未適用のマイグレーションを記録する。
@@ -141,6 +141,30 @@ DB の `supabase_migrations.schema_migrations` に記録済みのバージョン
     - `article_comments_delete` RLS ポリシーに共同編集者（`(auth.uid())::text = ANY(COALESCE(articles.collaborator_ids, '{}'::text[]))`）を追加し、共同執筆記事に対するコメント削除（モデレーション）を共同編集者にも許可。
     - `article_comments_select_staff` RLS ポリシーにも同様に共同編集者を追加し、コメント機能オフ時の整合性を担保。
 
+## 次回マイグレーション計画（起票済み Issue #78, #79, #80, #85）
+
+- **Issue #78: `comment_edit_history` の直接 INSERT 権限剥奪および閲覧制限ポリシー改修**:
+  - **背景・課題**: `comment_edit_history` テーブルには DB トリガー `trg_enforce_comment_update_rules`（SECURITY DEFINER）による自動挿入が行われるが、`comment_edit_history_insert` ポリシーおよび INSERT 権限がクライアント（`authenticated`）に残存しているため、PostgREST 経由で直接 INSERT を実行して過去の編集履歴やタイムスタンプを捏造できる脆弱性が存在する。また、SELECT ポリシーが `USING (true)` となっており、記事の `comments_enabled = false` 設定時にも履歴が漏洩する。
+  - **対応方針**:
+    - `REVOKE INSERT ON public.comment_edit_history FROM authenticated, anon, PUBLIC;` を実行し、トリガー経由のみで履歴追加を許可。
+    - `comment_edit_history_insert` ポリシーを削除。
+    - `comment_edit_history_select` ポリシーを `USING (EXISTS (SELECT 1 FROM public.article_comments WHERE article_comments.id = comment_edit_history.comment_id))` に改修し、親コメントの閲覧権限（`comments_enabled` およびスタッフ権限）と連動させる。
+
+- **Issue #79: `user_follows` テーブルに対する `authenticated` ロールへの GRANT 権限不足の解消**:
+  - **背景・課題**: `20261018010000_implement_comments_and_follows.sql` で RLS ポリシーは定義されたが、明示的な `GRANT SELECT, INSERT, DELETE ON public.user_follows TO authenticated;` が欠落していた。デフォルト権限が継承されない環境では 42501（`permission denied for table user_follows`）が発生する（現在はクライアント側 `useFollows` の `localStorage` 退避で画面クラッシュを回避中）。
+  - **対応方針**:
+    - 新規マイグレーションにて `GRANT SELECT, INSERT, DELETE ON public.user_follows TO authenticated;` を明示的に適用し、実DBへのフォロー状態の安全な永続化を保証する。
+
+- **Issue #80: `contact_messages` の SELECT RLS ポリシーにおけるマルチロール対応**:
+  - **背景・課題**: `contact_messages` の SELECT ポリシーが旧来の単一ロール列 `profiles.role = 'editor'` をハードコードしており、主ロールが `engineer` 等で `roles` 配列に `editor` を保持する複数ロールアカウントが `/editor-dash/applications`（`EditorApplicationsView`）でライター応募申請一覧を取得できない。
+  - **対応方針**:
+    - ポリシーの条件を既存の編集長判定共通関数 `public.check_is_editor()` に統一し、複数ロールアカウントでも確実にアクセスできるようにする。
+
+- **Issue #85: Supabase Storage `thumbnails` バケット RLS ポリシーにおけるマルチロール（`profiles.roles` 配列）対応**:
+  - **背景・課題**: `storage.objects` の `storage_thumbnails_insert_writer`, `update_writer`, `delete_writer` ポリシーが `profiles.role IN ('writer', 'editor')` のみを評価しており、主ロールが `engineer` や `viewer` で `roles` に `writer` または `editor` を持つアカウントがアイキャッチ画像・本文画像をアップロードする際に 403 エラーが発生する。
+  - **対応方針**:
+    - `storage.objects` の上記3ポリシーを更新し、`'writer' = ANY(COALESCE(profiles.roles, '{}'::text[])) OR 'editor' = ANY(COALESCE(profiles.roles, '{}'::text[]))` の認可条件を追加する。
+
 ## セキュリティ強化（コード・Edge Function）
 
 - **S4**: `send-contact-email` の CORS 許可リストを厳格化。任意の `*.vercel.app`
@@ -150,12 +174,18 @@ DB の `supabase_migrations.schema_migrations` に記録済みのバージョン
   Edge Function へデプロイ済み（version 7）。
 - **S6**: OGP エンドポイントの入力検証・フォールバック修正（デプロイ済み）。
 
-## 依存関係の脆弱性（Dependabot）
+## 依存関係のバージョン状況（Dependabot & ツールチェーン）
 
-- `vite-plus` / `vite-plus-core` / `vite-plus-test` を `0.1.24`、`dompurify` を
-  `3.4.17`、`react-router-dom` を `7.18.4`、間接依存の `vite` を `^8.0.16` へ更新。
-  `tinypool` / `source-map-js` は overrides で修正版へ固定。
-- 残: `braces <= 3.0.3`（上流に修正版が存在しない開発用の間接依存）。
+- **主要ツールチェーン & ライブラリ**:
+  - `vite-plus`: `1.4.0`（内部ツール: Vite `8.3.5`, Vitest `5.0.5`, Oxlint `1.89.0`, Oxfmt `0.74.0`, Rolldown `1.2.15`, tsdown `0.23.1`）
+  - `@supabase/supabase-js`: `2.119.0`
+  - `react-router-dom`: `7.18.5`
+  - `lucide-react`: `1.72.0`
+  - `@tiptap/*`: `3.33.1`
+  - `dompurify`: `3.4.17`
+- **脆弱性対応オーバーライド**:
+  - `tinypool` / `source-map-js` / `@babel/core` は `pnpm.overrides` で修正版へ固定。
+  - 残: `braces <= 3.0.3`（上流に修正版が存在しない開発用の間接依存）。
 
 ## 未対応・許容済み
 

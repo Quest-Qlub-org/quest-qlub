@@ -75,36 +75,83 @@ pnpm run ready
 
 ```text
 apps/website/src/
-├── views/             # 画面ビュー（HomeView, ArticleView, SearchView 等）
-│   ├── auth/          # 認証関連画面（LoginView, RegisterView, ResetPassword 等）
-│   ├── dashboard/     # ライター・編集長専用画面（WriterDashboard, EditorDashboard 等）
-│   └── settings/      # 設定セクション分割コンポーネント
-├── components/        # 再利用可能な共通UIコンポーネント
-│   ├── navigation/    # ヘッダー・モバイルナビゲーション
-│   ├── icons/         # 画像アイコン・ブランドロゴ
-│   ├── layout/        # アプリ全体共通レイアウト（AppLayout）
+├── views/                     # 画面ビュー
+│   ├── HomeView.tsx           # トップ・新着・おすすめ記事
+│   ├── ArticleView.tsx        # 記事詳細・SNSシェア・共同執筆者表示
+│   ├── SearchView.tsx         # 検索・タグ絞り込み
+│   ├── WritersView.tsx        # ライター一覧
+│   ├── ProfileView.tsx        # ライタープロフィール・執筆記事一覧
+│   ├── FavoritesView.tsx      # お気に入り記事一覧
+│   ├── SettingsView.tsx       # 設定画面（各設定セクションを統合）
+│   ├── AboutView.tsx          # サービス紹介・メンバー一覧（複数ロール動的分類）
+│   ├── PrivacyView.tsx        # プライバシーポリシー
+│   ├── TermsView.tsx          # 利用規約
+│   ├── ContactView.tsx        # お問い合わせフォーム（スパム防止・レート制限）
+│   ├── WriterApplyView.tsx    # ライター応募申請フォーム
+│   ├── OfflineFallbackView.tsx# オフライン時フォールバック画面
+│   ├── auth/                  # 認証関連画面
+│   │   ├── LoginView.tsx          # ログイン（インライン2FA対応）
+│   │   ├── RegisterView.tsx       # アカウント登録
+│   │   ├── ForgotPasswordView.tsx # パスワード再設定申請
+│   │   ├── ResetPasswordView.tsx  # パスワード再設定実行
+│   │   └── SetupProfileView.tsx   # 初回プロフィール設定
+│   ├── dashboard/             # ライター・編集長専用管理画面
+│   │   ├── WriterDashboard.tsx        # ライターダッシュボード（記事一覧・ステータス管理）
+│   │   ├── ArticleEditorView.tsx      # 記事作成・編集画面（予約投稿・共同執筆者設定対応）
+│   │   ├── WriterSeriesPage.tsx       # 連載作成・管理（共同執筆連載対応）
+│   │   ├── EditorDashboard.tsx        # 編集長ダッシュボード（統計・管理メニュー）
+│   │   ├── EditorArticlesView.tsx     # 全記事審査・公開・削除管理
+│   │   ├── EditorRecommendView.tsx    # おすすめ・人気記事ピックアップ設定
+│   │   ├── EditorWritersView.tsx      # ライターロール・複数ロール管理
+│   │   ├── EditorApplicationsView.tsx # ライター応募審査・承認一覧
+│   │   └── AccessDeniedView.tsx       # 403権限エラー画面
+│   └── settings/              # 設定セクション分割コンポーネント
+│       ├── ProfileSettingsSection.tsx    # 表示名・自己紹介・X連携・アバター
+│       ├── AppearanceSettingsSection.tsx # フォントサイズ・ダークモード設定
+│       ├── RoleSettingsSection.tsx       # 現在のロール確認・ライター応募導線
+│       ├── SecuritySettingsSection.tsx   # 2要素認証 (TOTP)・パスキー・緊急コード
+│       └── PwaInstallSettingsSection.tsx # PWAインストール導線・オフライン状態
+├── components/                # 再利用可能な共通UIコンポーネント
+│   ├── navigation/            # ナビゲーション（Header, MobileNav, navItems）
+│   ├── icons/                 # 画像アイコン・ブランドロゴ
+│   ├── layout/                # アプリ共通レイアウト（AppLayout）
+│   ├── pwa/                   # PWA支援（OfflineBanner, ReloadPrompt）
+│   ├── ArticleCard.tsx        # 記事カードコンポーネント
 │   ├── ArticleComments.tsx    # コメント・ピン留め・編集履歴コンポーネント
 │   ├── CollaboratorSelect.tsx # 共同執筆者選択UI
+│   ├── EnvironmentBanner.tsx  # 本番DB誤接続警告バナー
+│   ├── ErrorBoundary.tsx      # React エラーバウンダリ
+│   ├── MfaChallengeModal.tsx  # MFA認証モーダル
+│   ├── MfaEnrollModal.tsx     # MFA登録モーダル
+│   ├── OpeningAnimation.tsx   # オープニングアニメーション
 │   ├── RichTextEditor.tsx     # Tiptap ベースのリッチテキストエディタ
 │   ├── RoleRoute.tsx          # ロール認可 & Sudo Mode ガード
+│   ├── Skeleton.tsx           # ローディングスケルトン
 │   └── SudoConfirmModal.tsx   # Sudo 再認証 & インライン 2FA モーダル
-├── context/           # グローバル状態管理
-│   ├── AuthContext.tsx# ユーザー認証・ロール・セッション復元
-│   ├── DataContext.tsx# 記事・ライター・連載・お気に入りの取得・更新
-│   ├── UIContext.tsx  # トースト通知・フォントサイズ設定
-│   └── AppContext.tsx # 上記を集約した Facade（useApp フック）
-├── hooks/             # カスタム React フック（useFollows, useFocusTrap 等）
-├── utils/             # 純粋関数ユーティリティ
-│   ├── roles.ts           # 複数ロール判定・優先順位・ラベル定義
-│   ├── profileQueries.ts  # スキーマ耐障害性対応プロフィール取得
-│   ├── scheduledArticles.ts # 予約投稿ローカル退避 & 日時判定
-│   ├── seriesOverrides.ts # 連載ローカル退避ユーティリティ
-│   ├── supabaseErrors.ts  # PostgREST スキーマエラー判定
-│   ├── sanitize.ts        # DOMPurify 記事本文サニタイズ
-│   ├── validation.ts      # バリデーション関数
-│   └── antiSpam.ts        # スパム検知・レート制限
-├── types/             # 共通型定義（Article, Profile, Series 等）
-└── test/              # テスト共通基盤（test-utils.tsx）
+├── context/                   # グローバル状態管理
+│   ├── AuthContext.tsx        # ユーザー認証・ロール・セッション復元
+│   ├── DataContext.tsx        # 記事・ライター・連載・お気に入りの取得・更新
+│   ├── UIContext.tsx          # トースト通知・フォントサイズ・ダークモード設定
+│   └── AppContext.tsx         # 上記を集約した Facade（useApp フック）
+├── hooks/                     # カスタム React フック
+│   ├── useFocusTrap.ts        # モーダル等のフォーカストラップ
+│   ├── useFollows.ts          # ライターフォロー状態管理 & ローカル退避
+│   ├── useNetworkStatus.ts    # オンライン/オフライン接続検知
+│   └── usePwaInstall.ts       # PWAインストールプロンプト制御
+├── utils/                     # 純粋関数ユーティリティ
+│   ├── antiSpam.ts            # スパム検知・ハニーポット・レート制限
+│   ├── date.ts                # 日時フォーマット
+│   ├── normalizeJapanese.ts   # 日本語検索正規化
+│   ├── profileQueries.ts      # スキーマ耐障害性対応プロフィール取得
+│   ├── roles.ts               # 複数ロール判定・優先順位・ラベル定義
+│   ├── sanitize.ts            # DOMPurify 記事本文サニタイズ
+│   ├── scheduledArticles.ts   # 予約投稿ローカル退避 & 日時判定
+│   ├── seo.ts                 # OGP・メタタグ動的更新
+│   ├── seriesOverrides.ts     # 連載ローカル退避ユーティリティ
+│   ├── supabaseErrors.ts      # PostgREST スキーマエラー判定
+│   └── validation.ts          # 入力バリデーション関数
+├── types/                     # 共通型定義（Article, Profile, Series 等）
+└── test/                      # テスト共通基盤（test-utils.tsx, apiEndpoints 等）
 ```
 
 バックエンド・データベース構成：
@@ -123,8 +170,42 @@ docs/
 
 - **状態管理 (State Management)**:
   - コンポーネント間でのバケツリレー（Props Drilling）を避け、各画面は `useApp()` フック（または分割された `useAuth()`, `useData()`, `useUI()`）からグローバル状態を取得・更新してください。
-- **画面遷移 (Navigation)**:
+- **画面遷移 (Navigation) & ルーティング一覧**:
   - `react-router-dom` を採用しています。画面遷移には `useApp().navigate(viewName, param)` または標準の `useNavigate()` を使用してください。
+  - ルートのアクセス制限は `components/RoleRoute.tsx` で制御されます。
+
+  #### URL ルーティング対応表
+
+  | パス                        | 画面コンポーネント       | アクセス権限                    | 備考                                              |
+  | :-------------------------- | :----------------------- | :------------------------------ | :------------------------------------------------ |
+  | `/`                         | `HomeView`               | 一般公開 (`guest` 含む全ロール) | トップ・新着・おすすめ・人気記事                  |
+  | `/search`                   | `SearchView`             | 一般公開                        | キーワード検索・タグ絞り込み                      |
+  | `/writers`                  | `WritersView`            | 一般公開                        | ライター一覧・フォロー導線                        |
+  | `/writers/:username`        | `ProfileView`            | 一般公開                        | ライター詳細・執筆記事一覧                        |
+  | `/articles/:id`             | `ArticleView`            | 一般公開（公開済み記事のみ）    | 記事詳細・共同執筆者表示・コメント・フォロー      |
+  | `/favorites`                | `FavoritesView`          | 一般公開（未ログイン時は案内）  | ログイン読者のお気に入り記事一覧                  |
+  | `/settings`                 | `SettingsView`           | 一般公開（未ログイン時は案内）  | プロフィール・外観・ロール・セキュリティ・PWA設定 |
+  | `/about`                    | `AboutView`              | 一般公開                        | サービス紹介・メンバー一覧（複数ロール動的分類）  |
+  | `/privacy`                  | `PrivacyView`            | 一般公開                        | プライバシーポリシー                              |
+  | `/terms`                    | `TermsView`              | 一般公開                        | 利用規約                                          |
+  | `/contact`                  | `ContactView`            | 一般公開                        | お問い合わせ（多層スパム防止・レート制限）        |
+  | `/offline`                  | `OfflineFallbackView`    | 一般公開                        | ネットワーク切断時のフォールバック画面            |
+  | `/writer-apply`             | `WriterApplyView`        | 一般公開（ログイン推奨）        | 一般読者向けライター応募申請フォーム              |
+  | `/login`                    | `LoginView`              | 未認証（認証後はトップへ）      | ログイン（インライン2FA対応）                     |
+  | `/register`                 | `RegisterView`           | 未認証                          | アカウント新規登録                                |
+  | `/forgot-password`          | `ForgotPasswordView`     | 未認証                          | パスワード再設定メール送信申請                    |
+  | `/reset-password`           | `ResetPasswordView`      | トークン所持者                  | 新規パスワード再設定実行                          |
+  | `/setup-profile`            | `SetupProfileView`       | ログイン済みユーザー            | 初回プロフィール登録（表示名・ユーザー名）        |
+  | `/writer-dash`              | `WriterDashboard`        | `writer` / `editor` + Sudo Mode | マイ記事一覧・ステータス管理・執筆導線            |
+  | `/writer-dash/new`          | `ArticleEditorPage`      | `writer` / `editor` + Sudo Mode | 記事新規作成（予約投稿・共同執筆者選択）          |
+  | `/writer-dash/edit/:id`     | `ArticleEditorPage`      | `writer` / `editor` + Sudo Mode | 自身または共同編集記事の編集                      |
+  | `/writer-dash/series`       | `WriterSeriesPage`       | `writer` / `editor` + Sudo Mode | 連載作成・管理・記事紐付け（共同連載対応）        |
+  | `/editor-dash`              | `EditorDashboard`        | `editor` + Sudo Mode            | 編集長ダッシュボード（統計・メニュー）            |
+  | `/editor-dash/articles`     | `EditorArticlesView`     | `editor` + Sudo Mode            | 全記事の審査・承認・公開・差し戻し・削除          |
+  | `/editor-dash/recommend`    | `EditorRecommendView`    | `editor` + Sudo Mode            | おすすめ・人気記事のピックアップ設定              |
+  | `/editor-dash/writers`      | `EditorWritersView`      | `editor` + Sudo Mode            | ユーザーロール変更・複数ロール（配列）管理        |
+  | `/editor-dash/applications` | `EditorApplicationsView` | `editor` + Sudo Mode            | ライター応募申請の審査・昇格処理                  |
+
 - **ユーザーロールと複数ロール設計**:
   - ロール体系:
     - `guest`: 未ログイン訪問者
@@ -148,9 +229,12 @@ docs/
 ## 5. セキュリティ規範
 
 - **Sudo Mode（ステップアップ再認証 + MFA一気通貫）**:
-  - ライターおよび編集長専用ダッシュボード（`/writer/*`, `/editor/*`）へのアクセスには、端末放置やセッション乗っ取りを防止するための Sudo Mode が必須です。
+  - ライターおよび編集長専用ダッシュボード（`/writer-dash/*`, `/editor-dash/*`）へのアクセスには、端末放置やセッション乗っ取りを防止するための Sudo Mode が必須です。
   - **メモリ内プライベート認可 (`inMemorySudoAuthorized`)**: ブラウザの DevTools やストレージ改ざんによる権限バイパスを遮断するため、Sudo 認可フラグはメモリ内変数としてのみ保持されます。
   - **Leave-to-Lock 原則**: 管理エリアから一般画面等へアンマウント離脱した際、Sudo 認可は即座に自動失効します。ただし、Sudo 再認証に伴う一時的な 2FA チャレンジ（`mfaChallengeRequired` または MFA ハンドシェイク猶予 `SUDO_MFA_HANDSHAKE_GRACE_MS`）によるアンマウント時は失効させず維持されます。
+  - **注意（管理画面内サブページ遷移時の失効リスクと Layout Route 推奨）**:
+    - 現在の実装では `App.tsx` の各管理ルートに個別の `<RoleRoute>` がマウントされているため、同一管理エリア内のサブページ間移動（例: `/writer-dash` から `/writer-dash/series` 等）でも以前の `RoleRoute` のアンマウントにより Leave-to-Lock クリーンアップが発火し、Sudo 認可が意図せず失効してしまう UX 課題が存在します（Issue #84）。
+    - そのため、管理エリアのルーティングは将来的に共通の Layout Route（`<RoleRoute><Outlet /></RoleRoute>`）として階層化し、管理エリア内でのサブページ移動ではアンマウントが発生しない構造へリファクタリングすることが強く推奨されます。
   - Sudo タイムアウトは 15 分（`SUDO_TIMEOUT_MS = 15 * 60 * 1000`）です。
 - **XSS の防止**:
   - 記事本文など動的な HTML をブラウザにレンダリングする際は、**必ず `utils/sanitize.ts` の `sanitizeHtml`（DOMPurify 許可リスト）を通してください**。サニタイズを経由しない `dangerouslySetInnerHTML` は禁止です。
