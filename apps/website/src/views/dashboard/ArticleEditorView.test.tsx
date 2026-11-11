@@ -9,6 +9,15 @@ import { createTestProfile, setNativeValue } from "../../test/test-utils";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
+const mockRouterNavigate = vi.fn();
+vi.mock("react-router-dom", async () => {
+  const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
+  return {
+    ...actual,
+    useNavigate: () => mockRouterNavigate,
+  };
+});
+
 vi.mock("../../components/RichTextEditor", () => ({
   default: ({ content, onChange }: { content: string; onChange: (c: string) => void }) => (
     <div data-testid="mock-rich-text-editor">
@@ -489,8 +498,6 @@ describe("ArticleEditorView schema resilience", () => {
       return {} as any;
     });
 
-    const replaceStateSpy = vi.spyOn(window.history, "replaceState");
-
     const mockProfile = createTestProfile({ id: "writer-1", role: "writer" });
     vi.spyOn(AppContextModule, "useApp").mockReturnValue({
       articles: [],
@@ -532,8 +539,12 @@ describe("ArticleEditorView schema resilience", () => {
     expect(insertedPayload).not.toBeNull();
     expect(insertedPayload.title).toBe("自動保存タイトル");
     expect(insertedPayload.scheduled_at).toContain("2026-11-01T");
-    expect(replaceStateSpy).toHaveBeenCalledWith(null, "", "/writer-dash/edit/art-autosave-new");
+    expect(mockRouterNavigate).toHaveBeenCalledWith("/writer-dash/edit/art-autosave-new", {
+      replace: true,
+    });
     expect(mockShowToast).toHaveBeenCalledWith("自動保存しました");
+    // setLoadedArticle が同期されて effectiveEditingArticle が更新されたため、ヘッダーが「記事を編集」になる
+    expect(container.textContent).toContain("記事を編集");
 
     vi.useRealTimers();
   });
