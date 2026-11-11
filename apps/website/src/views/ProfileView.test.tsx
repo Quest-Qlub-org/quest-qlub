@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vite-plus/test";
 import { act } from "react";
 import { ProfileView } from "./ProfileView";
-import { renderWithRouter, createTestProfile } from "../test/test-utils";
+import { renderWithRouter, createTestProfile, createTestArticle } from "../test/test-utils";
 import { ARTICLE_LIST_FIELDS } from "../context/DataContext";
 import type { Profile } from "../supabase";
 
@@ -17,6 +17,7 @@ let mockWriter: Profile;
 let mockCurrentUser: { id: string } | null = null;
 let mockCurrentProfile: Profile | null = null;
 let mockIsAuthenticated = true;
+let mockGlobalArticles: any[] = [];
 
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
@@ -28,9 +29,13 @@ vi.mock("react-router-dom", async () => {
 
 vi.mock("../context/AppContext", () => ({
   useApp: () => ({
-    writers: [mockWriter],
+    writers: [
+      mockWriter,
+      createTestProfile({ id: "other-writer", username: "other", display_name: "他ライター" }),
+    ],
     writersLoading: false,
-    articles: [],
+    articles: mockGlobalArticles,
+    favorites: [],
     navigate: mockNavigate,
     viewParam: "writer-user",
     showToast: mockShowToast,
@@ -51,25 +56,42 @@ vi.mock("../hooks/useFollows", () => ({
 }));
 
 let lastArticlesSelectFields = "";
+let lastArticlesOrCondition = "";
+let mockArticlesData: any[] = [];
+let mockArticlesError: any = null;
 
-vi.mock("../supabase", () => ({
-  supabase: {
-    from: (table: string) => ({
-      select: (fields: string) => {
-        if (table === "articles") {
-          lastArticlesSelectFields = fields;
-        }
-        return {
-          eq: () => ({
-            eq: () => ({
-              order: () => Promise.resolve({ data: [], error: null }),
-            }),
-          }),
-        };
-      },
-    }),
-  },
-}));
+vi.mock("../supabase", () => {
+  return {
+    supabase: {
+      from: (table: string) => ({
+        select: (fields: string) => {
+          if (table === "articles") {
+            lastArticlesSelectFields = fields;
+          }
+          const createBuilder = () => {
+            const builder: any = {
+              eq: vi.fn(() => builder),
+              or: vi.fn((cond: string) => {
+                lastArticlesOrCondition = cond;
+                return builder;
+              }),
+              order: vi.fn(() => {
+                if (mockArticlesError) {
+                  const err = mockArticlesError;
+                  mockArticlesError = null;
+                  return Promise.resolve({ data: null, error: err });
+                }
+                return Promise.resolve({ data: mockArticlesData, error: null });
+              }),
+            };
+            return builder;
+          };
+          return createBuilder();
+        },
+      }),
+    },
+  };
+});
 
 describe("ProfileView (Follow counts and owner-only detailed lists)", () => {
   let unmountFn: (() => void) | null = null;
@@ -77,6 +99,11 @@ describe("ProfileView (Follow counts and owner-only detailed lists)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockIsAuthenticated = true;
+    mockGlobalArticles = [];
+    lastArticlesSelectFields = "";
+    lastArticlesOrCondition = "";
+    mockArticlesData = [];
+    mockArticlesError = null;
     mockToggleFollow.mockResolvedValue(true);
     mockWriter = createTestProfile({
       id: "writer-1",
@@ -309,5 +336,132 @@ describe("ProfileView (Follow counts and owner-only detailed lists)", () => {
     expect(mockToggleFollow).toHaveBeenCalledWith("writer-1");
     expect(mockNavigate).not.toHaveBeenCalledWith("login");
     expect(mockShowToast).toHaveBeenCalledWith("フォロー処理に失敗しました");
+  });
+
+  it("queries writer articles using or condition with writer_id and collaborator_ids", async () => {
+    mockCurrentUser = null;
+    mockCurrentProfile = null;
+
+    const { unmount } = renderWithRouter(<ProfileView />);
+    unmountFn = unmount;
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(lastArticlesSelectFields).toBe(ARTICLE_LIST_FIELDS);
+    expect(lastArticlesOrCondition).toBe('writer_id.eq.writer-1,collaborator_ids.cs.{"writer-1"}');
+  });
+
+  it("displays co-authored articles with '共同執筆' badge on profile view", async () => {
+    mockCurrentUser = null;
+    mockCurrentProfile = null;
+    mockArticlesData = [
+      {
+        id: "art-primary",
+        title: "主執筆記事タイトル",
+        writer_id: "writer-1",
+        status: "published",
+        created_at: "2026-11-01T00:00:00Z",
+        collaborator_ids: [],
+      },
+      {
+        id: "art-collab",
+        title: "共同執筆参加記事タイトル",
+        writer_id: "other-writer",
+        status: "published",
+        created_at: "2026-11-02T00:00:00Z",
+        collaborator_ids: ["writer-1"],
+      },
+    ];
+
+    const { container, unmount } = renderWithRouter(<ProfileView />);
+    unmountFn = unmount;
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("この人の記事 (2件)");
+    expect(container.textContent).toContain("主執筆記事タイトル");
+    expect(container.textContent).toContain("共同執筆参加記事タイトル");
+
+    // 共同執筆バッジが表示されていることを確認
+    const badges = container.querySelectorAll('[data-testid="collaborator-badge"]');
+    expect(badges.length).toBe(1);
+    expect(badges[0].textContent).toBe("共同執筆");
+  });
+
+  it("falls back to writer_id query when or query fails with schema error", async () => {
+    mockCurrentUser = null;
+    mockCurrentProfile = null;
+    mockArticlesError = { code: "42703", message: 'column "collaborator_ids" does not exist' };
+    mockArticlesData = [
+      {
+        id: "art-fallback",
+        title: "フォールバックで取得された単独記事",
+        writer_id: "writer-1",
+        status: "published",
+        created_at: "2026-11-01T00:00:00Z",
+      },
+    ];
+
+    const { container, unmount } = renderWithRouter(<ProfileView />);
+    unmountFn = unmount;
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("フォールバックで取得された単独記事");
+    expect(container.querySelector('[data-testid="collaborator-badge"]')).toBeNull();
+  });
+
+  it("falls back to global articles including co-authored articles when DB returns empty", async () => {
+    mockCurrentUser = null;
+    mockCurrentProfile = null;
+    mockArticlesData = [];
+    mockGlobalArticles = [
+      createTestArticle({
+        id: "global-1",
+        title: "グローバル主執筆記事",
+        writerId: "writer-1",
+        status: "published",
+      }),
+      createTestArticle({
+        id: "global-2",
+        title: "グローバル共同執筆記事",
+        writerId: "other-writer",
+        collaboratorIds: ["writer-1"],
+        status: "published",
+      }),
+      createTestArticle({
+        id: "global-3",
+        title: "関係ない記事",
+        writerId: "other-writer",
+        collaboratorIds: ["other-2"],
+        status: "published",
+      }),
+    ];
+
+    const { container, unmount } = renderWithRouter(<ProfileView />);
+    unmountFn = unmount;
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("この人の記事 (2件)");
+    expect(container.textContent).toContain("グローバル主執筆記事");
+    expect(container.textContent).toContain("グローバル共同執筆記事");
+    expect(container.textContent).not.toContain("関係ない記事");
+
+    const badges = container.querySelectorAll('[data-testid="collaborator-badge"]');
+    expect(badges.length).toBe(1);
+    expect(badges[0].textContent).toBe("共同執筆");
   });
 });
