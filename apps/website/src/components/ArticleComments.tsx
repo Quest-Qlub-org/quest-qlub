@@ -339,10 +339,10 @@ export function ArticleComments({
     }
   };
 
-  // コメント削除（投稿者本人、記事ライター、または編集長）
+  // コメント削除（投稿者本人、記事ライター、共同執筆者、または編集長）
   const handleDelete = async (comment: CommentItem) => {
     const isCommentOwner = Boolean(currentUserId && comment.authorId === currentUserId);
-    if (!isCommentOwner && !isArticleWriter && !isEditor) return;
+    if (!isCommentOwner && !canManageArticleComments) return;
 
     setError("");
     try {
@@ -570,7 +570,7 @@ export function ArticleComments({
         <div className="space-y-4 mb-8">
           {comments.map((comment) => {
             const isCommentOwner = Boolean(currentUserId && comment.authorId === currentUserId);
-            const canDelete = isCommentOwner || isArticleWriter || isEditor;
+            const canDelete = isCommentOwner || canManageArticleComments;
             const isEdited = Boolean(comment.updatedAt && comment.updatedAt !== comment.createdAt);
 
             return (

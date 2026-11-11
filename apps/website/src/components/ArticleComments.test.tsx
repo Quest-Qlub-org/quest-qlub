@@ -406,11 +406,17 @@ describe("ArticleComments (DB-backed, Auth-required, Role permissions, Pinning &
     unmount();
   });
 
-  it("allows comment author, article writer, and editor to delete comments", async () => {
+  it("allows comment author, article writer, editor, and co-authors (collaborators) to delete comments", async () => {
+    // 1. 一般読者（viewer）: 自分のコメントのみ削除ボタンが表示され、他人のコメントには表示されないこと
     mockAuth("viewer", "viewer-1", "読者イチロー");
 
     const { container, unmount } = renderWithRouter(
-      <ArticleComments articleId={articleId} writerId={writerId} commentsEnabled={true} />,
+      <ArticleComments
+        articleId={articleId}
+        writerId={writerId}
+        collaboratorIds={["collab-user-1"]}
+        commentsEnabled={true}
+      />,
     );
 
     await act(async () => {
@@ -430,8 +436,63 @@ describe("ArticleComments (DB-backed, Auth-required, Role permissions, Pinning &
     });
 
     expect(container.textContent).not.toContain("最初のコメントです");
-
     unmount();
+
+    // 2. 共同執筆者 (collaborator): 自身が作成していない他人のコメント(c-2)に対しても削除ボタンが表示され、削除できること
+    mockAuth("writer", "collab-user-1", "共同執筆ライター");
+    const { container: collabContainer, unmount: unmountCollab } = renderWithRouter(
+      <ArticleComments
+        articleId={articleId}
+        writerId={writerId}
+        collaboratorIds={["collab-user-1"]}
+        commentsEnabled={true}
+      />,
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const collabDeleteBtnC2 = collabContainer.querySelector(
+      '[data-testid="delete-comment-c-2"]',
+    ) as HTMLButtonElement;
+    expect(collabDeleteBtnC2).not.toBeNull();
+
+    await act(async () => {
+      collabDeleteBtnC2.click();
+    });
+
+    expect(collabContainer.textContent).not.toContain("編集後のコメント本文");
+    unmountCollab();
+
+    // 3. 共同執筆者ではない別のライター: 他人のコメント(c-2)には削除ボタンが表示されないこと
+    mockCommentsDb.push({
+      id: "c-5",
+      article_id: articleId,
+      author_id: "viewer-2",
+      author_name: "読者ジロー",
+      content: "別のコメント",
+      is_pinned: false,
+      created_at: "2026-10-17T15:00:00.000Z",
+      updated_at: "2026-10-17T15:00:00.000Z",
+    });
+
+    mockAuth("writer", "unrelated-writer", "無関係なライター");
+    const { container: unrelatedContainer, unmount: unmountUnrelated } = renderWithRouter(
+      <ArticleComments
+        articleId={articleId}
+        writerId={writerId}
+        collaboratorIds={["collab-user-1"]}
+        commentsEnabled={true}
+      />,
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(unrelatedContainer.querySelector('[data-testid="delete-comment-c-5"]')).toBeNull();
+    unmountUnrelated();
   });
 
   it("gracefully falls back to localStorage when article_comments table has schema drift (PGRST205), persisting comments across remounts", async () => {

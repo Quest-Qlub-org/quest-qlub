@@ -132,6 +132,11 @@ DB の `supabase_migrations.schema_migrations` に記録済みのバージョン
     - `profiles.roles` 配列導入後、下書き閲覧（`articles_select_own_drafts`）や更新（`articles_update_own_articles`）の RLS ポリシーは roles 配列を考慮するよう更新されていたが、記事の作成（`articles_insert_writer_or_editor`）および削除（`articles_delete_own_articles`）ポリシーが旧来の `profiles.role IN ('writer', 'editor')` のまま残存していた。
     - 主ロールが `engineer` や `viewer` であり、`roles` 配列に `writer` または `editor` を保持しているアカウントが記事作成（INSERT）や自記事削除（DELETE）を行った際に RLS 違反（42501 `permission denied`）で拒否される不具合を根本解消。
     - `articles_insert_writer_or_editor` および `articles_delete_own_articles` の認可条件に `'writer' = ANY(COALESCE(profiles.roles, '{}'::text[])) OR 'editor' = ANY(COALESCE(profiles.roles, '{}'::text[]))` を追加。本番実DB（`uksgnlfnxytqljrctiqg`）へ適用・検証完了。
+- `20261111205500_harden_collaborator_permissions_and_comments.sql`（未適用・次回デプロイ / Issue #71）
+  - **共同編集者の collaborator_ids 改ざん防止 & コメント削除権限付与**:
+    - トリガー関数 `enforce_article_update_rules()` および `enforce_series_update_rules()` を更新し、主作成者（`writer_id`）以外の共同編集者が更新した際に `NEW.collaborator_ids := OLD.collaborator_ids;` を強制。主作成者または編集長のみが共同編集者を変更できるようにガードを追加。
+    - `article_comments_delete` RLS ポリシーに共同編集者（`(auth.uid())::text = ANY(COALESCE(articles.collaborator_ids, '{}'::text[]))`）を追加し、共同執筆記事に対するコメント削除（モデレーション）を共同編集者にも許可。
+    - `article_comments_select_staff` RLS ポリシーにも同様に共同編集者を追加し、コメント機能オフ時の整合性を担保。
 
 ## セキュリティ強化（コード・Edge Function）
 
