@@ -1,6 +1,6 @@
 # スキーマ・マイグレーションの現状記録
 
-最終更新: 2026-10-17
+最終更新: 2026-11-11
 
 このドキュメントは、Supabase の実DB（本番プロジェクト `uksgnlfnxytqljrctiqg`）と
 `supabase/migrations/` の間の差分、および未適用のマイグレーションを記録する。
@@ -126,6 +126,12 @@ DB の `supabase_migrations.schema_migrations` に記録済みのバージョン
     - 記事詳細画面（`ArticleView`）の「この記事を書いた人」セクションで、主執筆者＋共同執筆者のカードを重複排除した上で複数人並べて表示。各執筆者への個別フォローおよびプロフィール遷移に対応。
     - コメント管理（`ArticleComments`）でも共同執筆者判定と「共同執筆者」バッジを導入。
     - 連載管理（`WriterSeriesPage`）で共同編集連載のカード表示（「共同編集」バッジ）および連載内記事の表示・話数管理に対応。
+
+- `20261111205000_fix_articles_insert_delete_roles_array.sql`（適用済み / Issue #70）
+  - **記事 INSERT / DELETE RLS ポリシーの複数ロール（`profiles.roles`）配列対応**:
+    - `profiles.roles` 配列導入後、下書き閲覧（`articles_select_own_drafts`）や更新（`articles_update_own_articles`）の RLS ポリシーは roles 配列を考慮するよう更新されていたが、記事の作成（`articles_insert_writer_or_editor`）および削除（`articles_delete_own_articles`）ポリシーが旧来の `profiles.role IN ('writer', 'editor')` のまま残存していた。
+    - 主ロールが `engineer` や `viewer` であり、`roles` 配列に `writer` または `editor` を保持しているアカウントが記事作成（INSERT）や自記事削除（DELETE）を行った際に RLS 違反（42501 `permission denied`）で拒否される不具合を根本解消。
+    - `articles_insert_writer_or_editor` および `articles_delete_own_articles` の認可条件に `'writer' = ANY(COALESCE(profiles.roles, '{}'::text[])) OR 'editor' = ANY(COALESCE(profiles.roles, '{}'::text[]))` を追加。本番実DB（`uksgnlfnxytqljrctiqg`）へ適用・検証完了。
 
 ## セキュリティ強化（コード・Edge Function）
 
