@@ -138,11 +138,10 @@ describe("profileQueries", () => {
         },
       ];
 
-      const inMock = vi.fn().mockImplementation(() => chain);
+      const inMock = vi.fn().mockResolvedValue({ data: mockData, error: null });
       const chain: any = {
         select: vi.fn(() => chain),
         in: inMock,
-        then: vi.fn((resolve: (val: any) => any) => resolve({ data: mockData, error: null })),
       };
 
       vi.spyOn(supabase, "from").mockReturnValue(chain as any);
@@ -168,11 +167,10 @@ describe("profileQueries", () => {
         },
       ];
 
-      const inMock = vi.fn().mockImplementation(() => chain);
+      const inMock = vi.fn().mockResolvedValue({ data: mockData, error: null });
       const chain: any = {
         select: vi.fn(() => chain),
         in: inMock,
-        then: vi.fn((resolve: (val: any) => any) => resolve({ data: mockData, error: null })),
       };
 
       vi.spyOn(supabase, "from").mockReturnValue(chain as any);
@@ -199,8 +197,7 @@ describe("profileQueries", () => {
 
       const chain: any = {
         select: vi.fn(() => chain),
-        in: vi.fn(() => chain),
-        then: vi.fn((resolve: (val: any) => any) => resolve({ data: mockData, error: null })),
+        in: vi.fn().mockResolvedValue({ data: mockData, error: null }),
       };
 
       vi.spyOn(supabase, "from").mockReturnValue(chain as any);
