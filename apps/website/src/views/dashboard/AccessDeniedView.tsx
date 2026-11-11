@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ShieldAlert, Home, LogIn, ArrowRight } from "lucide-react";
 import { useApp } from "../../context/AppContext";
 import { updateMetaTags } from "../../utils/seo";
+import { profileHasRole } from "../../utils/roles";
 
 interface AccessDeniedViewProps {
   requiredRole?: "writer" | "editor" | "authenticated";
@@ -31,6 +32,8 @@ export function AccessDeniedView({ requiredRole, message }: AccessDeniedViewProp
     return "このページを閲覧・操作するためのアクセス権限がありません。";
   };
 
+  const isViewer = profileHasRole(profile, "viewer");
+
   return (
     <div className="flex flex-col items-center justify-center min-h-[70vh] px-6 py-12 text-center animate-in fade-in duration-300">
       <div className="w-16 h-16 bg-red-50 dark:bg-red-950/40 text-red-500 dark:text-red-400 rounded-2xl flex items-center justify-center mb-6 shadow-sm border border-red-100 dark:border-red-900/50">
@@ -51,7 +54,7 @@ export function AccessDeniedView({ requiredRole, message }: AccessDeniedViewProp
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-8 max-w-sm">
           現在ログインしていません。該当の権限を持つアカウントでログインしてください。
         </p>
-      ) : profile?.role === "viewer" && requiredRole === "writer" ? (
+      ) : isViewer && requiredRole === "writer" ? (
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-8 max-w-sm">
           記事の執筆を希望される場合は、ライター応募フォームよりご申請ください。
         </p>
@@ -78,7 +81,15 @@ export function AccessDeniedView({ requiredRole, message }: AccessDeniedViewProp
             <LogIn className="w-4 h-4" />
             <span>ログインする</span>
           </button>
-        ) : profile?.role === "viewer" ? (
+        ) : isViewer && requiredRole === "writer" ? (
+          <button
+            onClick={() => navigate("/writer-apply")}
+            className="flex-1 min-w-[140px] px-5 py-3 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 shadow-sm"
+          >
+            <span>ライターに応募する</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        ) : isViewer ? (
           <button
             onClick={() => navigate("/contact")}
             className="flex-1 min-w-[140px] px-5 py-3 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 text-sm font-bold rounded-xl hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors flex items-center justify-center gap-2"

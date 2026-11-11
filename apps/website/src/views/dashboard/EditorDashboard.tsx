@@ -26,6 +26,7 @@ import {
   Edit3,
 } from "lucide-react";
 import { updateMetaTags } from "../../utils/seo";
+import { profileHasRole } from "../../utils/roles";
 
 function enrichArticleWithLocalSchedule(article: Article): Article {
   const localSched = getLocalScheduledAt(article.id);
@@ -39,7 +40,7 @@ function enrichArticleWithLocalSchedule(article: Article): Article {
 }
 
 export const EditorDashboard = () => {
-  const { userRole, navigate, articles, setArticles, writers, showToast, getFontSizeClass } =
+  const { profile, navigate, articles, setArticles, writers, showToast, getFontSizeClass } =
     useApp();
 
   const [fetchedArticles, setFetchedArticles] = useState<Article[]>([]);
@@ -249,7 +250,7 @@ export const EditorDashboard = () => {
           編集長ダッシュボード
         </h2>
       </div>
-      {userRole === "editor" && (
+      {(profileHasRole(profile, "editor") || profileHasRole(profile, "writer")) && (
         <button
           onClick={() => navigate("writerDash")}
           className="w-full p-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl font-bold shadow-md flex items-center justify-between mb-4 hover:from-blue-600 hover:to-blue-700 transition-all"

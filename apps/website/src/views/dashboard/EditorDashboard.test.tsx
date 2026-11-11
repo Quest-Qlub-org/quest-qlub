@@ -213,4 +213,48 @@ describe("EditorDashboard", () => {
 
     unmount();
   });
+
+  it("displays writer shortcut button for multi-role editor whose primary role is engineer", async () => {
+    vi.spyOn(supabase, "from").mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        order: vi.fn().mockResolvedValue({ data: [], error: null }),
+        eq: vi.fn().mockResolvedValue({ count: 0 }),
+      }),
+    } as any);
+
+    const multiRoleProfile = createTestProfile({
+      id: "eng-ed-1",
+      role: "engineer",
+      roles: ["engineer", "editor"],
+      display_name: "エンジニア兼編集長",
+    });
+
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      articles: [],
+      setArticles: mockSetArticles,
+      writers: [],
+      showToast: mockShowToast,
+      navigate: mockNavigate,
+      userRole: "engineer",
+      profile: multiRoleProfile,
+    } as any);
+
+    const { container, unmount } = renderWithRouter(<EditorDashboard />);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const writerButton = Array.from(container.querySelectorAll("button")).find((btn) =>
+      btn.textContent?.includes("記事を書く（ライター機能）"),
+    );
+    expect(writerButton).toBeDefined();
+
+    act(() => {
+      writerButton!.click();
+    });
+
+    expect(mockNavigate).toHaveBeenCalledWith("writerDash");
+    unmount();
+  });
 });

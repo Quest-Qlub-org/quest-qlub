@@ -4,6 +4,12 @@ import { supabase } from "../supabase";
 import { useApp } from "../context/AppContext";
 import { PenTool, CheckCircle, Send, ArrowLeft } from "lucide-react";
 import { updateMetaTags } from "../utils/seo";
+import {
+  verifySpamCheck,
+  getRemainingCooldownSeconds,
+  recordContactSubmission,
+} from "../utils/antiSpam";
+import { validateContactForm } from "../utils/validation";
 
 export const WriterApplyView = () => {
   const navigate = useNavigate();
@@ -38,9 +44,26 @@ export const WriterApplyView = () => {
   const [genres, setGenres] = useState<string[]>([]);
   const [portfolio, setPortfolio] = useState("");
   const [motivation, setMotivation] = useState("");
+  const [honeypot, setHoneypot] = useState("");
+  const [loadedAt] = useState(() => Date.now());
+  const [cooldown, setCooldown] = useState(() => getRemainingCooldownSeconds());
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setInterval(() => {
+      setCooldown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [cooldown]);
 
   const GENRE_OPTIONS = [
     "プログラミング・Web開発",
@@ -59,8 +82,47 @@ export const WriterApplyView = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (cooldown > 0) {
+      setError(`連続送信を防ぐため、あと${cooldown}秒お待ちください。`);
+      return;
+    }
+
     if (!name.trim() || !email.trim() || !motivation.trim()) {
       setError("お名前、メールアドレス、志望動機・メッセージは必須です。");
+      return;
+    }
+
+    const spamCheck = verifySpamCheck({ honeypotValue: honeypot, loadedAt });
+    if (spamCheck.isSpam) {
+      if (spamCheck.reason === "honeypot") {
+        // ステルス防御: ボットには成功画面を表示し、サーバーへは保存しない
+        setSubmitted(true);
+        return;
+      }
+      if (spamCheck.reason === "too_fast") {
+        setError("送信が早すぎます。入力内容をご確認のうえ再度お試しください。");
+        return;
+      }
+    }
+
+    const subject = `【ライター応募】${name.trim()}様より`;
+    const body = [
+      `【応募者名】: ${name.trim()}`,
+      `【メールアドレス】: ${email.trim()}`,
+      `【希望執筆ジャンル】: ${genres.length > 0 ? genres.join(", ") : "未選択"}`,
+      `【ポートフォリオ / 過去記事URL】: ${portfolio.trim() || "なし"}`,
+      `【ユーザーID】: ${user?.id || "未ログイン"}`,
+      `【志望動機・自己PR】:\n${motivation.trim()}`,
+    ].join("\n");
+
+    const validation = validateContactForm({
+      name: name.trim(),
+      email: email.trim(),
+      subject,
+      body,
+    });
+    if (!validation.isValid) {
+      setError(validation.error ?? "入力内容に誤りがあります");
       return;
     }
 
@@ -68,16 +130,6 @@ export const WriterApplyView = () => {
     setError("");
 
     try {
-      const subject = `【ライター応募】${name}様より`;
-      const body = [
-        `【応募者名】: ${name}`,
-        `【メールアドレス】: ${email}`,
-        `【希望執筆ジャンル】: ${genres.length > 0 ? genres.join(", ") : "未選択"}`,
-        `【ポートフォリオ / 過去記事URL】: ${portfolio.trim() || "なし"}`,
-        `【ユーザーID】: ${user?.id || "未ログイン"}`,
-        `【志望動機・自己PR】:\n${motivation.trim()}`,
-      ].join("\n");
-
       // 1. contact_messages テーブルに保存
       const { error: dbError } = await supabase.from("contact_messages").insert({
         name: name.trim(),
@@ -87,34 +139,35 @@ export const WriterApplyView = () => {
       });
 
       if (dbError) {
-        console.warn(
-          "Could not insert into contact_messages, trying Edge Function fallback",
-          dbError,
-        );
+        setSubmitting(false);
+        if (dbError.message?.includes("10分間に3件") || (dbError as any).code === "P0001") {
+          setError(
+            "短時間に多数の送信が行われました。10分ほど時間をおいてから再度お試しください。",
+          );
+        } else {
+          setError(
+            "送信に失敗しました。通信環境をご確認のうえ、しばらく経ってから再度お試しください。",
+          );
+        }
+        return;
       }
 
+      recordContactSubmission();
+      setCooldown(getRemainingCooldownSeconds());
+
       // 2. send-contact-email Edge Function で運営者にメール通知
-      let funcFailed = false;
       try {
-        const { error: fnErr } = await supabase.functions.invoke("send-contact-email", {
+        await supabase.functions.invoke("send-contact-email", {
           body: {
             name: name.trim(),
             email: email.trim(),
             subject,
             body,
+            _hp: honeypot,
           },
         });
-        if (fnErr) funcFailed = true;
       } catch (funcErr) {
-        funcFailed = true;
         console.warn("Edge function invocation notification failed", funcErr);
-      }
-
-      if (dbError && funcFailed) {
-        setError(
-          "送信に失敗しました。通信環境をご確認のうえ、しばらく経ってから再度お試しください。",
-        );
-        return;
       }
 
       setSubmitted(true);
@@ -142,15 +195,20 @@ export const WriterApplyView = () => {
           <div className="pt-4 flex flex-col sm:flex-row gap-3 justify-center">
             <button
               onClick={() => navigate("/")}
-              className="px-6 py-2.5 bg-gray-900 dark:bg-gray-700 text-white text-sm font-bold rounded-xl hover:bg-gray-800 dark:hover:bg-gray-600 transition-colors cursor-pointer"
+              className="px-6 py-2.5 bg-gray-900 hover:bg-gray-800 dark:bg-gray-100 dark:hover:bg-gray-200 text-white dark:text-gray-900 font-bold text-sm rounded-xl transition-colors cursor-pointer"
             >
               トップへ戻る
             </button>
             <button
-              onClick={() => navigate("/settings")}
-              className="px-6 py-2.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-bold rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors cursor-pointer"
+              onClick={() => {
+                setSubmitted(false);
+                setMotivation("");
+                setPortfolio("");
+                setGenres([]);
+              }}
+              className="px-6 py-2.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-bold text-sm rounded-xl transition-colors cursor-pointer"
             >
-              設定画面へ
+              別の内容で応募する
             </button>
           </div>
         </div>
@@ -159,72 +217,93 @@ export const WriterApplyView = () => {
   }
 
   return (
-    <div className="p-4 md:p-8 max-w-xl mx-auto space-y-6 animate-in fade-in duration-300">
+    <div className="p-4 md:p-8 max-w-2xl mx-auto space-y-6 animate-in fade-in duration-300">
       <button
         onClick={() => navigate(-1)}
-        className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 transition-colors font-medium cursor-pointer"
+        className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors cursor-pointer"
       >
-        <ArrowLeft className="w-4 h-4" />
+        <ArrowLeft className="w-3.5 h-3.5" />
         <span>戻る</span>
       </button>
 
-      <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
-        <div className="flex items-center gap-2.5 mb-2">
-          <div className="p-2 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 rounded-xl">
-            <PenTool className="w-5 h-5" />
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-            ライター応募フォーム
-          </h1>
+      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-6 text-white shadow-sm space-y-2">
+        <div className="inline-flex items-center gap-2 px-2.5 py-1 bg-white/20 backdrop-blur-sm rounded-full text-xs font-semibold">
+          <PenTool className="w-3.5 h-3.5" />
+          <span>Writer Recruitment</span>
         </div>
-        <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+        <h1 className="text-2xl font-bold">ライター応募フォーム</h1>
+        <p className="text-blue-100 text-xs md:text-sm leading-relaxed">
           Quest Qlub
-          であなたの知識や経験を記事として発信しませんか？以下の項目をご記入の上ご応募ください。
+          では、知見や技術、アイデアを発信してコミュニティを盛り上げてくれるライターを随時募集しています。
         </p>
       </div>
 
-      {error && (
-        <div className="p-4 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl text-xs text-red-600 dark:text-red-400 font-medium">
-          {error}
-        </div>
-      )}
-
       <form
         onSubmit={handleSubmit}
-        className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 md:p-8 space-y-5"
+        className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-700 space-y-5"
       >
-        <div>
-          <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
-            お名前・ペンネーム <span className="text-red-500">*</span>
-          </label>
+        {/* Honeypot field (hidden from real users, attractive to bots) */}
+        <div
+          style={{
+            position: "absolute",
+            left: "-9999px",
+            opacity: 0,
+            pointerEvents: "none",
+          }}
+          aria-hidden="true"
+        >
+          <label htmlFor="_website_hp">Leave this field empty</label>
           <input
+            id="_website_hp"
             type="text"
-            required
-            placeholder="山田 太郎"
-            value={name}
-            onChange={(e) => {
-              setName(e.target.value);
-              setHasEditedName(true);
-            }}
-            className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            name="_hp"
+            tabIndex={-1}
+            autoComplete="off"
+            value={honeypot}
+            onChange={(e) => setHoneypot(e.target.value)}
           />
         </div>
 
-        <div>
-          <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
-            メールアドレス <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="email"
-            required
-            placeholder="example@quest-qlub.com"
-            value={email}
-            onChange={(e) => {
-              setEmail(e.target.value);
-              setHasEditedEmail(true);
-            }}
-            className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+        {error && (
+          <div className="p-3.5 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl text-xs text-red-600 dark:text-red-400 font-medium">
+            {error}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
+              お名前 / ペンネーム <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              required
+              placeholder="山田 太郎"
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                setHasEditedName(true);
+              }}
+              className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
+              メールアドレス <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="email"
+              required
+              placeholder="example@quest-qlub.com"
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                setHasEditedEmail(true);
+              }}
+              className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
         </div>
 
         <div>
@@ -278,11 +357,17 @@ export const WriterApplyView = () => {
 
         <button
           type="submit"
-          disabled={submitting}
+          disabled={submitting || cooldown > 0}
           className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl transition-colors shadow-sm disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
         >
           <Send className="w-4 h-4" />
-          <span>{submitting ? "送信中..." : "応募を送信する"}</span>
+          <span>
+            {submitting
+              ? "送信中..."
+              : cooldown > 0
+                ? `送信待機中 (${cooldown}秒)`
+                : "応募を送信する"}
+          </span>
         </button>
       </form>
     </div>
