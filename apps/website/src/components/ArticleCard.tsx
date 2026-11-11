@@ -7,9 +7,11 @@ import { formatArticleDate } from "../utils/date";
 export const ArticleCard = ({
   article,
   layout = "horizontal",
+  isCollaborator = false,
 }: {
   article: Article;
   layout?: "horizontal" | "vertical";
+  isCollaborator?: boolean;
 }) => {
   const { writers, favorites, navigate } = useApp();
   const writer = writers.find((w) => w.id === article.writerId);
@@ -57,6 +59,14 @@ export const ArticleCard = ({
         }`}
       >
         <h3 className="font-bold text-gray-800 dark:text-gray-100 line-clamp-2 text-sm md:text-base leading-snug">
+          {isCollaborator && (
+            <span
+              data-testid="collaborator-badge"
+              className="inline-flex items-center mr-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/60 dark:text-purple-300 align-middle shrink-0"
+            >
+              共同執筆
+            </span>
+          )}
           {article.title}
         </h3>
         <div className="flex items-center justify-between mt-2 pt-1">

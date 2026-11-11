@@ -205,4 +205,35 @@ describe("ArticleCard", () => {
 
     expect(container.textContent).toContain("2026/10/24");
   });
+
+  it("renders 共同執筆 badge when isCollaborator is true", () => {
+    const mockArticle = createTestArticle({
+      id: "art-collab",
+      title: "共同執筆した記事タイトル",
+    });
+    setupAppMock();
+
+    act(() => {
+      root!.render(<ArticleCard article={mockArticle} isCollaborator={true} />);
+    });
+
+    const badge = container.querySelector('[data-testid="collaborator-badge"]');
+    expect(badge).not.toBeNull();
+    expect(badge?.textContent).toBe("共同執筆");
+  });
+
+  it("does not render 共同執筆 badge when isCollaborator is false or undefined", () => {
+    const mockArticle = createTestArticle({
+      id: "art-solo",
+      title: "単独執筆した記事タイトル",
+    });
+    setupAppMock();
+
+    act(() => {
+      root!.render(<ArticleCard article={mockArticle} />);
+    });
+
+    expect(container.querySelector('[data-testid="collaborator-badge"]')).toBeNull();
+    expect(container.textContent).not.toContain("共同執筆");
+  });
 });
