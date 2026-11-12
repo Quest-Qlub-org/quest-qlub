@@ -1,11 +1,18 @@
 import { useState, useEffect, useCallback } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { LogoIcon, CustomUserIcon } from "../components/icons/NavIcons";
 import { ArticleCard } from "../components/ArticleCard";
 import { ChevronLeft, UserPlus, UserCheck, Loader2, Users, X } from "lucide-react";
 import { useFollows, fetchFollowCounts, fetchFollowDetails } from "../hooks/useFollows";
-import { updateMetaTags, resetMetaTags } from "../utils/seo";
+import { useFocusTrap } from "../hooks/useFocusTrap";
+import {
+  updateMetaTags,
+  resetMetaTags,
+  generateProfileJsonLd,
+  generateBreadcrumbJsonLd,
+  toCanonicalUrl,
+} from "../utils/seo";
 import { supabase } from "../supabase";
 import type { Profile } from "../supabase";
 import type { Article } from "../types";
@@ -158,6 +165,11 @@ export const ProfileView = () => {
   const following = writer ? isFollowing(writer.id) : false;
   const isOwnProfile = Boolean(writer && currentUserId && writer.id === currentUserId);
 
+  const closeFollowModal = useCallback(() => {
+    setFollowModalTab(null);
+  }, []);
+  const followModalRef = useFocusTrap(Boolean(isOwnProfile && followModalTab), closeFollowModal);
+
   const handleOpenFollowModal = async (tab: "following" | "followers") => {
     if (!writer || !isOwnProfile) return;
     setFollowModalTab(tab);
@@ -174,7 +186,20 @@ export const ProfileView = () => {
     if (!writer) return;
     const writerName = writer.display_name ?? (cleanUsername ? `@${cleanUsername}` : "ライター");
     const description = writer.bio || `${writerName} さんのプロフィールと記事一覧です。`;
-    const url = `${window.location.origin}/writers/${cleanUsername || writer.id}`;
+    const url = toCanonicalUrl(`/writers/${cleanUsername || writer.id}`);
+
+    const profileJsonLd = generateProfileJsonLd({
+      name: writerName,
+      url,
+      image: writer.avatar_url,
+      description,
+      xAccount: writer.x_account,
+    });
+    const breadcrumbJsonLd = generateBreadcrumbJsonLd([
+      { name: "Quest Qlub", url: "/" },
+      { name: "ライター", url: "/writers" },
+      { name: writerName, url },
+    ]);
 
     updateMetaTags({
       title: `${writerName}のプロフィール`,
@@ -182,6 +207,8 @@ export const ProfileView = () => {
       image: writer.avatar_url,
       url,
       type: "profile",
+      twitterCreator: writer.x_account ?? undefined,
+      jsonLd: [profileJsonLd, breadcrumbJsonLd],
     });
 
     return () => {
@@ -205,7 +232,9 @@ export const ProfileView = () => {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
         <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
-        <p className="text-sm text-gray-500 font-medium">プロフィールを読み込んでいます...</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">
+          プロフィールを読み込んでいます...
+        </p>
       </div>
     );
   }
@@ -213,7 +242,9 @@ export const ProfileView = () => {
   if (notFound || !writer) {
     return (
       <div className="p-12 text-center space-y-4">
-        <p className="text-gray-500 text-base font-bold">プロフィールが見つかりません</p>
+        <p className="text-gray-500 dark:text-gray-400 text-base font-bold">
+          プロフィールが見つかりません
+        </p>
         <button
           onClick={() => navigate("writers")}
           className="px-5 py-2.5 bg-gray-900 text-white text-xs font-bold rounded-xl hover:bg-gray-800 transition-colors"
@@ -223,6 +254,9 @@ export const ProfileView = () => {
       </div>
     );
   }
+
+  const writerDisplayName =
+    writer.display_name ?? (cleanUsername ? `@${cleanUsername}` : "名称未設定");
 
   return (
     <div className="animate-in slide-in-from-right-8 duration-300">
@@ -236,14 +270,17 @@ export const ProfileView = () => {
         </button>
         <div className="w-24 h-24 bg-white dark:bg-gray-800 rounded-full mx-auto mb-4 flex items-center justify-center shadow-lg border-4 border-white dark:border-gray-800 overflow-hidden">
           {writer.avatar_url ? (
-            <img src={writer.avatar_url} className="w-24 h-24 object-cover" alt="" />
+            <img
+              src={writer.avatar_url}
+              className="w-24 h-24 object-cover"
+              alt={`${writerDisplayName}のアバター`}
+              decoding="async"
+            />
           ) : (
             <CustomUserIcon className="w-16 h-16" />
           )}
         </div>
-        <h2 className="text-2xl font-bold mb-1">
-          {writer.display_name ?? (cleanUsername ? `@${cleanUsername}` : "名称未設定")}
-        </h2>
+        <h1 className="text-2xl font-bold mb-1">{writerDisplayName}</h1>
         <div className="flex items-center justify-center gap-2 mb-3 flex-wrap">
           {getProfileRoles(writer).map((r) => (
             <span
@@ -339,12 +376,12 @@ export const ProfileView = () => {
           </div>
         )}
         <section className={!writer.bio ? "mt-6" : ""}>
-          <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
             <span className="bg-blue-100 dark:bg-blue-900/50 p-1.5 rounded-lg">
               <LogoIcon className="w-5 h-5" />
             </span>
             この人の記事 ({writerArticles.length}件)
-          </h3>
+          </h2>
           <div className="space-y-3 md:grid md:grid-cols-2 md:gap-4 md:space-y-0">
             {writerArticles.length > 0 ? (
               writerArticles.map((article) => (
@@ -367,24 +404,30 @@ export const ProfileView = () => {
       {isOwnProfile && followModalTab && (
         <div
           className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in"
-          onClick={() => setFollowModalTab(null)}
+          onClick={closeFollowModal}
         >
           <div
+            ref={followModalRef}
             role="dialog"
             aria-modal="true"
+            aria-labelledby="follow-modal-title"
             className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-700">
               <div className="flex items-center gap-2">
                 <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                <h4 className="font-bold text-gray-900 dark:text-gray-100 text-base">
+                <h2
+                  id="follow-modal-title"
+                  className="font-bold text-gray-900 dark:text-gray-100 text-base"
+                >
                   フォロー・フォロワー管理
-                </h4>
+                </h2>
               </div>
               <button
                 type="button"
-                onClick={() => setFollowModalTab(null)}
+                onClick={closeFollowModal}
+                aria-label="閉じる"
                 className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-pointer"
               >
                 <X className="w-4 h-4" />
@@ -418,50 +461,54 @@ export const ProfileView = () => {
 
             <div className="p-4 overflow-y-auto space-y-2.5">
               {loadingFollowDetails ? (
-                <p className="text-xs text-gray-400 dark:text-gray-500 text-center py-8">
+                <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-8">
                   読み込み中...
                 </p>
               ) : (followModalTab === "following" ? followingList : followersList).length === 0 ? (
-                <p className="text-xs text-gray-400 dark:text-gray-500 text-center py-8">
+                <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-8">
                   {followModalTab === "following"
                     ? "フォロー中のアカウントはありません"
                     : "フォロワーはまだいません"}
                 </p>
               ) : (
-                (followModalTab === "following" ? followingList : followersList).map((item) => (
-                  <div
-                    key={item.id}
-                    onClick={() => {
-                      setFollowModalTab(null);
-                      navigate("profile", item.username || item.id);
-                    }}
-                    className="flex items-center justify-between p-3 rounded-xl border border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/60 cursor-pointer transition-colors"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 overflow-hidden flex items-center justify-center shrink-0">
-                        {item.avatar_url ? (
-                          <img
-                            src={item.avatar_url}
-                            className="w-full h-full object-cover"
-                            alt=""
-                          />
-                        ) : (
-                          <CustomUserIcon className="w-6 h-6" />
-                        )}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-bold text-gray-800 dark:text-gray-100 truncate">
-                          {item.display_name || (item.username ? `@${item.username}` : "ユーザー")}
-                        </p>
-                        {item.username && (
-                          <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
-                            @{item.username}
+                (followModalTab === "following" ? followingList : followersList).map((item) => {
+                  const itemDisplayName =
+                    item.display_name || (item.username ? `@${item.username}` : "ユーザー");
+                  return (
+                    <Link
+                      key={item.id}
+                      to={`/writers/${item.username || item.id}`}
+                      onClick={closeFollowModal}
+                      className="flex items-center justify-between p-3 rounded-xl border border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/60 cursor-pointer transition-colors"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 overflow-hidden flex items-center justify-center shrink-0">
+                          {item.avatar_url ? (
+                            <img
+                              src={item.avatar_url}
+                              className="w-full h-full object-cover"
+                              alt={`${itemDisplayName}のアバター`}
+                              loading="lazy"
+                              decoding="async"
+                            />
+                          ) : (
+                            <CustomUserIcon className="w-6 h-6" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-gray-800 dark:text-gray-100 truncate">
+                            {itemDisplayName}
                           </p>
-                        )}
+                          {item.username && (
+                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                              @{item.username}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                ))
+                    </Link>
+                  );
+                })
               )}
             </div>
           </div>

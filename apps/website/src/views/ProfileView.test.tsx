@@ -464,4 +464,93 @@ describe("ProfileView (Follow counts and owner-only detailed lists)", () => {
     expect(badges.length).toBe(1);
     expect(badges[0].textContent).toBe("共同執筆");
   });
+
+  it("sets canonical URL, ProfilePage + BreadcrumbList JSON-LD, h1/h2 hierarchy, and avatar alt (#99, #100, #102, #104)", async () => {
+    mockCurrentUser = null;
+    mockCurrentProfile = null;
+    mockWriter = createTestProfile({
+      id: "writer-1",
+      username: "writer-user",
+      display_name: "テストライター",
+      avatar_url: "https://example.com/avatar.png",
+      x_account: "@test_x_user",
+      bio: "ライターの自己紹介",
+      role: "writer",
+    });
+
+    const { container, unmount } = renderWithRouter(<ProfileView />);
+    unmountFn = unmount;
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const h1 = container.querySelector("h1");
+    expect(h1?.textContent).toBe("テストライター");
+    const h2 = container.querySelector("h2");
+    expect(h2?.textContent).toContain("この人の記事");
+
+    const avatarImg = container.querySelector("img");
+    expect(avatarImg?.getAttribute("alt")).toBe("テストライターのアバター");
+
+    expect(document.querySelector('link[rel="canonical"]')?.getAttribute("href")).toBe(
+      "https://quest-qlub.vercel.app/writers/writer-user",
+    );
+    expect(document.querySelector('meta[name="twitter:creator"]')?.getAttribute("content")).toBe(
+      "@test_x_user",
+    );
+
+    const script = document.getElementById("structured-data-json-ld");
+    expect(script).not.toBeNull();
+    const schemas = JSON.parse(script?.textContent || "[]");
+    const profileSchema = schemas.find((s: any) => s["@type"] === "ProfilePage");
+    const breadcrumbSchema = schemas.find((s: any) => s["@type"] === "BreadcrumbList");
+
+    expect(profileSchema).toBeDefined();
+    expect(profileSchema.mainEntity.name).toBe("テストライター");
+    expect(profileSchema.mainEntity.sameAs).toEqual(["https://x.com/test_x_user"]);
+
+    expect(breadcrumbSchema).toBeDefined();
+    expect(breadcrumbSchema.itemListElement).toHaveLength(3);
+  });
+
+  it("supports Escape close, aria-labelledby, close aria-label, and Link rows in follow modal (#108, #112)", async () => {
+    mockCurrentUser = { id: "writer-1" };
+    mockCurrentProfile = mockWriter;
+
+    const { container, unmount } = renderWithRouter(<ProfileView />);
+    unmountFn = unmount;
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const openFollowersBtn = container.querySelector(
+      '[data-testid="open-followers-list"]',
+    ) as HTMLButtonElement;
+    await act(async () => {
+      openFollowersBtn.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const dialog = container.querySelector('[role="dialog"]');
+    expect(dialog).not.toBeNull();
+    const labelledBy = dialog?.getAttribute("aria-labelledby");
+    expect(labelledBy).toBe("follow-modal-title");
+    expect(container.querySelector(`#${labelledBy}`)?.textContent).toBe("フォロー・フォロワー管理");
+
+    const closeBtn = dialog?.querySelector('button[aria-label="閉じる"]');
+    expect(closeBtn).not.toBeNull();
+
+    const userLink = dialog?.querySelector('a[href="/writers/bob"]');
+    expect(userLink).not.toBeNull();
+
+    await act(async () => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+  });
 });
