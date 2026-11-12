@@ -96,9 +96,20 @@ export const ForgotPasswordView = () => {
         <p className="text-xs text-gray-500 dark:text-gray-400 text-center mb-6 font-medium">
           ご登録のメールアドレスに再設定用リンクをお送りします
         </p>
-        {error && <p className="text-red-500 text-sm mb-4 text-center">{error}</p>}
+        {error && (
+          <p
+            id="forgot-password-error"
+            role="alert"
+            className="text-red-600 dark:text-red-400 text-sm mb-4 text-center"
+          >
+            {error}
+          </p>
+        )}
         {success && (
-          <div className="bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 rounded-xl p-4 mb-4 text-center">
+          <div
+            role="status"
+            className="bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 rounded-xl p-4 mb-4 text-center"
+          >
             <p className="text-sm font-bold text-green-800 dark:text-green-300">送信完了</p>
             <p className="text-xs text-green-600 dark:text-green-400 mt-1">
               メールをご確認のうえ、リンクから再設定を行ってください。
@@ -132,13 +143,23 @@ export const ForgotPasswordView = () => {
             />
           </div>
 
-          <input
-            type="email"
-            placeholder="メールアドレス"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          <div>
+            <label htmlFor="forgot-password-email" className="sr-only">
+              メールアドレス
+            </label>
+            <input
+              id="forgot-password-email"
+              type="email"
+              required
+              aria-required="true"
+              aria-invalid={Boolean(error)}
+              aria-describedby={error ? "forgot-password-error" : undefined}
+              placeholder="メールアドレス"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
           <button
             type="submit"
             disabled={loading || cooldown > 0}

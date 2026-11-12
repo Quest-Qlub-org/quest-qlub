@@ -380,4 +380,46 @@ describe("LoginView MFA inline integration", () => {
 
     unmount();
   });
+
+  it("renders Terms and Privacy links near Google login and accessible form attributes", async () => {
+    vi.spyOn(supabase.auth, "signInWithPassword").mockResolvedValue({
+      data: { user: null, session: null } as any,
+      error: { message: "Invalid login credentials" } as any,
+    });
+
+    const { container, unmount } = renderWithRouter(<LoginView />, { route: "/login" });
+
+    const termsLink = container.querySelector('a[href="/terms"]');
+    const privacyLink = container.querySelector('a[href="/privacy"]');
+    expect(termsLink?.textContent).toBe("利用規約");
+    expect(privacyLink?.textContent).toBe("プライバシーポリシー");
+
+    const emailLabel = container.querySelector('label[for="login-email"]');
+    const passwordLabel = container.querySelector('label[for="login-password"]');
+    expect(emailLabel).not.toBeNull();
+    expect(passwordLabel).not.toBeNull();
+
+    const emailInput = container.querySelector("#login-email") as HTMLInputElement;
+    const passwordInput = container.querySelector("#login-password") as HTMLInputElement;
+    expect(emailInput.required).toBe(true);
+    expect(passwordInput.required).toBe(true);
+    expect(emailInput.getAttribute("aria-required")).toBe("true");
+
+    act(() => {
+      setNativeValue(emailInput, "bad@example.com");
+      setNativeValue(passwordInput, "wrongpass");
+    });
+    await act(async () => {
+      container
+        .querySelector("form")!
+        .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+
+    const alertEl = container.querySelector('[role="alert"]');
+    expect(alertEl?.id).toBe("login-error");
+    expect(emailInput.getAttribute("aria-invalid")).toBe("true");
+    expect(emailInput.getAttribute("aria-describedby")).toBe("login-error");
+
+    unmount();
+  });
 });

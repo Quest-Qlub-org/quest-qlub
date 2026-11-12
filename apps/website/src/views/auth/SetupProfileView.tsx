@@ -103,32 +103,61 @@ export const SetupProfileView = () => {
         <p className="text-xs text-gray-500 dark:text-gray-400 text-center mb-6">
           Quest Qlubを利用するためにプロフィールを設定してください
         </p>
-        {error && <p className="text-red-500 text-sm mb-4 text-center">{error}</p>}
+        {error && (
+          <p
+            id="setup-profile-error"
+            role="alert"
+            className="text-red-600 dark:text-red-400 text-sm mb-4 text-center"
+          >
+            {error}
+          </p>
+        )}
         <form onSubmit={handleSave} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">
-              表示名 *
+            <label
+              htmlFor="setup-display-name"
+              className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1"
+            >
+              表示名 <span className="text-red-600 dark:text-red-400">*</span>
             </label>
             <input
+              id="setup-display-name"
               type="text"
+              required
+              aria-required="true"
+              aria-invalid={Boolean(error)}
+              aria-describedby={error ? "setup-profile-error" : undefined}
               placeholder="例: 山田太郎"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           <div>
-            <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">
-              ユーザー名 *
+            <label
+              htmlFor="setup-username"
+              className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1"
+            >
+              ユーザー名 <span className="text-red-600 dark:text-red-400">*</span>
             </label>
             <input
+              id="setup-username"
               type="text"
+              required
+              aria-required="true"
+              aria-invalid={Boolean(error)}
+              aria-describedby={
+                error ? "setup-profile-error setup-username-hint" : "setup-username-hint"
+              }
               placeholder="例: tarou_yamada (英数字・_ )"
               value={username}
               onChange={(e) => setUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, ""))}
-              className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-            <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">
+            <p
+              id="setup-username-hint"
+              className="text-[10px] text-gray-600 dark:text-gray-400 mt-1"
+            >
               半角英数字・アンダースコア3〜20文字。プロフィールURLおよびX（旧Twitter）リンクに使用されます。
             </p>
           </div>

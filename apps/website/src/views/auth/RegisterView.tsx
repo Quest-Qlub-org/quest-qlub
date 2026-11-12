@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "../../supabase";
 import { useApp } from "../../context/AppContext";
 import { validatePassword } from "../../utils/validation";
@@ -15,6 +16,7 @@ export const RegisterView = () => {
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [honeypot, setHoneypot] = useState("");
   const [loadedAt] = useState(() => Date.now());
   const [cooldown, setCooldown] = useState(() =>
@@ -73,6 +75,11 @@ export const RegisterView = () => {
       return;
     }
 
+    if (!agreedToTerms) {
+      setError("利用規約およびプライバシーポリシーへの同意が必要です");
+      return;
+    }
+
     setLoading(true);
     setError("");
     const { error: signUpErr } = await supabase.auth.signUp({
@@ -97,7 +104,15 @@ export const RegisterView = () => {
         <h1 className="text-2xl font-bold text-center mb-6 text-gray-900 dark:text-gray-100">
           アカウント登録
         </h1>
-        {error && <p className="text-red-500 text-sm mb-4 text-center">{error}</p>}
+        {error && (
+          <p
+            id="register-error"
+            role="alert"
+            className="text-red-600 dark:text-red-400 text-sm mb-4 text-center"
+          >
+            {error}
+          </p>
+        )}
         <form onSubmit={handleRegister} className="space-y-4">
           {/* ボット対策ハニーポット */}
           <div
@@ -125,34 +140,111 @@ export const RegisterView = () => {
             />
           </div>
 
-          <input
-            type="text"
-            placeholder="表示名 *"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <input
-            type="text"
-            placeholder="ユーザー名（英数字・アンダースコアのみ）"
-            value={username}
-            onChange={(e) => setUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, ""))}
-            className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <input
-            type="email"
-            placeholder="メールアドレス"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <input
-            type="password"
-            placeholder="パスワード（8文字以上）"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          <div>
+            <label htmlFor="register-display-name" className="sr-only">
+              表示名
+            </label>
+            <input
+              id="register-display-name"
+              type="text"
+              required
+              aria-required="true"
+              aria-invalid={Boolean(error)}
+              aria-describedby={error ? "register-error" : undefined}
+              placeholder="表示名 *"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label htmlFor="register-username" className="sr-only">
+              ユーザー名（英数字・アンダースコアのみ）
+            </label>
+            <input
+              id="register-username"
+              type="text"
+              aria-invalid={Boolean(error)}
+              aria-describedby={error ? "register-error" : undefined}
+              placeholder="ユーザー名（英数字・アンダースコアのみ）"
+              value={username}
+              onChange={(e) => setUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, ""))}
+              className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label htmlFor="register-email" className="sr-only">
+              メールアドレス
+            </label>
+            <input
+              id="register-email"
+              type="email"
+              required
+              aria-required="true"
+              aria-invalid={Boolean(error)}
+              aria-describedby={error ? "register-error" : undefined}
+              placeholder="メールアドレス"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label htmlFor="register-password" className="sr-only">
+              パスワード（8文字以上）
+            </label>
+            <input
+              id="register-password"
+              type="password"
+              required
+              aria-required="true"
+              aria-invalid={Boolean(error)}
+              aria-describedby={error ? "register-error" : undefined}
+              placeholder="パスワード（8文字以上）"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="space-y-1.5 pt-1">
+            <div className="flex items-start gap-2.5">
+              <input
+                id="register-agree-terms"
+                type="checkbox"
+                required
+                aria-required="true"
+                aria-invalid={Boolean(error)}
+                aria-describedby={error ? "register-error" : undefined}
+                checked={agreedToTerms}
+                onChange={(e) => setAgreedToTerms(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-2 focus:ring-blue-500 cursor-pointer"
+              />
+              <label
+                htmlFor="register-agree-terms"
+                className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed cursor-pointer"
+              >
+                <Link
+                  to="/terms"
+                  className="text-blue-600 dark:text-blue-400 underline hover:text-blue-700 dark:hover:text-blue-300 font-medium"
+                >
+                  利用規約
+                </Link>
+                および
+                <Link
+                  to="/privacy"
+                  className="text-blue-600 dark:text-blue-400 underline hover:text-blue-700 dark:hover:text-blue-300 font-medium"
+                >
+                  プライバシーポリシー
+                </Link>
+                に同意する <span className="text-red-600 dark:text-red-400">*</span>
+              </label>
+            </div>
+            <p className="text-[11px] text-gray-600 dark:text-gray-400 leading-relaxed">
+              内容をご確認のうえチェックを入れて登録にお進みください。
+            </p>
+          </div>
+
           <button
             type="submit"
             disabled={loading || cooldown > 0}
