@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vite-plus/test";
-import fs from "node:fs";
-import path from "node:path";
 import sitemapHandler from "../../api/sitemap";
 import articleOgpHandler, { BOT_USER_AGENTS } from "../../api/article-ogp";
 import writerOgpHandler, { BOT_USER_AGENTS as WRITER_BOT_USER_AGENTS } from "../../api/writer-ogp";
+import robotsTxt from "../../public/robots.txt?raw";
+import vercelConfig from "../../vercel.json";
 
 declare const process: {
   env: Record<string, string | undefined>;
@@ -720,12 +720,8 @@ describe("api/sitemap", () => {
 
 describe("public/robots.txt", () => {
   it("disallows parameterized search URLs (/search?*) while keeping sitemap reference (#102)", () => {
-    const robotsPath = path.resolve(process.cwd(), "apps/website/public/robots.txt");
-    const fallbackPath = path.resolve(process.cwd(), "public/robots.txt");
-    const content = fs.readFileSync(fs.existsSync(robotsPath) ? robotsPath : fallbackPath, "utf-8");
-
-    expect(content).toContain("Disallow: /search?*");
-    expect(content).toContain("Sitemap: https://quest-qlub.vercel.app/sitemap.xml");
+    expect(robotsTxt).toContain("Disallow: /search?*");
+    expect(robotsTxt).toContain("Sitemap: https://quest-qlub.vercel.app/sitemap.xml");
   });
 });
 
@@ -885,21 +881,15 @@ describe("api/writer-ogp", () => {
 
 describe("vercel.json routing config", () => {
   it("configures bot rewrites for /articles/:id and /writers/:username including Bluesky/Mastodon/Threads/Applebot (#97)", () => {
-    const vercelPath = path.resolve(process.cwd(), "apps/website/vercel.json");
-    const fallbackPath = path.resolve(process.cwd(), "vercel.json");
-    const config = JSON.parse(
-      fs.readFileSync(fs.existsSync(vercelPath) ? vercelPath : fallbackPath, "utf-8"),
-    );
-
-    const articleRewrite = config.rewrites.find((r: any) => r.source === "/articles/:id");
-    const writerRewrite = config.rewrites.find((r: any) => r.source === "/writers/:username");
+    const articleRewrite = vercelConfig.rewrites.find((r: any) => r.source === "/articles/:id");
+    const writerRewrite = vercelConfig.rewrites.find((r: any) => r.source === "/writers/:username");
 
     expect(articleRewrite).toBeDefined();
     expect(writerRewrite).toBeDefined();
-    expect(writerRewrite.destination).toBe("/api/writer-ogp?username=:username");
+    expect(writerRewrite?.destination).toBe("/api/writer-ogp?username=:username");
 
     for (const rewrite of [articleRewrite, writerRewrite]) {
-      const uaRule = rewrite.has?.find((h: any) => h.key === "user-agent");
+      const uaRule = rewrite?.has?.find((h: any) => h.key === "user-agent");
       expect(uaRule?.value).toContain("bluesky");
       expect(uaRule?.value).toContain("mastodon");
       expect(uaRule?.value).toContain("threads");
@@ -908,21 +898,15 @@ describe("vercel.json routing config", () => {
   });
 
   it("configures X-Robots-Tag: noindex, nofollow for non-production preview hosts (#104)", () => {
-    const vercelPath = path.resolve(process.cwd(), "apps/website/vercel.json");
-    const fallbackPath = path.resolve(process.cwd(), "vercel.json");
-    const config = JSON.parse(
-      fs.readFileSync(fs.existsSync(vercelPath) ? vercelPath : fallbackPath, "utf-8"),
-    );
-
-    const previewNoindexRule = config.headers.find(
+    const previewNoindexRule = vercelConfig.headers.find(
       (rule: any) =>
         Array.isArray(rule.headers) &&
         rule.headers.some((h: any) => h.key === "X-Robots-Tag" && h.value === "noindex, nofollow"),
     );
 
     expect(previewNoindexRule).toBeDefined();
-    expect(previewNoindexRule.source).toBe("/(.*)");
-    expect(previewNoindexRule.missing).toEqual([
+    expect(previewNoindexRule?.source).toBe("/(.*)");
+    expect(previewNoindexRule?.missing).toEqual([
       {
         type: "host",
         value: "^quest-qlub\\.vercel\\.app$",
