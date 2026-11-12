@@ -32,6 +32,11 @@ export const BOT_USER_AGENTS = [
   "line",
   "linespider",
   "line-poker",
+  "bluesky",
+  "cardyb",
+  "mastodon",
+  "threads",
+  "applebot",
 ];
 
 function getSupabaseConfig() {

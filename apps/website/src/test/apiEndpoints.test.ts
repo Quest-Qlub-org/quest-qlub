@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import sitemapHandler from "../../api/sitemap";
 import articleOgpHandler, { BOT_USER_AGENTS } from "../../api/article-ogp";
+import writerOgpHandler, { BOT_USER_AGENTS as WRITER_BOT_USER_AGENTS } from "../../api/writer-ogp";
 
 declare const process: {
   env: Record<string, string | undefined>;
@@ -56,12 +57,18 @@ describe("api/article-ogp", () => {
     process.env = originalEnv;
   });
 
-  it("includes line crawlers and excludes googlebot and bingbot in BOT_USER_AGENTS", () => {
+  it("includes line, bluesky, mastodon, threads, applebot crawlers and excludes googlebot and bingbot in BOT_USER_AGENTS", () => {
     expect(BOT_USER_AGENTS).toContain("line");
     expect(BOT_USER_AGENTS).toContain("linespider");
     expect(BOT_USER_AGENTS).toContain("line-poker");
+    expect(BOT_USER_AGENTS).toContain("bluesky");
+    expect(BOT_USER_AGENTS).toContain("cardyb");
+    expect(BOT_USER_AGENTS).toContain("mastodon");
+    expect(BOT_USER_AGENTS).toContain("threads");
+    expect(BOT_USER_AGENTS).toContain("applebot");
     expect(BOT_USER_AGENTS).not.toContain("googlebot");
     expect(BOT_USER_AGENTS).not.toContain("bingbot");
+    expect(WRITER_BOT_USER_AGENTS).toEqual(BOT_USER_AGENTS);
   });
 
   it("redirects normal browser user agents to SPA article route with direct parameter", async () => {
@@ -719,5 +726,184 @@ describe("public/robots.txt", () => {
 
     expect(content).toContain("Disallow: /search?*");
     expect(content).toContain("Sitemap: https://quest-qlub.vercel.app/sitemap.xml");
+  });
+});
+
+describe("api/writer-ogp", () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    process.env = {
+      ...originalEnv,
+      SUPABASE_URL: "https://mock.supabase.co",
+      SUPABASE_ANON_KEY: "mock-key",
+      SITE_URL: "https://quest-qlub.vercel.app",
+    };
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it("redirects normal browser user agents to SPA writer profile route with direct parameter (#97)", async () => {
+    const req: any = {
+      query: { username: "alice" },
+      headers: {
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36",
+      },
+    };
+    const res = createMockRes();
+
+    await writerOgpHandler(req, res);
+
+    expect(res.statusCode).toBe(302);
+    expect(res.redirectUrl).toBe("https://quest-qlub.vercel.app/writers/alice?direct=1");
+  });
+
+  it("renders profile OGP HTML for social bots including Bluesky, Mastodon, and Applebot (#97)", async () => {
+    const botAgents = [
+      "Mozilla/5.0 (compatible; Bluesky Cardyb/1.1; +mailto:support@bsky.app)",
+      "http.rb/5.1.1 (Mastodon/4.2.0; +https://mastodon.social/)",
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15 (Applebot/0.1)",
+    ];
+
+    for (const ua of botAgents) {
+      const req: any = {
+        query: { username: "@alice" },
+        headers: { "user-agent": ua },
+      };
+      const res = createMockRes();
+
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({
+          ok: true,
+          json: async () => [
+            {
+              display_name: "アリス",
+              username: "alice",
+              bio: "記事を書いています。",
+              avatar_url: "https://example.com/alice.png",
+            },
+          ],
+        }),
+      );
+
+      await writerOgpHandler(req, res);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.headers["content-type"]).toBe("text/html; charset=utf-8");
+      expect(res.headers["cache-control"]).toBe(
+        "public, s-maxage=3600, stale-while-revalidate=86400",
+      );
+      expect(res.body).toContain("<title>アリスのプロフィール | Quest Qlub</title>");
+      expect(res.body).toContain('<meta property="og:type" content="profile">');
+      expect(res.body).toContain(
+        '<meta property="og:title" content="アリスのプロフィール | Quest Qlub">',
+      );
+      expect(res.body).toContain('<meta property="og:description" content="記事を書いています。">');
+      expect(res.body).toContain(
+        '<meta property="og:image" content="https://example.com/alice.png">',
+      );
+      expect(res.body).toContain(
+        '<link rel="canonical" href="https://quest-qlub.vercel.app/writers/alice">',
+      );
+      expect(res.body).toContain('content="https://quest-qlub.vercel.app/writers/alice"');
+    }
+  });
+
+  it("escapes XSS payloads in display_name/bio and rejects unsafe avatar_url schemes (#97)", async () => {
+    const req: any = {
+      query: { username: "xssuser" },
+      headers: { "user-agent": "twitterbot/1.0" },
+    };
+    const res = createMockRes();
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => [
+          {
+            display_name: 'Bob<script>alert("x")</script>',
+            username: "xssuser",
+            bio: 'Bio with "quotes" & <tags>',
+            avatar_url: "javascript:alert(1)",
+          },
+        ],
+      }),
+    );
+
+    await writerOgpHandler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).not.toContain("<script>alert");
+    expect(res.body).not.toContain("javascript:alert(1)");
+    expect(res.body).toContain("&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;");
+    expect(res.body).toContain(
+      '<meta property="og:image" content="https://quest-qlub.vercel.app/ogp.png">',
+    );
+  });
+
+  it("returns 404 with noindex and no-store cache-control when writer profile is not found (#97)", async () => {
+    const req: any = {
+      query: { username: "unknown-writer" },
+      headers: { "user-agent": "twitterbot/1.0" },
+    };
+    const res = createMockRes();
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => [],
+      }),
+    );
+
+    await writerOgpHandler(req, res);
+
+    expect(res.statusCode).toBe(404);
+    expect(res.headers["cache-control"]).toBe("no-cache, no-store, must-revalidate");
+    expect(res.body).toContain('<meta name="robots" content="noindex">');
+    expect(res.body).not.toContain('<link rel="canonical"');
+  });
+
+  it("redirects to site root when username parameter is invalid (#97)", async () => {
+    const req: any = {
+      query: { username: "../etc/passwd" },
+      headers: { "user-agent": "twitterbot/1.0" },
+    };
+    const res = createMockRes();
+
+    await writerOgpHandler(req, res);
+
+    expect(res.statusCode).toBe(302);
+    expect(res.redirectUrl).toBe("https://quest-qlub.vercel.app");
+  });
+});
+
+describe("vercel.json routing config", () => {
+  it("configures bot rewrites for /articles/:id and /writers/:username including Bluesky/Mastodon/Threads/Applebot (#97)", () => {
+    const vercelPath = path.resolve(process.cwd(), "apps/website/vercel.json");
+    const fallbackPath = path.resolve(process.cwd(), "vercel.json");
+    const config = JSON.parse(
+      fs.readFileSync(fs.existsSync(vercelPath) ? vercelPath : fallbackPath, "utf-8"),
+    );
+
+    const articleRewrite = config.rewrites.find((r: any) => r.source === "/articles/:id");
+    const writerRewrite = config.rewrites.find((r: any) => r.source === "/writers/:username");
+
+    expect(articleRewrite).toBeDefined();
+    expect(writerRewrite).toBeDefined();
+    expect(writerRewrite.destination).toBe("/api/writer-ogp?username=:username");
+
+    for (const rewrite of [articleRewrite, writerRewrite]) {
+      const uaRule = rewrite.has?.find((h: any) => h.key === "user-agent");
+      expect(uaRule?.value).toContain("bluesky");
+      expect(uaRule?.value).toContain("mastodon");
+      expect(uaRule?.value).toContain("threads");
+      expect(uaRule?.value).toContain("applebot");
+    }
   });
 });

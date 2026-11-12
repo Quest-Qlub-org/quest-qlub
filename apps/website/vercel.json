@@ -67,7 +67,7 @@
         {
           "type": "header",
           "key": "user-agent",
-          "value": "(?i).*(twitterbot|facebookexternalhit|facebot|slackbot|linkedinbot|discordbot|whatsapp|telegrambot|pinterest|line|linespider|line-poker).*"
+          "value": "(?i).*(twitterbot|facebookexternalhit|facebot|slackbot|linkedinbot|discordbot|whatsapp|telegrambot|pinterest|line|linespider|line-poker|bluesky|cardyb|mastodon|threads|applebot).*"
         }
       ],
       "missing": [
@@ -77,6 +77,23 @@
         }
       ],
       "destination": "/api/article-ogp?id=:id"
+    },
+    {
+      "source": "/writers/:username",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(twitterbot|facebookexternalhit|facebot|slackbot|linkedinbot|discordbot|whatsapp|telegrambot|pinterest|line|linespider|line-poker|bluesky|cardyb|mastodon|threads|applebot).*"
+        }
+      ],
+      "missing": [
+        {
+          "type": "query",
+          "key": "direct"
+        }
+      ],
+      "destination": "/api/writer-ogp?username=:username"
     },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
