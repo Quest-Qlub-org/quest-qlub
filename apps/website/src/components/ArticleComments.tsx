@@ -18,6 +18,12 @@ import {
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../supabase";
+import {
+  COMMENT_COOLDOWN_DURATION_MS,
+  COMMENT_COOLDOWN_KEY,
+  getRemainingCooldownSeconds,
+  recordSubmissionTimestamp,
+} from "../utils/antiSpam";
 import { profileHasRole } from "../utils/roles";
 
 export interface CommentItem {
@@ -99,6 +105,9 @@ export function ArticleComments({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [isFallbackMode, setIsFallbackMode] = useState(false);
+  const [cooldown, setCooldown] = useState(() =>
+    getRemainingCooldownSeconds(COMMENT_COOLDOWN_KEY, COMMENT_COOLDOWN_DURATION_MS),
+  );
 
   // インライン編集用ステート
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
@@ -184,6 +193,25 @@ export function ArticleComments({
     void fetchComments();
   }, [fetchComments]);
 
+  const startCooldown = useCallback(() => {
+    recordSubmissionTimestamp(COMMENT_COOLDOWN_KEY);
+    setCooldown(getRemainingCooldownSeconds(COMMENT_COOLDOWN_KEY, COMMENT_COOLDOWN_DURATION_MS));
+  }, []);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setInterval(() => {
+      setCooldown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [cooldown]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isAuthenticated || !currentUserId) {
@@ -192,6 +220,10 @@ export function ArticleComments({
     }
     if (!commentsEnabled) {
       setError("この記事のコメント機能はオフになっています");
+      return;
+    }
+    if (cooldown > 0) {
+      setError(`連続投稿を防ぐため、あと${cooldown}秒お待ちください`);
       return;
     }
 
@@ -243,6 +275,14 @@ export function ArticleComments({
           setLocalComments(articleId, nextComments);
           setContent("");
           setIsFallbackMode(true);
+          startCooldown();
+          return;
+        }
+        const errCode = typeof res.error.code === "string" ? res.error.code : "";
+        const errMessage = typeof res.error.message === "string" ? res.error.message : "";
+        if (errCode === "P0001" && errMessage) {
+          setError(errMessage);
+          startCooldown();
           return;
         }
         setError("コメントの送信に失敗しました");
@@ -266,6 +306,7 @@ export function ArticleComments({
       setLocalComments(articleId, nextComments);
       setContent("");
       setIsFallbackMode(false);
+      startCooldown();
     } catch {
       const nowIso = new Date().toISOString();
       const newComment: CommentItem = {
@@ -283,6 +324,7 @@ export function ArticleComments({
       setLocalComments(articleId, nextComments);
       setContent("");
       setIsFallbackMode(true);
+      startCooldown();
     } finally {
       setSubmitting(false);
     }
@@ -553,7 +595,10 @@ export function ArticleComments({
       )}
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl text-xs text-red-600 dark:text-red-400 font-bold">
+        <div
+          role="alert"
+          className="mb-4 p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl text-xs text-red-600 dark:text-red-400 font-bold"
+        >
           {error}
         </div>
       )}
@@ -753,14 +798,31 @@ export function ArticleComments({
                   className="w-full border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                 />
               </div>
-              <div className="flex justify-end">
+              <div className="flex items-center justify-between gap-3">
+                {cooldown > 0 ? (
+                  <p
+                    role="status"
+                    aria-live="polite"
+                    className="text-xs text-amber-700 dark:text-amber-400 font-medium"
+                  >
+                    連続投稿防止のため、あと {cooldown} 秒お待ちください
+                  </p>
+                ) : (
+                  <span />
+                )}
                 <button
                   type="submit"
-                  disabled={submitting || !content.trim()}
+                  disabled={submitting || !content.trim() || cooldown > 0}
                   className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-blue-600 text-white font-bold text-sm rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm cursor-pointer"
                 >
                   <Send className="w-4 h-4" />
-                  <span>{submitting ? "送信中..." : "コメントを投稿"}</span>
+                  <span>
+                    {submitting
+                      ? "送信中..."
+                      : cooldown > 0
+                        ? `投稿待機中 (${cooldown}秒)`
+                        : "コメントを投稿"}
+                  </span>
                 </button>
               </div>
             </form>
