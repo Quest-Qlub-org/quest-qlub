@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach } from "vite-plus/test";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vite-plus/test";
 import {
   updateMetaTags,
   resetMetaTags,
+  toCanonicalUrl,
   generateArticleJsonLd,
+  generateBreadcrumbJsonLd,
+  generateProfileJsonLd,
   generateWebSiteJsonLd,
   generateOrganizationJsonLd,
   generateHomeJsonLd,
@@ -14,6 +17,10 @@ describe("seo utility", () => {
   beforeEach(() => {
     document.title = "";
     document.head.innerHTML = "";
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it("updates title, meta tags, and open graph tags", () => {
@@ -64,6 +71,76 @@ describe("seo utility", () => {
 
     updateMetaTags({ title: "既にあるタイトル | Quest Qlub" });
     expect(document.title).toBe("既にあるタイトル | Quest Qlub");
+
+    updateMetaTags({ title: "オフライン - Quest Qlub" });
+    expect(document.title).toBe("オフライン - Quest Qlub");
+
+    updateMetaTags({ title: "Quest Qlub - サブページ" });
+    expect(document.title).toBe("Quest Qlub - サブページ");
+  });
+
+  it("sets author, article:author, article:published_time, twitter:site, and twitter:creator, and cleans them up on reset", () => {
+    updateMetaTags({
+      title: "著者テスト記事",
+      type: "article",
+      author: "田中花子",
+      publishedTime: "2026-11-01T10:00:00Z",
+      twitterCreator: "hanako_writer",
+    });
+
+    expect(document.querySelector('meta[name="author"]')?.getAttribute("content")).toBe("田中花子");
+    expect(document.querySelector('meta[property="article:author"]')?.getAttribute("content")).toBe(
+      "田中花子",
+    );
+    expect(
+      document.querySelector('meta[property="article:published_time"]')?.getAttribute("content"),
+    ).toBe("2026-11-01T10:00:00Z");
+    expect(document.querySelector('meta[name="twitter:site"]')?.getAttribute("content")).toBe(
+      "@QuestQlub",
+    );
+    expect(document.querySelector('meta[name="twitter:creator"]')?.getAttribute("content")).toBe(
+      "@hanako_writer",
+    );
+
+    resetMetaTags();
+    expect(document.querySelector('meta[name="author"]')?.getAttribute("content")).toBe(
+      "Quest Qlub",
+    );
+    expect(document.querySelector('meta[property="article:author"]')).toBeNull();
+    expect(document.querySelector('meta[property="article:published_time"]')).toBeNull();
+    expect(document.querySelector('meta[name="twitter:creator"]')).toBeNull();
+    expect(document.querySelector('meta[name="twitter:site"]')?.getAttribute("content")).toBe(
+      "@QuestQlub",
+    );
+  });
+
+  it("canonicalizes URLs to production host and strips query parameters and hashes", () => {
+    expect(toCanonicalUrl("/articles/123?utm_source=x&gclid=abc#section")).toBe(
+      "https://quest-qlub.vercel.app/articles/123",
+    );
+    expect(toCanonicalUrl("https://quest-qlub-git-feat.vercel.app/writers/alice?ref=share")).toBe(
+      "https://quest-qlub.vercel.app/writers/alice",
+    );
+    expect(toCanonicalUrl("http://localhost:5173/")).toBe("https://quest-qlub.vercel.app/");
+
+    vi.stubEnv("VITE_SITE_URL", "https://custom.questqlub.example/");
+    expect(toCanonicalUrl("/about?utm_medium=social")).toBe(
+      "https://custom.questqlub.example/about",
+    );
+  });
+
+  it("strips query params and preview origin in canonical and og:url during updateMetaTags", () => {
+    updateMetaTags({
+      title: "テスト",
+      url: "https://preview-branch.vercel.app/articles/999?utm_source=line",
+    });
+
+    expect(document.querySelector('link[rel="canonical"]')?.getAttribute("href")).toBe(
+      "https://quest-qlub.vercel.app/articles/999",
+    );
+    expect(document.querySelector('meta[property="og:url"]')?.getAttribute("content")).toBe(
+      "https://quest-qlub.vercel.app/articles/999",
+    );
   });
 
   it("controls robots meta tag with noindex option", () => {
@@ -84,12 +161,15 @@ describe("seo utility", () => {
     expect(robotsMeta).toBe("index, follow");
   });
 
-  it("generates and mounts JSON-LD structured data", () => {
+  it("generates and mounts JSON-LD structured data for Article with mainEntityOfPage, dateModified, and author.url", () => {
     const jsonLd = generateArticleJsonLd({
       title: "テスト記事",
       description: "説明文",
-      url: "https://quest-qlub.vercel.app/articles/abc",
+      url: "/articles/abc",
       authorName: "山田太郎",
+      authorUrl: "/writers/yamada",
+      datePublished: "2026-10-01T00:00:00Z",
+      dateModified: "2026-10-05T12:00:00Z",
     });
 
     updateMetaTags({
@@ -102,7 +182,71 @@ describe("seo utility", () => {
     const parsed = JSON.parse(script?.textContent || "{}");
     expect(parsed["@type"]).toBe("Article");
     expect(parsed.headline).toBe("テスト記事");
-    expect(parsed.author.name).toBe("山田太郎");
+    expect(parsed.url).toBe("https://quest-qlub.vercel.app/articles/abc");
+    expect(parsed.mainEntityOfPage).toEqual({
+      "@type": "WebPage",
+      "@id": "https://quest-qlub.vercel.app/articles/abc",
+    });
+    expect(parsed.datePublished).toBe("2026-10-01T00:00:00Z");
+    expect(parsed.dateModified).toBe("2026-10-05T12:00:00Z");
+    expect(parsed.author).toEqual({
+      "@type": "Person",
+      name: "山田太郎",
+      url: "https://quest-qlub.vercel.app/writers/yamada",
+    });
+  });
+
+  it("generates BreadcrumbList JSON-LD schema", () => {
+    const breadcrumb = generateBreadcrumbJsonLd([
+      { name: "Quest Qlub", url: "/" },
+      { name: "記事", url: "/search" },
+      { name: "記事タイトル", url: "/articles/123" },
+    ]);
+
+    expect(breadcrumb["@context"]).toBe("https://schema.org");
+    expect(breadcrumb["@type"]).toBe("BreadcrumbList");
+    expect(breadcrumb.itemListElement).toEqual([
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Quest Qlub",
+        item: "https://quest-qlub.vercel.app/",
+      },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: "記事",
+        item: "https://quest-qlub.vercel.app/search",
+      },
+      {
+        "@type": "ListItem",
+        position: 3,
+        name: "記事タイトル",
+        item: "https://quest-qlub.vercel.app/articles/123",
+      },
+    ]);
+  });
+
+  it("generates ProfilePage + Person JSON-LD schema with x_account sameAs", () => {
+    const profileLd = generateProfileJsonLd({
+      name: "テストライター",
+      url: "/writers/test_writer",
+      image: "https://example.com/avatar.png",
+      description: "自己紹介テキスト",
+      xAccount: "@test_writer_x",
+    });
+
+    expect(profileLd["@context"]).toBe("https://schema.org");
+    expect(profileLd["@type"]).toBe("ProfilePage");
+    expect(profileLd.url).toBe("https://quest-qlub.vercel.app/writers/test_writer");
+    expect(profileLd.mainEntity).toEqual({
+      "@type": "Person",
+      name: "テストライター",
+      url: "https://quest-qlub.vercel.app/writers/test_writer",
+      image: "https://example.com/avatar.png",
+      description: "自己紹介テキスト",
+      sameAs: ["https://x.com/test_writer_x"],
+    });
   });
 
   it("generates WebSite and Organization JSON-LD schemas for HomeView", () => {

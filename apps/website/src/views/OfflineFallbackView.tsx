@@ -8,7 +8,7 @@ export function OfflineFallbackView() {
 
   useEffect(() => {
     updateMetaTags({
-      title: "オフライン - Quest Qlub",
+      title: "オフライン",
       noindex: true,
     });
   }, []);
