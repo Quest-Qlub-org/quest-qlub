@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useCallback } from "react";
+import { Link } from "react-router-dom";
 import { Users, X } from "lucide-react";
 import { supabase } from "../../supabase";
 import type { Profile } from "../../supabase";
 import { fetchFollowCounts, fetchFollowDetails } from "../../hooks/useFollows";
+import { useFocusTrap } from "../../hooks/useFocusTrap";
 import { CustomUserIcon } from "../../components/icons/NavIcons";
 
 function notifyProfileUpdated() {
@@ -74,13 +75,15 @@ export function ProfileSettingsSection({
 }
 
 function FollowManageSection({ profile }: { profile: Profile | null }) {
-  const navigate = useNavigate();
   const [followingCount, setFollowingCount] = useState(0);
   const [followersCount, setFollowersCount] = useState(0);
   const [modalTab, setModalTab] = useState<"following" | "followers" | null>(null);
   const [followingList, setFollowingList] = useState<Profile[]>([]);
   const [followersList, setFollowersList] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(false);
+
+  const closeModal = useCallback(() => setModalTab(null), []);
+  const modalRef = useFocusTrap<HTMLDivElement>(Boolean(modalTab), closeModal);
 
   useEffect(() => {
     if (!profile?.id) return;
@@ -141,24 +144,30 @@ function FollowManageSection({ profile }: { profile: Profile | null }) {
       {modalTab && (
         <div
           className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
-          onClick={() => setModalTab(null)}
+          onClick={closeModal}
         >
           <div
+            ref={modalRef}
             role="dialog"
             aria-modal="true"
+            aria-labelledby="follow-manage-modal-title"
             className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-700">
               <div className="flex items-center gap-2">
                 <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                <h4 className="font-bold text-gray-900 dark:text-gray-100 text-base">
+                <h4
+                  id="follow-manage-modal-title"
+                  className="font-bold text-gray-900 dark:text-gray-100 text-base"
+                >
                   フォロー・フォロワー一覧
                 </h4>
               </div>
               <button
                 type="button"
-                onClick={() => setModalTab(null)}
+                aria-label="閉じる"
+                onClick={closeModal}
                 className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
               >
                 <X className="w-4 h-4" />
@@ -192,22 +201,22 @@ function FollowManageSection({ profile }: { profile: Profile | null }) {
 
             <div className="p-4 overflow-y-auto space-y-2.5">
               {loading ? (
-                <p className="text-xs text-gray-400 text-center py-8">読み込み中...</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-8">
+                  読み込み中...
+                </p>
               ) : (modalTab === "following" ? followingList : followersList).length === 0 ? (
-                <p className="text-xs text-gray-400 text-center py-8">
+                <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-8">
                   {modalTab === "following"
                     ? "フォロー中のアカウントはありません"
                     : "フォロワーはまだいません"}
                 </p>
               ) : (
                 (modalTab === "following" ? followingList : followersList).map((item) => (
-                  <div
+                  <Link
                     key={item.id}
-                    onClick={() => {
-                      setModalTab(null);
-                      void navigate(`/writers/${item.username || item.id}`);
-                    }}
-                    className="flex items-center justify-between p-3 rounded-xl border border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
+                    to={`/writers/${item.username || item.id}`}
+                    onClick={closeModal}
+                    className="flex items-center justify-between p-3 rounded-xl border border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 overflow-hidden flex items-center justify-center shrink-0">
@@ -226,11 +235,13 @@ function FollowManageSection({ profile }: { profile: Profile | null }) {
                           {item.display_name || (item.username ? `@${item.username}` : "ユーザー")}
                         </p>
                         {item.username && (
-                          <p className="text-xs text-gray-400 truncate">@{item.username}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                            @{item.username}
+                          </p>
                         )}
                       </div>
                     </div>
-                  </div>
+                  </Link>
                 ))
               )}
             </div>
@@ -303,14 +314,14 @@ function AvatarUpload({
           {profile?.avatar_url ? (
             <img src={profile.avatar_url} alt="avatar" className="w-full h-full object-cover" />
           ) : (
-            <span className="text-2xl text-gray-400">👤</span>
+            <span className="text-2xl text-gray-500 dark:text-gray-400">👤</span>
           )}
         </div>
         <div className="flex-1">
           <label
             className={`inline-block px-4 py-2 rounded-lg text-sm font-bold cursor-pointer border-2 transition-all ${
               uploading
-                ? "bg-gray-100 dark:bg-gray-700 text-gray-400 border-gray-200 dark:border-gray-600"
+                ? "bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-600"
                 : "bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20"
             }`}
           >
@@ -323,7 +334,7 @@ function AvatarUpload({
               disabled={uploading}
             />
           </label>
-          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
             JPG / PNG / WebP / GIF・2MB以下
           </p>
           {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
@@ -478,15 +489,15 @@ function UsernameEdit({
   return (
     <div className="p-4">
       <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 font-bold">
-        ユーザー名 <span className="text-gray-400 dark:text-gray-500 font-normal">(@username)</span>
+        ユーザー名 <span className="text-gray-500 dark:text-gray-400 font-normal">(@username)</span>
       </p>
       {editing ? (
         <div className="space-y-2">
           <div className="flex gap-2">
             <div className="flex-1 flex items-center border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg px-3 py-1.5 focus-within:ring-2 focus-within:ring-blue-400">
-              <span className="text-gray-400 dark:text-gray-500 text-sm mr-1">@</span>
+              <span className="text-gray-500 dark:text-gray-400 text-sm mr-1">@</span>
               <input
-                className="flex-1 text-sm bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none"
+                className="flex-1 text-sm bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none"
                 value={uname}
                 onChange={(e) => {
                   setUname(e.target.value);
@@ -513,7 +524,7 @@ function UsernameEdit({
             </button>
           </div>
           {err && <p className="text-xs text-red-500">{err}</p>}
-          <p className="text-xs text-gray-400 dark:text-gray-500">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
             半角英数字・アンダースコア3〜20文字。プロフィールURLおよびX（旧Twitter）リンクに使用されます。
           </p>
         </div>
@@ -575,14 +586,14 @@ function BioEdit({
       {editing ? (
         <div className="space-y-2">
           <textarea
-            className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
+            className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
             rows={4}
             value={bio}
             onChange={(e) => setBio(e.target.value)}
             placeholder="あなたの自己紹介を入力してください"
             maxLength={300}
           />
-          <p className="text-xs text-gray-400 dark:text-gray-500 text-right">
+          <p className="text-xs text-gray-500 dark:text-gray-400 text-right">
             {bio.length}/300文字
           </p>
           <div className="flex gap-2">
@@ -610,7 +621,7 @@ function BioEdit({
             {profile?.bio ? (
               profile.bio
             ) : (
-              <span className="text-gray-400 dark:text-gray-500">（未設定）</span>
+              <span className="text-gray-500 dark:text-gray-400">（未設定）</span>
             )}
           </p>
           <button
@@ -681,9 +692,9 @@ function XAccountEdit({
         <div className="space-y-2">
           <div className="flex gap-2">
             <div className="flex-1 flex items-center border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg px-3 py-1.5 focus-within:ring-2 focus-within:ring-blue-400">
-              <span className="text-gray-400 dark:text-gray-500 text-sm mr-1">@</span>
+              <span className="text-gray-500 dark:text-gray-400 text-sm mr-1">@</span>
               <input
-                className="flex-1 text-sm bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none"
+                className="flex-1 text-sm bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none"
                 value={handle}
                 onChange={(e) => {
                   setHandle(e.target.value);
@@ -710,7 +721,7 @@ function XAccountEdit({
             </button>
           </div>
           {err && <p className="text-xs text-red-500">{err}</p>}
-          <p className="text-xs text-gray-400 dark:text-gray-500">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
             Xのユーザー名（@なし、またはURL）を入力するとプロフィールにXリンクが表示されます。
           </p>
         </div>

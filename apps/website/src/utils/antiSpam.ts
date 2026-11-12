@@ -5,8 +5,10 @@
 export const CONTACT_COOLDOWN_KEY = "share_quest_contact_last_sent";
 export const REGISTER_COOLDOWN_KEY = "share_quest_register_last_sent";
 export const FORGOT_PASSWORD_COOLDOWN_KEY = "share_quest_forgot_password_last_sent";
+export const COMMENT_COOLDOWN_KEY = "quest_qlub_comment_last_sent";
 export const MINIMUM_SUBMISSION_TIME_MS = 2000; // 人間が入力を終えるまでの最低時間（2秒）
 export const COOLDOWN_DURATION_MS = 30 * 1000; // 送信後のクールダウン（30秒）
+export const COMMENT_COOLDOWN_DURATION_MS = 15 * 1000; // コメント投稿後のクールダウン（15秒）
 
 export interface SpamCheckParams {
   honeypotValue: string;

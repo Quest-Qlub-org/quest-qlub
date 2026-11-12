@@ -18,6 +18,13 @@ import {
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../supabase";
+import { useFocusTrap } from "../hooks/useFocusTrap";
+import {
+  COMMENT_COOLDOWN_DURATION_MS,
+  COMMENT_COOLDOWN_KEY,
+  getRemainingCooldownSeconds,
+  recordSubmissionTimestamp,
+} from "../utils/antiSpam";
 import { profileHasRole } from "../utils/roles";
 
 export interface CommentItem {
@@ -99,6 +106,9 @@ export function ArticleComments({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [isFallbackMode, setIsFallbackMode] = useState(false);
+  const [cooldown, setCooldown] = useState(() =>
+    getRemainingCooldownSeconds(COMMENT_COOLDOWN_KEY, COMMENT_COOLDOWN_DURATION_MS),
+  );
 
   // インライン編集用ステート
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
@@ -108,6 +118,12 @@ export function ArticleComments({
   const [historyTargetComment, setHistoryTargetComment] = useState<CommentItem | null>(null);
   const [historyItems, setHistoryItems] = useState<CommentHistoryItem[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+
+  const closeHistoryModal = useCallback(() => setHistoryTargetComment(null), []);
+  const historyModalRef = useFocusTrap<HTMLDivElement>(
+    Boolean(historyTargetComment),
+    closeHistoryModal,
+  );
 
   const currentUserId = profile?.id || user?.id || null;
   const isAuthenticated = userRole !== "guest" && !!currentUserId;
@@ -184,6 +200,25 @@ export function ArticleComments({
     void fetchComments();
   }, [fetchComments]);
 
+  const startCooldown = useCallback(() => {
+    recordSubmissionTimestamp(COMMENT_COOLDOWN_KEY);
+    setCooldown(getRemainingCooldownSeconds(COMMENT_COOLDOWN_KEY, COMMENT_COOLDOWN_DURATION_MS));
+  }, []);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setInterval(() => {
+      setCooldown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [cooldown]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isAuthenticated || !currentUserId) {
@@ -192,6 +227,10 @@ export function ArticleComments({
     }
     if (!commentsEnabled) {
       setError("この記事のコメント機能はオフになっています");
+      return;
+    }
+    if (cooldown > 0) {
+      setError(`連続投稿を防ぐため、あと${cooldown}秒お待ちください`);
       return;
     }
 
@@ -243,6 +282,14 @@ export function ArticleComments({
           setLocalComments(articleId, nextComments);
           setContent("");
           setIsFallbackMode(true);
+          startCooldown();
+          return;
+        }
+        const errCode = typeof res.error.code === "string" ? res.error.code : "";
+        const errMessage = typeof res.error.message === "string" ? res.error.message : "";
+        if (errCode === "P0001" && errMessage) {
+          setError(errMessage);
+          startCooldown();
           return;
         }
         setError("コメントの送信に失敗しました");
@@ -266,6 +313,7 @@ export function ArticleComments({
       setLocalComments(articleId, nextComments);
       setContent("");
       setIsFallbackMode(false);
+      startCooldown();
     } catch {
       const nowIso = new Date().toISOString();
       const newComment: CommentItem = {
@@ -283,6 +331,7 @@ export function ArticleComments({
       setLocalComments(articleId, nextComments);
       setContent("");
       setIsFallbackMode(true);
+      startCooldown();
     } finally {
       setSubmitting(false);
     }
@@ -513,6 +562,7 @@ export function ArticleComments({
           <button
             type="button"
             data-testid="toggle-comments-enabled"
+            aria-pressed={commentsEnabled}
             onClick={() => void onToggleCommentsEnabled(!commentsEnabled)}
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-colors border cursor-pointer ${
               commentsEnabled
@@ -553,14 +603,17 @@ export function ArticleComments({
       )}
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl text-xs text-red-600 dark:text-red-400 font-bold">
+        <div
+          role="alert"
+          className="mb-4 p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl text-xs text-red-600 dark:text-red-400 font-bold"
+        >
           {error}
         </div>
       )}
 
       {/* コメント一覧 */}
       {comments.length === 0 ? (
-        <div className="text-center py-8 text-gray-400 dark:text-gray-500 text-sm">
+        <div className="text-center py-8 text-gray-500 dark:text-gray-400 text-sm">
           <p>まだコメントはありません。</p>
           {commentsEnabled && (
             <p className="text-xs mt-1">最初の感想や応援メッセージを投稿してみましょう！</p>
@@ -606,7 +659,7 @@ export function ArticleComments({
                         共同執筆者
                       </span>
                     ) : null}
-                    <span className="text-[11px] text-gray-400 dark:text-gray-500">
+                    <span className="text-[11px] text-gray-500 dark:text-gray-400">
                       {formatDate(comment.createdAt)}
                     </span>
                     {isEdited && (
@@ -630,13 +683,15 @@ export function ArticleComments({
                         type="button"
                         data-testid={`pin-comment-${comment.id}`}
                         onClick={() => void handleTogglePin(comment)}
+                        aria-label={comment.isPinned ? "ピン留めを解除" : "コメントをピン留め"}
+                        aria-pressed={comment.isPinned}
                         title={
                           comment.isPinned ? "ピン留めを解除" : "コメントをピン留め（最大3件）"
                         }
                         className={`p-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
                           comment.isPinned
                             ? "bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-800"
-                            : "text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200"
+                            : "text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200"
                         }`}
                       >
                         <Pin className="w-3.5 h-3.5" />
@@ -649,8 +704,9 @@ export function ArticleComments({
                         type="button"
                         data-testid={`edit-comment-${comment.id}`}
                         onClick={() => startEdit(comment)}
+                        aria-label="コメントを編集"
                         title="コメントを編集"
-                        className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
+                        className="p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
@@ -662,8 +718,9 @@ export function ArticleComments({
                         type="button"
                         data-testid={`delete-comment-${comment.id}`}
                         onClick={() => void handleDelete(comment)}
+                        aria-label="コメントを削除"
                         title="コメントを削除"
-                        className="p-1.5 rounded-lg text-gray-400 hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-600 dark:hover:text-red-400 transition-colors cursor-pointer"
+                        className="p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-600 dark:hover:text-red-400 transition-colors cursor-pointer"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -750,17 +807,34 @@ export function ArticleComments({
                   onChange={(e) => setContent(e.target.value)}
                   rows={3}
                   maxLength={500}
-                  className="w-full border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                  className="w-full border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
                 />
               </div>
-              <div className="flex justify-end">
+              <div className="flex items-center justify-between gap-3">
+                {cooldown > 0 ? (
+                  <p
+                    role="status"
+                    aria-live="polite"
+                    className="text-xs text-amber-700 dark:text-amber-400 font-medium"
+                  >
+                    連続投稿防止のため、あと {cooldown} 秒お待ちください
+                  </p>
+                ) : (
+                  <span />
+                )}
                 <button
                   type="submit"
-                  disabled={submitting || !content.trim()}
+                  disabled={submitting || !content.trim() || cooldown > 0}
                   className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-blue-600 text-white font-bold text-sm rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm cursor-pointer"
                 >
                   <Send className="w-4 h-4" />
-                  <span>{submitting ? "送信中..." : "コメントを投稿"}</span>
+                  <span>
+                    {submitting
+                      ? "送信中..."
+                      : cooldown > 0
+                        ? `投稿待機中 (${cooldown}秒)`
+                        : "コメントを投稿"}
+                  </span>
                 </button>
               </div>
             </form>
@@ -772,24 +846,30 @@ export function ArticleComments({
       {historyTargetComment && (
         <div
           className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in"
-          onClick={() => setHistoryTargetComment(null)}
+          onClick={closeHistoryModal}
         >
           <div
+            ref={historyModalRef}
             role="dialog"
             aria-modal="true"
+            aria-labelledby="comment-history-modal-title"
             className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-700">
               <div className="flex items-center gap-2">
                 <History className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                <h4 className="font-bold text-gray-900 dark:text-gray-100 text-base">
+                <h4
+                  id="comment-history-modal-title"
+                  className="font-bold text-gray-900 dark:text-gray-100 text-base"
+                >
                   コメントの編集履歴
                 </h4>
               </div>
               <button
                 type="button"
-                onClick={() => setHistoryTargetComment(null)}
+                aria-label="閉じる"
+                onClick={closeHistoryModal}
                 className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-pointer"
               >
                 <X className="w-4 h-4" />
@@ -808,11 +888,11 @@ export function ArticleComments({
               </div>
 
               {loadingHistory ? (
-                <p className="text-xs text-gray-400 dark:text-gray-500 text-center py-4">
+                <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-4">
                   履歴を読み込み中...
                 </p>
               ) : historyItems.length === 0 ? (
-                <p className="text-xs text-gray-400 dark:text-gray-500 text-center py-4">
+                <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-4">
                   過去の編集履歴データはありません
                 </p>
               ) : (
@@ -823,7 +903,7 @@ export function ArticleComments({
                       key={item.id}
                       className="bg-gray-50 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 rounded-xl p-3.5"
                     >
-                      <div className="text-[11px] text-gray-400 dark:text-gray-500 mb-1">
+                      <div className="text-[11px] text-gray-500 dark:text-gray-400 mb-1">
                         編集日時: {formatDate(item.editedAt)}
                       </div>
                       <p className="text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap">

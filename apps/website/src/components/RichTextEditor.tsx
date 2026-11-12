@@ -10,6 +10,7 @@ import Placeholder from "@tiptap/extension-placeholder";
 import TextAlign from "@tiptap/extension-text-align";
 import { Extension, Node as TipTapNode, mergeAttributes } from "@tiptap/core";
 import { useEffect, useCallback, useRef, useState, useMemo } from "react";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 import {
   Bold,
   Italic,
@@ -193,8 +194,17 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
   const [linkError, setLinkError] = useState("");
   const [showImageInput, setShowImageInput] = useState(false);
   const [imageUrl, setImageUrl] = useState("");
+  const [imageAlt, setImageAlt] = useState("");
   const [imageUploading, setImageUploading] = useState(false);
   const colorRef = useRef<HTMLDivElement>(null);
+
+  const closeLinkModal = useCallback(() => setShowLinkInput(false), []);
+  const closeImageModal = useCallback(() => {
+    setShowImageInput(false);
+    setImageAlt("");
+  }, []);
+  const linkModalRef = useFocusTrap<HTMLDivElement>(showLinkInput, closeLinkModal);
+  const imageModalRef = useFocusTrap<HTMLDivElement>(showImageInput, closeImageModal);
 
   const editor = useEditor({
     extensions: [
@@ -217,7 +227,8 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
     editorProps: {
       attributes: {
-        class: "article-content min-h-[480px] p-4 md:p-6 focus:outline-none",
+        class:
+          "article-content min-h-[480px] p-4 md:p-6 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900",
       },
     },
   });
@@ -287,10 +298,16 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
 
   const insertImage = useCallback(() => {
     if (!editor || !imageUrl.trim()) return;
-    editor.chain().focus().setImage({ src: imageUrl.trim() }).run();
+    const alt = imageAlt.trim();
+    editor
+      .chain()
+      .focus()
+      .setImage({ src: imageUrl.trim(), ...(alt ? { alt } : {}) })
+      .run();
     setShowImageInput(false);
     setImageUrl("");
-  }, [editor, imageUrl]);
+    setImageAlt("");
+  }, [editor, imageUrl, imageAlt]);
 
   const handleImageFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -299,9 +316,15 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
     try {
       const uploadedUrl = await onUploadImage(file);
       if (uploadedUrl) {
-        editor.chain().focus().setImage({ src: uploadedUrl }).run();
+        const alt = imageAlt.trim();
+        editor
+          .chain()
+          .focus()
+          .setImage({ src: uploadedUrl, ...(alt ? { alt } : {}) })
+          .run();
         setShowImageInput(false);
         setImageUrl("");
+        setImageAlt("");
       }
     } finally {
       setImageUploading(false);
@@ -530,6 +553,7 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
             type="button"
             title="文字色"
             aria-label="文字色"
+            aria-expanded={showColorPicker}
             onClick={() => setShowColorPicker((v) => !v)}
             className="flex flex-col items-center justify-center w-8 h-8 rounded-lg hover:bg-gray-200/70 transition-colors"
           >
@@ -541,25 +565,35 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
           </button>
           {showColorPicker && (
             <div className="absolute top-10 left-0 z-50 bg-white border border-gray-200 rounded-xl shadow-xl p-3 w-48">
-              <p className="text-[11px] font-bold text-gray-500 mb-2">文字色を選択</p>
-              <div className="grid grid-cols-6 gap-1.5">
-                {COLORS.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => {
-                      editor.chain().focus().setColor(c).run();
-                      setShowColorPicker(false);
-                    }}
-                    className={`w-6 h-6 rounded-md border transition-transform hover:scale-110 ${
-                      activeColor.toLowerCase() === c.toLowerCase()
-                        ? "border-gray-900 ring-2 ring-blue-400"
-                        : "border-gray-200"
-                    }`}
-                    style={{ backgroundColor: c }}
-                    title={c}
-                  />
-                ))}
+              <p id="rte-color-picker-label" className="text-[11px] font-bold text-gray-500 mb-2">
+                文字色を選択
+              </p>
+              <div
+                role="radiogroup"
+                aria-labelledby="rte-color-picker-label"
+                className="grid grid-cols-6 gap-1.5"
+              >
+                {COLORS.map((c) => {
+                  const isColorSelected = activeColor.toLowerCase() === c.toLowerCase();
+                  return (
+                    <button
+                      key={c}
+                      type="button"
+                      role="radio"
+                      aria-checked={isColorSelected}
+                      aria-label={`文字色 ${c} を選択`}
+                      onClick={() => {
+                        editor.chain().focus().setColor(c).run();
+                        setShowColorPicker(false);
+                      }}
+                      className={`w-6 h-6 rounded-md border transition-transform hover:scale-110 ${
+                        isColorSelected ? "border-gray-900 ring-2 ring-blue-400" : "border-gray-200"
+                      }`}
+                      style={{ backgroundColor: c }}
+                      title={c}
+                    />
+                  );
+                })}
               </div>
               <button
                 type="button"
@@ -673,18 +707,25 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
       {showLinkInput && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          onClick={() => setShowLinkInput(false)}
+          onClick={closeLinkModal}
         >
           <div
+            ref={linkModalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="rte-link-modal-title"
             className="bg-white border border-gray-200 rounded-2xl shadow-xl p-5 w-full max-w-sm"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-bold text-gray-800">リンクURLを設定</p>
+              <p id="rte-link-modal-title" className="text-sm font-bold text-gray-800">
+                リンクURLを設定
+              </p>
               <button
                 type="button"
-                onClick={() => setShowLinkInput(false)}
-                className="p-1 text-gray-400 hover:text-gray-600 rounded-lg"
+                aria-label="閉じる"
+                onClick={closeLinkModal}
+                className="p-1 text-gray-500 hover:text-gray-700 rounded-lg"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -738,21 +779,45 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
       {showImageInput && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          onClick={() => setShowImageInput(false)}
+          onClick={closeImageModal}
         >
           <div
+            ref={imageModalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="rte-image-modal-title"
             className="bg-white border border-gray-200 rounded-2xl shadow-xl p-5 w-full max-w-sm space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
-              <p className="text-sm font-bold text-gray-800">本文に画像を挿入</p>
+              <p id="rte-image-modal-title" className="text-sm font-bold text-gray-800">
+                本文に画像を挿入
+              </p>
               <button
                 type="button"
-                onClick={() => setShowImageInput(false)}
-                className="p-1 text-gray-400 hover:text-gray-600 rounded-lg"
+                aria-label="閉じる"
+                onClick={closeImageModal}
+                className="p-1 text-gray-500 hover:text-gray-700 rounded-lg"
               >
                 <X className="w-4 h-4" />
               </button>
+            </div>
+
+            <div>
+              <label
+                htmlFor="rte-image-alt-input"
+                className="block text-xs font-medium text-gray-700 mb-1"
+              >
+                代替テキスト（alt・任意）
+              </label>
+              <input
+                id="rte-image-alt-input"
+                type="text"
+                value={imageAlt}
+                onChange={(e) => setImageAlt(e.target.value)}
+                placeholder="画像の説明（スクリーンリーダー用）"
+                className="w-full border border-gray-300 rounded-xl px-3.5 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-400"
+              />
             </div>
 
             {onUploadImage && (
@@ -779,7 +844,7 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
                 </label>
                 <div className="relative flex py-2 items-center">
                   <div className="flex-grow border-t border-gray-200" />
-                  <span className="flex-shrink mx-3 text-[11px] text-gray-400">
+                  <span className="flex-shrink mx-3 text-[11px] text-gray-500">
                     またはURLを指定
                   </span>
                   <div className="flex-grow border-t border-gray-200" />
@@ -788,7 +853,11 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
             )}
 
             <div>
+              <label htmlFor="rte-image-url-input" className="sr-only">
+                画像URL
+              </label>
               <input
+                id="rte-image-url-input"
                 type="url"
                 value={imageUrl}
                 onChange={(e) => setImageUrl(e.target.value)}

@@ -242,7 +242,7 @@ export const MfaEnrollModal = ({
           <button
             onClick={() => void handleCancel()}
             aria-label="閉じる"
-            className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer"
+            className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -250,7 +250,11 @@ export const MfaEnrollModal = ({
 
         <div className="p-6 space-y-5">
           {error && (
-            <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl text-xs text-red-600 dark:text-red-400 flex items-start gap-2">
+            <div
+              id="mfa-enroll-error"
+              role="alert"
+              className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl text-xs text-red-600 dark:text-red-400 flex items-start gap-2"
+            >
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
@@ -274,7 +278,7 @@ export const MfaEnrollModal = ({
                     key={idx}
                     className="flex items-center justify-between px-3 py-1.5 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 text-xs font-mono font-bold text-gray-700 dark:text-gray-200 shadow-sm"
                   >
-                    <span className="text-gray-400 dark:text-gray-500 text-[10px] select-none">
+                    <span className="text-gray-500 dark:text-gray-400 text-[10px] select-none">
                       {idx + 1}.
                     </span>
                     <span>{code}</span>
@@ -319,7 +323,7 @@ export const MfaEnrollModal = ({
               </button>
             </div>
           ) : loading || generatingBackupCodes ? (
-            <div className="py-12 text-center text-gray-400 dark:text-gray-500 text-sm">
+            <div className="py-12 text-center text-gray-500 dark:text-gray-400 text-sm">
               <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
               {generatingBackupCodes ? "バックアップコードを生成中..." : "QRコードを生成中..."}
             </div>
@@ -337,7 +341,7 @@ export const MfaEnrollModal = ({
                   {qrCode ? (
                     <img src={qrCode} alt="TOTP QR Code" className="w-44 h-44 object-contain" />
                   ) : (
-                    <div className="w-44 h-44 flex items-center justify-center text-gray-400 text-xs">
+                    <div className="w-44 h-44 flex items-center justify-center text-gray-500 text-xs">
                       QRコードの読み込みに失敗しました
                     </div>
                   )}
@@ -374,18 +378,26 @@ export const MfaEnrollModal = ({
 
               <form onSubmit={(e) => void handleVerify(e)} className="space-y-4 pt-2">
                 <div className="space-y-1">
-                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300">
+                  <label
+                    htmlFor="mfa-enroll-code-input"
+                    className="block text-xs font-bold text-gray-700 dark:text-gray-300"
+                  >
                     ステップ 2: 認証アプリに表示された6桁のコードを入力
                   </label>
                   <input
+                    id="mfa-enroll-code-input"
                     type="text"
+                    required
+                    aria-required="true"
+                    aria-invalid={Boolean(error)}
+                    aria-describedby={error ? "mfa-enroll-error" : undefined}
                     inputMode="numeric"
                     autoComplete="one-time-code"
                     maxLength={6}
                     placeholder="123456"
                     value={verifyCode}
                     onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, ""))}
-                    className="w-full text-center tracking-[0.4em] font-mono text-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full text-center tracking-[0.4em] font-mono text-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
 

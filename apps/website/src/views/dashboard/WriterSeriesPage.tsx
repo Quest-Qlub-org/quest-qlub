@@ -419,19 +419,33 @@ export const WriterSeriesPage = () => {
       <div className="md:grid md:grid-cols-2 md:gap-6 md:items-start space-y-6 md:space-y-0">
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-gray-700 space-y-4">
           <h2 className="font-bold text-gray-800 dark:text-gray-100">新しい連載を作成</h2>
-          <input
-            className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-400"
-            placeholder="連載名 *"
-            value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
-          />
-          <textarea
-            className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
-            placeholder="連載の説明（任意）"
-            rows={3}
-            value={newDesc}
-            onChange={(e) => setNewDesc(e.target.value)}
-          />
+          <div>
+            <label htmlFor="new-series-title" className="sr-only">
+              連載名（必須）
+            </label>
+            <input
+              id="new-series-title"
+              required
+              aria-required="true"
+              className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-400"
+              placeholder="連載名 *"
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+            />
+          </div>
+          <div>
+            <label htmlFor="new-series-desc" className="sr-only">
+              連載の説明（任意）
+            </label>
+            <textarea
+              id="new-series-desc"
+              className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
+              placeholder="連載の説明（任意）"
+              rows={3}
+              value={newDesc}
+              onChange={(e) => setNewDesc(e.target.value)}
+            />
+          </div>
           <CollaboratorSelect
             value={newCollaboratorIds}
             onChange={setNewCollaboratorIds}
@@ -449,7 +463,9 @@ export const WriterSeriesPage = () => {
         <div className="space-y-3">
           <h2 className="font-bold text-gray-800 dark:text-gray-100">作成済みの連載</h2>
           {mySeries.length === 0 ? (
-            <p className="text-gray-400 text-sm text-center py-8">連載はまだありません</p>
+            <p className="text-gray-500 dark:text-gray-400 text-sm text-center py-8">
+              連載はまだありません
+            </p>
           ) : (
             mySeries.map((s) => {
               const seriesArticles = mergedWriterArticles
@@ -468,21 +484,35 @@ export const WriterSeriesPage = () => {
                     <h3 className="font-bold text-sm text-blue-600 dark:text-blue-400">
                       連載を編集
                     </h3>
-                    <input
-                      data-testid="edit-series-title"
-                      className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 font-bold"
-                      placeholder="連載名を編集 *"
-                      value={editTitle}
-                      onChange={(e) => setEditTitle(e.target.value)}
-                    />
-                    <textarea
-                      data-testid="edit-series-desc"
-                      className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
-                      placeholder="連載の説明（任意）"
-                      rows={2}
-                      value={editDesc}
-                      onChange={(e) => setEditDesc(e.target.value)}
-                    />
+                    <div>
+                      <label htmlFor={`edit-series-title-${s.id}`} className="sr-only">
+                        連載名（必須）
+                      </label>
+                      <input
+                        id={`edit-series-title-${s.id}`}
+                        required
+                        aria-required="true"
+                        data-testid="edit-series-title"
+                        className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 font-bold"
+                        placeholder="連載名を編集 *"
+                        value={editTitle}
+                        onChange={(e) => setEditTitle(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor={`edit-series-desc-${s.id}`} className="sr-only">
+                        連載の説明（任意）
+                      </label>
+                      <textarea
+                        id={`edit-series-desc-${s.id}`}
+                        data-testid="edit-series-desc"
+                        className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
+                        placeholder="連載の説明（任意）"
+                        rows={2}
+                        value={editDesc}
+                        onChange={(e) => setEditDesc(e.target.value)}
+                      />
+                    </div>
                     <CollaboratorSelect
                       value={editCollaboratorIds}
                       onChange={setEditCollaboratorIds}
@@ -576,7 +606,7 @@ export const WriterSeriesPage = () => {
                   {expanded && (
                     <div className="border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-850 px-4 py-3 space-y-2.5">
                       {seriesArticles.length === 0 ? (
-                        <p className="text-xs text-gray-400 dark:text-gray-500 text-center py-2">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-2">
                           この連載にはまだ記事がありません
                         </p>
                       ) : (
@@ -586,7 +616,7 @@ export const WriterSeriesPage = () => {
                             className="flex flex-wrap sm:flex-nowrap items-center gap-2 bg-white dark:bg-gray-800 rounded-xl px-3 py-2 border border-gray-100 dark:border-gray-700"
                           >
                             <div className="flex items-center gap-1 shrink-0">
-                              <span className="text-xs text-gray-400 dark:text-gray-500">#</span>
+                              <span className="text-xs text-gray-500 dark:text-gray-400">#</span>
                               <input
                                 type="number"
                                 min={1}
@@ -616,7 +646,7 @@ export const WriterSeriesPage = () => {
                               <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
                                 {a.title}
                               </p>
-                              <p className="text-xs text-gray-400 dark:text-gray-500">
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
                                 {ARTICLE_STATUS_CONFIG[a.status as ArticleStatus]?.label ??
                                   a.status}
                               </p>
@@ -635,7 +665,7 @@ export const WriterSeriesPage = () => {
                                 data-testid={`remove-from-series-${a.id}`}
                                 onClick={() => void handleRemoveArticleFromSeries(a.id)}
                                 title="この連載から外す"
-                                className="text-xs text-gray-400 hover:text-red-500 p-1"
+                                className="text-xs text-gray-500 dark:text-gray-400 hover:text-red-500 p-1"
                               >
                                 <X className="w-3.5 h-3.5" />
                               </button>
@@ -646,7 +676,11 @@ export const WriterSeriesPage = () => {
 
                       {unassignedArticles.length > 0 && (
                         <div className="pt-2 border-t border-gray-200/70 dark:border-gray-700 flex flex-col sm:flex-row gap-2">
+                          <label htmlFor={`add-article-select-${s.id}`} className="sr-only">
+                            連載に追加する記事を選択
+                          </label>
                           <select
+                            id={`add-article-select-${s.id}`}
                             data-testid={`add-article-select-${s.id}`}
                             value={addingArticleBySeries[s.id] || ""}
                             onChange={(e) =>

@@ -1,5 +1,5 @@
 import { sanitizeHtml } from "../../utils/sanitize";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../../supabase";
 import { ChevronLeft, X, MessageSquare, EyeOff, Clock, Check, Loader2 } from "lucide-react";
 import type { Article, ArticleStatus } from "../../types";
@@ -17,6 +17,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
 import { updateMetaTags } from "../../utils/seo";
+import { useFocusTrap } from "../../hooks/useFocusTrap";
 
 export const EDITOR_ARTICLE_LIST_FIELDS = `${ARTICLE_LIST_FIELDS}, comments_enabled, scheduled_at, collaborator_ids`;
 
@@ -39,6 +40,9 @@ export function EditorArticlesView() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [scheduleInput, setScheduleInput] = useState("");
   const nav = useNavigate();
+
+  const closePreviewModal = useCallback(() => setPreviewArticle(null), []);
+  const previewModalRef = useFocusTrap<HTMLDivElement>(Boolean(previewArticle), closePreviewModal);
 
   useEffect(() => {
     updateMetaTags({
@@ -250,11 +254,13 @@ export function EditorArticlesView() {
         </h2>
       </div>
       {loading ? (
-        <p className="text-center text-gray-400 py-8">読み込み中...</p>
+        <p className="text-center text-gray-500 dark:text-gray-400 py-8">読み込み中...</p>
       ) : (
         <div className="space-y-3 md:grid md:grid-cols-2 md:gap-4 md:space-y-0">
           {articles.length === 0 ? (
-            <p className="text-gray-400 text-sm text-center py-8 md:col-span-2">記事がありません</p>
+            <p className="text-gray-500 dark:text-gray-400 text-sm text-center py-8 md:col-span-2">
+              記事がありません
+            </p>
           ) : (
             articles.map((a) => {
               const isCommentsOn = a.commentsEnabled !== false;
@@ -338,15 +344,22 @@ export function EditorArticlesView() {
       {previewArticle && (
         <div
           className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4"
-          onClick={() => setPreviewArticle(null)}
+          onClick={closePreviewModal}
         >
           <div
+            ref={previewModalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="editor-articles-preview-title"
             className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-gray-700">
               <div className="flex-1 min-w-0">
-                <p className="font-bold text-gray-900 dark:text-gray-100 text-base truncate">
+                <p
+                  id="editor-articles-preview-title"
+                  className="font-bold text-gray-900 dark:text-gray-100 text-base truncate"
+                >
                   {previewArticle.title}
                 </p>
                 <span
@@ -356,7 +369,9 @@ export function EditorArticlesView() {
                 </span>
               </div>
               <button
-                onClick={() => setPreviewArticle(null)}
+                type="button"
+                aria-label="閉じる"
+                onClick={closePreviewModal}
                 className="ml-3 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full text-gray-500 dark:text-gray-400"
               >
                 <X className="w-5 h-5" />
@@ -370,16 +385,22 @@ export function EditorArticlesView() {
               ) : previewArticle.content ? (
                 <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(previewArticle.content) }} />
               ) : (
-                <p className="text-gray-400 text-sm text-center py-8">本文がありません</p>
+                <p className="text-gray-500 dark:text-gray-400 text-sm text-center py-8">
+                  本文がありません
+                </p>
               )}
             </div>
             <div className="p-4 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-2 flex-wrap">
-                <label className="text-xs font-bold text-gray-600 dark:text-gray-300 flex items-center gap-1">
+                <label
+                  htmlFor="editor-schedule-datetime-input"
+                  className="text-xs font-bold text-gray-600 dark:text-gray-300 flex items-center gap-1"
+                >
                   <Clock className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
                   <span>公開予約:</span>
                 </label>
                 <input
+                  id="editor-schedule-datetime-input"
                   type="datetime-local"
                   value={scheduleInput}
                   onChange={(e) => setScheduleInput(e.target.value)}

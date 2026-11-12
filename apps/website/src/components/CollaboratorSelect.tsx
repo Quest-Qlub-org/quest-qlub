@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useId } from "react";
 import { Users, X } from "lucide-react";
 import { useApp } from "../context/AppContext";
 
@@ -22,6 +22,7 @@ export const CollaboratorSelect: React.FC<CollaboratorSelectProps> = ({
   disabled = false,
 }) => {
   const { writers } = useApp();
+  const selectId = useId();
 
   const availableWriters = (writers ?? []).filter(
     (w) =>
@@ -48,12 +49,15 @@ export const CollaboratorSelect: React.FC<CollaboratorSelectProps> = ({
   return (
     <div className={`space-y-2 ${className}`}>
       <div className="flex items-center justify-between">
-        <label className="flex items-center gap-1.5 text-xs font-bold text-gray-700 dark:text-gray-300">
+        <label
+          htmlFor={selectId}
+          className="flex items-center gap-1.5 text-xs font-bold text-gray-700 dark:text-gray-300"
+        >
           <Users className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
           <span>{label}</span>
         </label>
         {description && (
-          <span className="text-[11px] text-gray-400 dark:text-gray-500">{description}</span>
+          <span className="text-[11px] text-gray-500 dark:text-gray-400">{description}</span>
         )}
       </div>
 
@@ -88,7 +92,7 @@ export const CollaboratorSelect: React.FC<CollaboratorSelectProps> = ({
                     type="button"
                     data-testid={`remove-collaborator-${collabId}`}
                     onClick={() => handleRemove(collabId)}
-                    className="hover:text-red-500 dark:hover:text-red-400 p-0.5 rounded-full transition-colors focus:outline-none"
+                    className="hover:text-red-500 dark:hover:text-red-400 p-0.5 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"
                     title="共同編集者を解除"
                     aria-label="共同編集者を解除"
                   >
@@ -104,6 +108,7 @@ export const CollaboratorSelect: React.FC<CollaboratorSelectProps> = ({
       {!disabled && (
         <div>
           <select
+            id={selectId}
             data-testid="collaborator-select-input"
             value=""
             onChange={handleSelect}

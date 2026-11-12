@@ -16,6 +16,7 @@ describe("ArticleComments (DB-backed, Auth-required, Role permissions, Pinning &
 
   beforeEach(() => {
     localStorage.clear();
+    sessionStorage.clear();
     mockCommentsDb = [
       {
         id: "c-1",
@@ -209,8 +210,16 @@ describe("ArticleComments (DB-backed, Auth-required, Role permissions, Pinning &
     // 編集履歴モーダルが表示され、過去の内容が確認できること
     const modal = document.body.querySelector('[role="dialog"]');
     expect(modal).not.toBeNull();
+    expect(modal?.getAttribute("aria-labelledby")).toBe("comment-history-modal-title");
+    expect(modal?.querySelector('button[aria-label="閉じる"]')).not.toBeNull();
     expect(modal?.textContent).toContain("コメントの編集履歴");
     expect(modal?.textContent).toContain("編集前の初期コメント本文");
+
+    // Escapeキーでモーダルが閉じられること
+    await act(async () => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull();
 
     unmount();
   });
@@ -339,6 +348,14 @@ describe("ArticleComments (DB-backed, Auth-required, Role permissions, Pinning &
       '[data-testid="pin-comment-c-1"]',
     ) as HTMLButtonElement;
     expect(pinBtnC1).not.toBeNull();
+    expect(pinBtnC1.getAttribute("aria-pressed")).toBe("false");
+    expect(pinBtnC1.getAttribute("aria-label")).toBe("コメントをピン留め");
+
+    const pinBtnC2 = writerContainer.querySelector(
+      '[data-testid="pin-comment-c-2"]',
+    ) as HTMLButtonElement;
+    expect(pinBtnC2.getAttribute("aria-pressed")).toBe("true");
+    expect(pinBtnC2.getAttribute("aria-label")).toBe("ピン留めを解除");
 
     // すでに3件ピン留めされている状態で4件目(c-1)をピン留めしようとすると制限エラーメッセージが表示されること
     await act(async () => {
@@ -368,6 +385,7 @@ describe("ArticleComments (DB-backed, Auth-required, Role permissions, Pinning &
     ) as HTMLButtonElement;
     const editBtnC2 = container.querySelector('[data-testid="edit-comment-c-2"]');
     expect(editBtnC1).not.toBeNull();
+    expect(editBtnC1.getAttribute("aria-label")).toBe("コメントを編集");
     expect(editBtnC2).toBeNull();
 
     // c-1 を編集
@@ -429,6 +447,7 @@ describe("ArticleComments (DB-backed, Auth-required, Role permissions, Pinning &
     ) as HTMLButtonElement;
     const deleteBtnC2 = container.querySelector('[data-testid="delete-comment-c-2"]');
     expect(deleteBtnC1).not.toBeNull();
+    expect(deleteBtnC1.getAttribute("aria-label")).toBe("コメントを削除");
     expect(deleteBtnC2).toBeNull();
 
     await act(async () => {
@@ -625,6 +644,96 @@ describe("ArticleComments (DB-backed, Auth-required, Role permissions, Pinning &
 
     expect(container.textContent).toContain("共同執筆ライター");
     expect(container.textContent).toContain("共同執筆者");
+
+    unmount();
+  });
+
+  it("enforces client-side cooldown timer after submitting a comment", async () => {
+    vi.useFakeTimers();
+    mockAuth("viewer", "viewer-cooldown-1", "連投テスト読者");
+
+    const { container, unmount } = renderWithRouter(
+      <ArticleComments articleId={articleId} writerId={writerId} commentsEnabled={true} />,
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const textarea = container.querySelector("textarea") as HTMLTextAreaElement;
+    setNativeValue(textarea, "最初のテストコメント");
+
+    const submitBtn = container.querySelector('button[type="submit"]') as HTMLButtonElement;
+    await act(async () => {
+      submitBtn.click();
+      await Promise.resolve();
+    });
+
+    // 投稿直後はクールダウン状態となりボタンが無効化され待機メッセージが出ること
+    expect(submitBtn.disabled).toBe(true);
+    expect(container.textContent).toContain("投稿待機中");
+    expect(container.textContent).toContain("連続投稿防止のため");
+
+    // 15秒経過後はクールダウンが解除されること
+    for (let i = 0; i < 15; i += 1) {
+      await act(async () => {
+        vi.advanceTimersByTime(1000);
+      });
+    }
+    expect(container.textContent).toContain("コメントを投稿");
+
+    vi.useRealTimers();
+    unmount();
+  });
+
+  it("surfaces P0001 rate-limit errors from DB trigger without falling back to localStorage", async () => {
+    mockAuth("viewer", "viewer-cooldown-2", "DB連投テスト読者");
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "article_comments") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              order: vi.fn().mockReturnValue({
+                order: vi.fn().mockResolvedValue({ data: [], error: null }),
+              }),
+            }),
+          }),
+          insert: vi.fn().mockReturnValue({
+            select: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: null,
+                error: {
+                  code: "P0001",
+                  message: "コメントの連続投稿は制限されています。",
+                },
+              }),
+            }),
+          }),
+        } as any;
+      }
+      return {} as any;
+    });
+
+    const { container, unmount } = renderWithRouter(
+      <ArticleComments articleId={articleId} writerId={writerId} commentsEnabled={true} />,
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const textarea = container.querySelector("textarea") as HTMLTextAreaElement;
+    setNativeValue(textarea, "連投テスト2回目");
+
+    const submitBtn = container.querySelector('button[type="submit"]') as HTMLButtonElement;
+    await act(async () => {
+      submitBtn.click();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("コメントの連続投稿は制限されています。");
+    expect(container.textContent).not.toContain("ローカル保存モード");
 
     unmount();
   });

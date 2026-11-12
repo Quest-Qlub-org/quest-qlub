@@ -4,6 +4,8 @@ import {
   verifySpamCheck,
   getRemainingCooldownSeconds,
   recordSubmissionTimestamp,
+  COMMENT_COOLDOWN_KEY,
+  COMMENT_COOLDOWN_DURATION_MS,
 } from "./antiSpam";
 
 describe("antiSpam utility", () => {
@@ -62,6 +64,23 @@ describe("antiSpam utility", () => {
       // 31 seconds later (expired)
       vi.spyOn(Date, "now").mockReturnValue(now + 31000);
       expect(getRemainingCooldownSeconds("test_key", 30000)).toBe(0);
+    });
+
+    it("supports comment cooldown key and 15-second duration", () => {
+      const now = 200000;
+      vi.spyOn(Date, "now").mockReturnValue(now);
+
+      recordSubmissionTimestamp(COMMENT_COOLDOWN_KEY);
+
+      vi.spyOn(Date, "now").mockReturnValue(now + 5000);
+      expect(getRemainingCooldownSeconds(COMMENT_COOLDOWN_KEY, COMMENT_COOLDOWN_DURATION_MS)).toBe(
+        10,
+      );
+
+      vi.spyOn(Date, "now").mockReturnValue(now + 15000);
+      expect(getRemainingCooldownSeconds(COMMENT_COOLDOWN_KEY, COMMENT_COOLDOWN_DURATION_MS)).toBe(
+        0,
+      );
     });
   });
 });
