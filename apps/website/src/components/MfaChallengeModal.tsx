@@ -187,7 +187,7 @@ export const MfaChallengeModal = ({
                 autoFocus
                 value={backupCode}
                 onChange={(e) => setBackupCode(e.target.value)}
-                className="w-full text-center font-mono text-lg tracking-wider uppercase border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full text-center font-mono text-lg tracking-wider uppercase border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
@@ -214,7 +214,7 @@ export const MfaChallengeModal = ({
               <button
                 type="button"
                 onClick={() => void handleSignOut()}
-                className="w-full py-2 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                className="w-full py-2 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span>別のアカウントでログイン</span>
@@ -222,7 +222,7 @@ export const MfaChallengeModal = ({
             </div>
           </form>
         ) : fetchingFactor ? (
-          <div className="py-8 text-center text-gray-400 dark:text-gray-500 text-sm">
+          <div className="py-8 text-center text-gray-500 dark:text-gray-400 text-sm">
             <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
             認証設定を確認中...
           </div>
@@ -238,7 +238,7 @@ export const MfaChallengeModal = ({
                 autoFocus
                 value={verifyCode}
                 onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, ""))}
-                className="w-full text-center tracking-[0.4em] font-mono text-2xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full text-center tracking-[0.4em] font-mono text-2xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
@@ -265,7 +265,7 @@ export const MfaChallengeModal = ({
               <button
                 type="button"
                 onClick={() => void handleSignOut()}
-                className="w-full py-2 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                className="w-full py-2 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span>別のアカウントでログイン</span>

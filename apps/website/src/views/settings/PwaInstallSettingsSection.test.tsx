@@ -277,4 +277,47 @@ describe("PwaInstallSettingsSection", () => {
 
     unmount();
   });
+
+  it("uses WCAG AA compliant contrast classes for restore, dismiss button, and footer", () => {
+    vi.spyOn(PwaHook, "usePwaInstall").mockReturnValue({
+      isStandalone: false,
+      isInstalled: false,
+      isIos: false,
+      isDismissed: true,
+      canInstallPrompt: false,
+      promptInstall: vi.fn(),
+      dismiss: vi.fn(),
+      resetDismissed: vi.fn(),
+    });
+    const dismissedView = renderWithRouter(<PwaInstallSettingsSection showToast={mockShowToast} />);
+    const restoreBtn = dismissedView.container.querySelector('[data-testid="pwa-restore-button"]');
+    expect(restoreBtn?.className).toContain("text-gray-500");
+    expect(restoreBtn?.className).toContain("dark:text-gray-400");
+    expect(restoreBtn?.className).not.toContain("dark:text-gray-500");
+    dismissedView.unmount();
+
+    vi.spyOn(PwaHook, "usePwaInstall").mockReturnValue({
+      isStandalone: false,
+      isInstalled: false,
+      isIos: false,
+      isDismissed: false,
+      canInstallPrompt: false,
+      promptInstall: vi.fn(),
+      dismiss: vi.fn(),
+      resetDismissed: vi.fn(),
+    });
+    const activeView = renderWithRouter(<PwaInstallSettingsSection showToast={mockShowToast} />);
+    const dismissBtn = activeView.container.querySelector('[data-testid="pwa-dismiss-button"]');
+    expect(dismissBtn?.className).toContain("text-gray-500");
+    expect(dismissBtn?.className).toContain("dark:text-gray-400");
+    expect(dismissBtn?.className).not.toMatch(/(?:^|\s)text-gray-400(?:\s|$)/);
+
+    const footer = activeView.container.querySelector(
+      '[data-testid="pwa-dismiss-link"]',
+    )?.parentElement;
+    expect(footer?.className).toContain("text-gray-500");
+    expect(footer?.className).toContain("dark:text-gray-400");
+    expect(footer?.className).not.toMatch(/(?:^|\s)text-gray-400(?:\s|$)/);
+    activeView.unmount();
+  });
 });

@@ -160,4 +160,28 @@ describe("FavoritesView", () => {
     expect(container.textContent).toContain("公開中のお気に入り記事");
     expect(container.textContent).not.toContain("未来予約のお気に入り記事");
   });
+
+  it("uses WCAG AA compliant text contrast classes on guest and empty states", () => {
+    setupAppMock({ userRole: "guest", authLoading: false });
+    act(() => {
+      root!.render(<FavoritesView />);
+    });
+    const guestDesc = Array.from(container.querySelectorAll("p")).find((p) =>
+      p.textContent?.includes("お気に入り機能を利用するには"),
+    );
+    expect(guestDesc?.className).toContain("text-gray-500");
+    expect(guestDesc?.className).toContain("dark:text-gray-400");
+    expect(guestDesc?.className).not.toMatch(/(?:^|\s)text-gray-400(?:\s|$)/);
+
+    setupAppMock({ userRole: "viewer", authLoading: false, favorites: [], articles: [] });
+    act(() => {
+      root!.render(<FavoritesView />);
+    });
+    const emptyDesc = Array.from(container.querySelectorAll("p")).find((p) =>
+      p.textContent?.includes("好きな記事を見つけて☆アイコンをタップしましょう"),
+    );
+    expect(emptyDesc?.className).toContain("text-gray-500");
+    expect(emptyDesc?.className).toContain("dark:text-gray-400");
+    expect(emptyDesc?.className).not.toMatch(/(?:^|\s)text-gray-400(?:\s|$)/);
+  });
 });

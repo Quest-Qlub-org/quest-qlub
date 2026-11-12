@@ -122,4 +122,28 @@ describe("AccessDeniedView", () => {
 
     expect(mockNavigate).toHaveBeenCalledWith("/login");
   });
+
+  it("uses WCAG AA compliant contrast classes for fallback support guidance", () => {
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      user: { id: "writer-user-id" } as any,
+      profile: { role: "writer", roles: ["writer"] } as any,
+    } as any);
+
+    act(() => {
+      root!.render(
+        <BrowserRouter>
+          <AccessDeniedView requiredRole="editor" />
+        </BrowserRouter>,
+      );
+    });
+
+    const guidance = Array.from(container.querySelectorAll("p")).find((p) =>
+      p.textContent?.includes(
+        "アカウントの権限設定に関するお問い合わせはサポートまでご連絡ください",
+      ),
+    );
+    expect(guidance?.className).toContain("text-gray-500");
+    expect(guidance?.className).toContain("dark:text-gray-400");
+    expect(guidance?.className).not.toContain("dark:text-gray-500");
+  });
 });

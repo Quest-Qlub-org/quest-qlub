@@ -117,4 +117,43 @@ describe("EditorApplicationsView", () => {
     });
     expect(mockShowToast).toHaveBeenCalledWith("hanako@example.com をライターに昇格しました");
   });
+
+  it("uses WCAG AA compliant contrast classes for search input, empty state, and timestamps", async () => {
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "contact_messages") {
+        return {
+          select: vi.fn().mockReturnValue({
+            order: vi.fn().mockResolvedValue({ data: [], error: null }),
+          }),
+        } as any;
+      }
+      return {} as any;
+    });
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      showToast: mockShowToast,
+    } as any);
+
+    let container: HTMLElement = document.createElement("div");
+    await act(async () => {
+      const rendered = renderWithRouter(<EditorApplicationsView />);
+      container = rendered.container;
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const searchInput = container.querySelector(
+      'input[placeholder="名前・メール・内容で検索"]',
+    ) as HTMLInputElement;
+    expect(searchInput.className).toContain("placeholder-gray-500");
+    expect(searchInput.className).toContain("dark:placeholder-gray-400");
+    expect(searchInput.className).not.toMatch(/(?:^|\s)placeholder-gray-400(?:\s|$)/);
+    expect(searchInput.className).not.toContain("dark:placeholder-gray-500");
+
+    const emptyText = Array.from(container.querySelectorAll("p")).find((p) =>
+      p.textContent?.includes("該当するメッセージはありません"),
+    );
+    expect(emptyText?.className).toContain("text-gray-500");
+    expect(emptyText?.className).toContain("dark:text-gray-400");
+    expect(emptyText?.className).not.toContain("dark:text-gray-500");
+  });
 });

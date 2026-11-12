@@ -140,25 +140,25 @@ export function EditorApplicationsView() {
         </div>
 
         <div className="relative">
-          <Search className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
+          <Search className="w-4 h-4 absolute left-3 top-3 text-gray-500 dark:text-gray-400" />
           <input
             type="text"
             placeholder="名前・メール・内容で検索"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            className="w-full sm:w-64 pl-9 pr-3 py-2 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+            className="w-full sm:w-64 pl-9 pr-3 py-2 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
           />
         </div>
       </div>
 
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-12 gap-2 text-gray-400">
+        <div className="flex flex-col items-center justify-center py-12 gap-2 text-gray-500 dark:text-gray-400">
           <Loader2 className="w-6 h-6 animate-spin text-purple-600" />
           <span className="text-xs">メッセージを読み込んでいます...</span>
         </div>
       ) : filteredMessages.length === 0 ? (
         <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6">
-          <p className="text-gray-400 dark:text-gray-500 text-sm font-medium">
+          <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">
             該当するメッセージはありません
           </p>
         </div>
@@ -190,7 +190,7 @@ export function EditorApplicationsView() {
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-xs text-gray-400 dark:text-gray-500 font-medium">
+                    <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
                       {formatArticleDate(msg.created_at)}
                     </span>
                     {isWriterApp && (

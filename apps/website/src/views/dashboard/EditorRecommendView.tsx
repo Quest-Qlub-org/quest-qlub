@@ -85,12 +85,12 @@ export function EditorRecommendView() {
         </h2>
       </div>
       {loading ? (
-        <p className="text-center text-gray-400 py-8">読み込み中...</p>
+        <p className="text-center text-gray-500 dark:text-gray-400 py-8">読み込み中...</p>
       ) : articles.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <p className="text-5xl mb-4">📭</p>
           <p className="text-gray-500 dark:text-gray-400 font-bold">公開済みの記事がありません</p>
-          <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">
+          <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
             記事が公開されると、ここで設定できます
           </p>
         </div>

@@ -59,7 +59,7 @@ export function AccessDeniedView({ requiredRole, message }: AccessDeniedViewProp
           記事の執筆を希望される場合は、ライター応募フォームよりご申請ください。
         </p>
       ) : (
-        <p className="text-xs text-gray-400 dark:text-gray-500 mb-8 max-w-sm">
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-8 max-w-sm">
           アカウントの権限設定に関するお問い合わせはサポートまでご連絡ください。
         </p>
       )}

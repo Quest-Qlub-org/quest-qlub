@@ -257,7 +257,7 @@ export function EditorWritersView() {
         <h2 className="text-lg font-bold text-purple-800 dark:text-purple-300">
           ライター・ロール管理
         </h2>
-        <span className="ml-auto text-xs text-gray-400 dark:text-gray-500">
+        <span className="ml-auto text-xs text-gray-500 dark:text-gray-400">
           {allProfiles.length} アカウント
         </span>
       </div>
@@ -270,7 +270,7 @@ export function EditorWritersView() {
             placeholder="メールアドレス"
             value={newEmail}
             onChange={(e) => setNewEmail(e.target.value)}
-            className="flex-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 min-w-0"
+            className="flex-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 min-w-0"
           />
           <button
             type="button"
@@ -293,7 +293,7 @@ export function EditorWritersView() {
             placeholder="名前・ID・メアドで検索"
             value={searchEmail}
             onChange={(e) => setSearchEmail(e.target.value)}
-            className="flex-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 min-w-0"
+            className="flex-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 min-w-0"
           />
           <div className="flex gap-2">
             <select
@@ -329,7 +329,7 @@ export function EditorWritersView() {
       </div>
 
       {loading ? (
-        <p className="text-center text-gray-400 py-8">読み込み中...</p>
+        <p className="text-center text-gray-500 dark:text-gray-400 py-8">読み込み中...</p>
       ) : (
         <div className="space-y-3">
           {filtered.map((w) => {
@@ -348,7 +348,7 @@ export function EditorWritersView() {
                       {w.display_name ?? "（名前未設定）"}
                     </p>
                     {w.username && (
-                      <span className="text-xs text-gray-400 dark:text-gray-500 font-mono">
+                      <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">
                         @{w.username}
                       </span>
                     )}
@@ -361,7 +361,7 @@ export function EditorWritersView() {
                       </span>
                     ))}
                   </div>
-                  <p className="text-xs text-gray-400 dark:text-gray-500 truncate mt-0.5">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
                     {w.email ?? "メール非公開"}
                   </p>
 
@@ -415,7 +415,7 @@ export function EditorWritersView() {
                               void addCustomRole(w.id);
                             }
                           }}
-                          className="text-xs border border-purple-300 dark:border-purple-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg px-2 py-1 w-32 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                          className="text-xs border border-purple-300 dark:border-purple-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-300 rounded-lg px-2 py-1 w-32 focus:outline-none focus:ring-1 focus:ring-purple-500"
                         />
                         <button
                           type="button"
@@ -428,7 +428,7 @@ export function EditorWritersView() {
                         <button
                           type="button"
                           onClick={() => setOpenCustomInputId(null)}
-                          className="text-xs px-1.5 py-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
+                          className="text-xs px-1.5 py-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 cursor-pointer"
                         >
                           <X className="w-3.5 h-3.5" />
                         </button>
@@ -464,7 +464,7 @@ export function EditorWritersView() {
             );
           })}
           {filtered.length === 0 && (
-            <p className="text-center text-gray-400 py-6 text-sm">
+            <p className="text-center text-gray-500 dark:text-gray-400 py-6 text-sm">
               {allProfiles.length === 0
                 ? "登録アカウントがありません"
                 : "条件に一致するアカウントがありません"}

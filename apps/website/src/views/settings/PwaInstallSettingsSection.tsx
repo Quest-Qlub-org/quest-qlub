@@ -33,7 +33,7 @@ export function PwaInstallSettingsSection({ showToast }: PwaInstallSettingsSecti
             resetDismissed();
             showToast?.("アプリのインストール案内を再表示しました");
           }}
-          className="text-xs text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 underline decoration-dotted transition-colors"
+          className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 underline decoration-dotted transition-colors"
           data-testid="pwa-restore-button"
         >
           アプリ（PWA）のインストール案内を再表示
@@ -97,7 +97,7 @@ export function PwaInstallSettingsSection({ showToast }: PwaInstallSettingsSecti
           onClick={handleDismiss}
           aria-label="インストール案内を閉じる"
           title="この案内を非表示にする"
-          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/60 transition-colors shrink-0"
+          className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/60 transition-colors shrink-0"
           data-testid="pwa-dismiss-button"
         >
           <X className="w-4 h-4" />
@@ -213,7 +213,7 @@ export function PwaInstallSettingsSection({ showToast }: PwaInstallSettingsSecti
       )}
 
       {/* フッター：消せるように案内 */}
-      <div className="px-4 py-2.5 bg-gray-50/50 dark:bg-gray-800/40 border-t border-gray-100 dark:border-gray-700/60 flex items-center justify-between text-[11px] text-gray-400 dark:text-gray-400">
+      <div className="px-4 py-2.5 bg-gray-50/50 dark:bg-gray-800/40 border-t border-gray-100 dark:border-gray-700/60 flex items-center justify-between text-[11px] text-gray-500 dark:text-gray-400">
         <span>この案内はいつでも非表示にできます</span>
         <button
           type="button"
