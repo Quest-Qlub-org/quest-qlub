@@ -613,7 +613,7 @@ export function ArticleComments({
 
       {/* コメント一覧 */}
       {comments.length === 0 ? (
-        <div className="text-center py-8 text-gray-400 dark:text-gray-500 text-sm">
+        <div className="text-center py-8 text-gray-500 dark:text-gray-400 text-sm">
           <p>まだコメントはありません。</p>
           {commentsEnabled && (
             <p className="text-xs mt-1">最初の感想や応援メッセージを投稿してみましょう！</p>
@@ -659,7 +659,7 @@ export function ArticleComments({
                         共同執筆者
                       </span>
                     ) : null}
-                    <span className="text-[11px] text-gray-400 dark:text-gray-500">
+                    <span className="text-[11px] text-gray-500 dark:text-gray-400">
                       {formatDate(comment.createdAt)}
                     </span>
                     {isEdited && (
@@ -691,7 +691,7 @@ export function ArticleComments({
                         className={`p-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
                           comment.isPinned
                             ? "bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-800"
-                            : "text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200"
+                            : "text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200"
                         }`}
                       >
                         <Pin className="w-3.5 h-3.5" />
@@ -706,7 +706,7 @@ export function ArticleComments({
                         onClick={() => startEdit(comment)}
                         aria-label="コメントを編集"
                         title="コメントを編集"
-                        className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
+                        className="p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
@@ -720,7 +720,7 @@ export function ArticleComments({
                         onClick={() => void handleDelete(comment)}
                         aria-label="コメントを削除"
                         title="コメントを削除"
-                        className="p-1.5 rounded-lg text-gray-400 hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-600 dark:hover:text-red-400 transition-colors cursor-pointer"
+                        className="p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-600 dark:hover:text-red-400 transition-colors cursor-pointer"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -888,11 +888,11 @@ export function ArticleComments({
               </div>
 
               {loadingHistory ? (
-                <p className="text-xs text-gray-400 dark:text-gray-500 text-center py-4">
+                <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-4">
                   履歴を読み込み中...
                 </p>
               ) : historyItems.length === 0 ? (
-                <p className="text-xs text-gray-400 dark:text-gray-500 text-center py-4">
+                <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-4">
                   過去の編集履歴データはありません
                 </p>
               ) : (
@@ -903,7 +903,7 @@ export function ArticleComments({
                       key={item.id}
                       className="bg-gray-50 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 rounded-xl p-3.5"
                     >
-                      <div className="text-[11px] text-gray-400 dark:text-gray-500 mb-1">
+                      <div className="text-[11px] text-gray-500 dark:text-gray-400 mb-1">
                         編集日時: {formatDate(item.editedAt)}
                       </div>
                       <p className="text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap">

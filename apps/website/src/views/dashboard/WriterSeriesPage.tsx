@@ -463,7 +463,9 @@ export const WriterSeriesPage = () => {
         <div className="space-y-3">
           <h2 className="font-bold text-gray-800 dark:text-gray-100">作成済みの連載</h2>
           {mySeries.length === 0 ? (
-            <p className="text-gray-400 text-sm text-center py-8">連載はまだありません</p>
+            <p className="text-gray-500 dark:text-gray-400 text-sm text-center py-8">
+              連載はまだありません
+            </p>
           ) : (
             mySeries.map((s) => {
               const seriesArticles = mergedWriterArticles
@@ -604,7 +606,7 @@ export const WriterSeriesPage = () => {
                   {expanded && (
                     <div className="border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-850 px-4 py-3 space-y-2.5">
                       {seriesArticles.length === 0 ? (
-                        <p className="text-xs text-gray-400 dark:text-gray-500 text-center py-2">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-2">
                           この連載にはまだ記事がありません
                         </p>
                       ) : (
@@ -614,7 +616,7 @@ export const WriterSeriesPage = () => {
                             className="flex flex-wrap sm:flex-nowrap items-center gap-2 bg-white dark:bg-gray-800 rounded-xl px-3 py-2 border border-gray-100 dark:border-gray-700"
                           >
                             <div className="flex items-center gap-1 shrink-0">
-                              <span className="text-xs text-gray-400 dark:text-gray-500">#</span>
+                              <span className="text-xs text-gray-500 dark:text-gray-400">#</span>
                               <input
                                 type="number"
                                 min={1}
@@ -644,7 +646,7 @@ export const WriterSeriesPage = () => {
                               <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
                                 {a.title}
                               </p>
-                              <p className="text-xs text-gray-400 dark:text-gray-500">
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
                                 {ARTICLE_STATUS_CONFIG[a.status as ArticleStatus]?.label ??
                                   a.status}
                               </p>
@@ -663,7 +665,7 @@ export const WriterSeriesPage = () => {
                                 data-testid={`remove-from-series-${a.id}`}
                                 onClick={() => void handleRemoveArticleFromSeries(a.id)}
                                 title="この連載から外す"
-                                className="text-xs text-gray-400 hover:text-red-500 p-1"
+                                className="text-xs text-gray-500 dark:text-gray-400 hover:text-red-500 p-1"
                               >
                                 <X className="w-3.5 h-3.5" />
                               </button>

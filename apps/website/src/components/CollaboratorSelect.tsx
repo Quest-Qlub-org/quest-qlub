@@ -57,7 +57,7 @@ export const CollaboratorSelect: React.FC<CollaboratorSelectProps> = ({
           <span>{label}</span>
         </label>
         {description && (
-          <span className="text-[11px] text-gray-400 dark:text-gray-500">{description}</span>
+          <span className="text-[11px] text-gray-500 dark:text-gray-400">{description}</span>
         )}
       </div>
 

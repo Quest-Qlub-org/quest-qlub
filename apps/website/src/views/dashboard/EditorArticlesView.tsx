@@ -254,11 +254,13 @@ export function EditorArticlesView() {
         </h2>
       </div>
       {loading ? (
-        <p className="text-center text-gray-400 py-8">読み込み中...</p>
+        <p className="text-center text-gray-500 dark:text-gray-400 py-8">読み込み中...</p>
       ) : (
         <div className="space-y-3 md:grid md:grid-cols-2 md:gap-4 md:space-y-0">
           {articles.length === 0 ? (
-            <p className="text-gray-400 text-sm text-center py-8 md:col-span-2">記事がありません</p>
+            <p className="text-gray-500 dark:text-gray-400 text-sm text-center py-8 md:col-span-2">
+              記事がありません
+            </p>
           ) : (
             articles.map((a) => {
               const isCommentsOn = a.commentsEnabled !== false;
@@ -383,7 +385,9 @@ export function EditorArticlesView() {
               ) : previewArticle.content ? (
                 <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(previewArticle.content) }} />
               ) : (
-                <p className="text-gray-400 text-sm text-center py-8">本文がありません</p>
+                <p className="text-gray-500 dark:text-gray-400 text-sm text-center py-8">
+                  本文がありません
+                </p>
               )}
             </div>
             <div className="p-4 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">

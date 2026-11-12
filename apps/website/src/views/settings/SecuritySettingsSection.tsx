@@ -477,7 +477,7 @@ export function SecuritySettingsSection({ showToast }: { showToast: (msg: string
               ※お使いのブラウザや環境はパスキー（WebAuthn）に対応していません。
             </p>
           ) : passkeys.length === 0 ? (
-            <p className="text-xs text-gray-400 dark:text-gray-500 py-2">
+            <p className="text-xs text-gray-500 dark:text-gray-400 py-2">
               登録済みのパスキーはありません。「パスキーを登録」ボタンから現在の端末を登録できます。
             </p>
           ) : (
@@ -488,12 +488,12 @@ export function SecuritySettingsSection({ showToast }: { showToast: (msg: string
                   className="flex items-center justify-between p-2.5 bg-white dark:bg-gray-700/60 rounded-lg border border-gray-200 dark:border-gray-600 text-xs"
                 >
                   <div className="flex items-center gap-2 min-w-0">
-                    <Key className="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                    <Key className="w-4 h-4 text-gray-500 dark:text-gray-400 flex-shrink-0" />
                     <div className="truncate">
                       <p className="font-bold text-gray-700 dark:text-gray-200 truncate">
                         {pk.friendly_name || "パスキー"}
                       </p>
-                      <p className="text-[10px] text-gray-400 dark:text-gray-500">
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400">
                         登録日: {new Date(pk.created_at).toLocaleDateString("ja-JP")}
                         {pk.last_used_at && (
                           <span className="ml-2">
@@ -507,7 +507,7 @@ export function SecuritySettingsSection({ showToast }: { showToast: (msg: string
                     onClick={() => void handleDeletePasskey(pk.id)}
                     disabled={deletingPasskeyId === pk.id}
                     title="パスキーを削除"
-                    className="p-1.5 text-gray-400 hover:text-red-500 rounded-md hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors disabled:opacity-50 flex-shrink-0"
+                    className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-red-500 rounded-md hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors disabled:opacity-50 flex-shrink-0"
                   >
                     {deletingPasskeyId === pk.id ? (
                       <Loader2 className="w-4 h-4 animate-spin text-red-500" />
@@ -557,7 +557,7 @@ export function SecuritySettingsSection({ showToast }: { showToast: (msg: string
               <button
                 onClick={() => setShowBackupModal(false)}
                 aria-label="閉じる"
-                className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -579,7 +579,7 @@ export function SecuritySettingsSection({ showToast }: { showToast: (msg: string
                     key={idx}
                     className="flex items-center justify-between px-3 py-1.5 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 text-xs font-mono font-bold text-gray-700 dark:text-gray-200 shadow-sm"
                   >
-                    <span className="text-gray-400 dark:text-gray-500 text-[10px] select-none">
+                    <span className="text-gray-500 dark:text-gray-400 text-[10px] select-none">
                       {idx + 1}.
                     </span>
                     <span>{code}</span>

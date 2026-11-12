@@ -698,7 +698,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
             <h1 className="text-base md:text-lg font-bold text-gray-800 dark:text-gray-100 truncate">
               {effectiveEditingArticle ? "記事を編集" : "新規記事作成"}
             </h1>
-            <div className="flex items-center gap-1.5 text-[11px] text-gray-400 dark:text-gray-500">
+            <div className="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400">
               {saving ? (
                 <span className="text-blue-600 dark:text-blue-400 font-medium">保存中...</span>
               ) : isDirty ? (
@@ -795,7 +795,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                     {selectedSeries.title}
                   </span>
                   {formEpisodeNumber && (
-                    <span className="text-xs text-gray-400 dark:text-gray-500">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
                       第{formEpisodeNumber}話
                     </span>
                   )}
@@ -804,7 +804,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
 
               <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 leading-tight">
                 {formTitle || (
-                  <span className="text-gray-400 dark:text-gray-500">（タイトル未入力）</span>
+                  <span className="text-gray-500 dark:text-gray-400">（タイトル未入力）</span>
                 )}
               </h2>
 
@@ -834,7 +834,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                     dangerouslySetInnerHTML={{ __html: sanitizeHtml(formContent) }}
                   />
                 ) : (
-                  <p className="text-sm text-gray-400 dark:text-gray-500 py-8 text-center">
+                  <p className="text-sm text-gray-500 dark:text-gray-400 py-8 text-center">
                     （本文がまだ入力されていません）
                   </p>
                 )}
@@ -874,7 +874,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                       className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1.5"
                     >
                       リード文・要約{" "}
-                      <span className="text-gray-400 dark:text-gray-500 font-normal">
+                      <span className="text-gray-500 dark:text-gray-400 font-normal">
                         （記事冒頭やSNSシェア時の説明文に表示されます）
                       </span>
                     </label>
@@ -904,7 +904,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                       <span className="text-sm font-bold text-gray-800 dark:text-gray-200">
                         サムネイル・タグ・連載設定
                       </span>
-                      <span className="text-xs text-gray-400 dark:text-gray-500 font-normal hidden sm:inline">
+                      <span className="text-xs text-gray-500 dark:text-gray-400 font-normal hidden sm:inline">
                         {tags.length > 0 ? `（タグ ${tags.length}件）` : ""}
                       </span>
                     </div>

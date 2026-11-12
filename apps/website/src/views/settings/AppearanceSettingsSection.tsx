@@ -65,7 +65,7 @@ export function AppearanceSettingsSection({
                 >
                   <Icon className="w-5 h-5 text-current" />
                   <p className="text-sm font-bold">{opt.label}</p>
-                  <p className="text-[11px] text-gray-400 dark:text-gray-400">{opt.desc}</p>
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400">{opt.desc}</p>
                 </button>
               );
             })}
@@ -104,7 +104,7 @@ export function AppearanceSettingsSection({
                 }`}
               >
                 <p className="text-sm font-bold">{opt.label}</p>
-                <p className="text-[11px] text-gray-400 dark:text-gray-400 mt-0.5">{opt.desc}</p>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{opt.desc}</p>
               </button>
             ))}
           </div>

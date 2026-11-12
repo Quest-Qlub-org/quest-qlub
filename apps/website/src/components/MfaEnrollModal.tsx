@@ -242,7 +242,7 @@ export const MfaEnrollModal = ({
           <button
             onClick={() => void handleCancel()}
             aria-label="閉じる"
-            className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer"
+            className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -278,7 +278,7 @@ export const MfaEnrollModal = ({
                     key={idx}
                     className="flex items-center justify-between px-3 py-1.5 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 text-xs font-mono font-bold text-gray-700 dark:text-gray-200 shadow-sm"
                   >
-                    <span className="text-gray-400 dark:text-gray-500 text-[10px] select-none">
+                    <span className="text-gray-500 dark:text-gray-400 text-[10px] select-none">
                       {idx + 1}.
                     </span>
                     <span>{code}</span>
@@ -323,7 +323,7 @@ export const MfaEnrollModal = ({
               </button>
             </div>
           ) : loading || generatingBackupCodes ? (
-            <div className="py-12 text-center text-gray-400 dark:text-gray-500 text-sm">
+            <div className="py-12 text-center text-gray-500 dark:text-gray-400 text-sm">
               <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
               {generatingBackupCodes ? "バックアップコードを生成中..." : "QRコードを生成中..."}
             </div>
@@ -341,7 +341,7 @@ export const MfaEnrollModal = ({
                   {qrCode ? (
                     <img src={qrCode} alt="TOTP QR Code" className="w-44 h-44 object-contain" />
                   ) : (
-                    <div className="w-44 h-44 flex items-center justify-center text-gray-400 text-xs">
+                    <div className="w-44 h-44 flex items-center justify-center text-gray-500 text-xs">
                       QRコードの読み込みに失敗しました
                     </div>
                   )}

@@ -529,7 +529,7 @@ export const EditorDashboard = () => {
 
               <div className="border-t border-gray-100 dark:border-gray-700 pt-4">
                 {previewLoading ? (
-                  <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-8">
+                  <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-8">
                     本文を読み込み中...
                   </p>
                 ) : previewArticle.content ? (
@@ -538,7 +538,7 @@ export const EditorDashboard = () => {
                     dangerouslySetInnerHTML={{ __html: sanitizeHtml(previewArticle.content) }}
                   />
                 ) : (
-                  <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-8">
+                  <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-8">
                     本文が設定されていません
                   </p>
                 )}
@@ -563,7 +563,7 @@ export const EditorDashboard = () => {
                   <button
                     type="button"
                     onClick={() => setScheduleInput("")}
-                    className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 underline"
+                    className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 underline"
                   >
                     クリア
                   </button>

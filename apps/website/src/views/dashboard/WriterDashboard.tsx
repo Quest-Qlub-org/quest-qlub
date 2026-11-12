@@ -286,7 +286,7 @@ export const WriterDashboard = () => {
         </div>
         <div className="space-y-3 md:grid md:grid-cols-2 md:gap-3 md:space-y-0">
           {loading || authLoading ? (
-            <div className="flex flex-col items-center justify-center py-12 md:col-span-2 gap-2 text-gray-400">
+            <div className="flex flex-col items-center justify-center py-12 md:col-span-2 gap-2 text-gray-500 dark:text-gray-400">
               <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
               <span className="text-xs">記事を読み込んでいます...</span>
             </div>
@@ -449,14 +449,18 @@ export const WriterDashboard = () => {
               )}
               <div className="border-t border-gray-100 dark:border-gray-700 pt-4">
                 {previewLoading ? (
-                  <p className="text-sm text-gray-400 text-center py-8">本文を読み込み中...</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-8">
+                    本文を読み込み中...
+                  </p>
                 ) : previewArticle.content ? (
                   <div
                     className={`article-content ${typeof getFontSizeClass === "function" ? getFontSizeClass() : "text-base"}`}
                     dangerouslySetInnerHTML={{ __html: sanitizeHtml(previewArticle.content) }}
                   />
                 ) : (
-                  <p className="text-sm text-gray-400 text-center py-8">本文が設定されていません</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-8">
+                    本文が設定されていません
+                  </p>
                 )}
               </div>
             </div>

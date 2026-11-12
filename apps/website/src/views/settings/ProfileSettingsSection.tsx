@@ -201,9 +201,11 @@ function FollowManageSection({ profile }: { profile: Profile | null }) {
 
             <div className="p-4 overflow-y-auto space-y-2.5">
               {loading ? (
-                <p className="text-xs text-gray-400 text-center py-8">読み込み中...</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-8">
+                  読み込み中...
+                </p>
               ) : (modalTab === "following" ? followingList : followersList).length === 0 ? (
-                <p className="text-xs text-gray-400 text-center py-8">
+                <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-8">
                   {modalTab === "following"
                     ? "フォロー中のアカウントはありません"
                     : "フォロワーはまだいません"}
@@ -233,7 +235,9 @@ function FollowManageSection({ profile }: { profile: Profile | null }) {
                           {item.display_name || (item.username ? `@${item.username}` : "ユーザー")}
                         </p>
                         {item.username && (
-                          <p className="text-xs text-gray-400 truncate">@{item.username}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                            @{item.username}
+                          </p>
                         )}
                       </div>
                     </div>
@@ -310,14 +314,14 @@ function AvatarUpload({
           {profile?.avatar_url ? (
             <img src={profile.avatar_url} alt="avatar" className="w-full h-full object-cover" />
           ) : (
-            <span className="text-2xl text-gray-400">👤</span>
+            <span className="text-2xl text-gray-500 dark:text-gray-400">👤</span>
           )}
         </div>
         <div className="flex-1">
           <label
             className={`inline-block px-4 py-2 rounded-lg text-sm font-bold cursor-pointer border-2 transition-all ${
               uploading
-                ? "bg-gray-100 dark:bg-gray-700 text-gray-400 border-gray-200 dark:border-gray-600"
+                ? "bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-600"
                 : "bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20"
             }`}
           >
@@ -330,7 +334,7 @@ function AvatarUpload({
               disabled={uploading}
             />
           </label>
-          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
             JPG / PNG / WebP / GIF・2MB以下
           </p>
           {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
@@ -485,13 +489,13 @@ function UsernameEdit({
   return (
     <div className="p-4">
       <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 font-bold">
-        ユーザー名 <span className="text-gray-400 dark:text-gray-500 font-normal">(@username)</span>
+        ユーザー名 <span className="text-gray-500 dark:text-gray-400 font-normal">(@username)</span>
       </p>
       {editing ? (
         <div className="space-y-2">
           <div className="flex gap-2">
             <div className="flex-1 flex items-center border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg px-3 py-1.5 focus-within:ring-2 focus-within:ring-blue-400">
-              <span className="text-gray-400 dark:text-gray-500 text-sm mr-1">@</span>
+              <span className="text-gray-500 dark:text-gray-400 text-sm mr-1">@</span>
               <input
                 className="flex-1 text-sm bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none"
                 value={uname}
@@ -520,7 +524,7 @@ function UsernameEdit({
             </button>
           </div>
           {err && <p className="text-xs text-red-500">{err}</p>}
-          <p className="text-xs text-gray-400 dark:text-gray-500">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
             半角英数字・アンダースコア3〜20文字。プロフィールURLおよびX（旧Twitter）リンクに使用されます。
           </p>
         </div>
@@ -589,7 +593,7 @@ function BioEdit({
             placeholder="あなたの自己紹介を入力してください"
             maxLength={300}
           />
-          <p className="text-xs text-gray-400 dark:text-gray-500 text-right">
+          <p className="text-xs text-gray-500 dark:text-gray-400 text-right">
             {bio.length}/300文字
           </p>
           <div className="flex gap-2">
@@ -617,7 +621,7 @@ function BioEdit({
             {profile?.bio ? (
               profile.bio
             ) : (
-              <span className="text-gray-400 dark:text-gray-500">（未設定）</span>
+              <span className="text-gray-500 dark:text-gray-400">（未設定）</span>
             )}
           </p>
           <button
@@ -688,7 +692,7 @@ function XAccountEdit({
         <div className="space-y-2">
           <div className="flex gap-2">
             <div className="flex-1 flex items-center border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg px-3 py-1.5 focus-within:ring-2 focus-within:ring-blue-400">
-              <span className="text-gray-400 dark:text-gray-500 text-sm mr-1">@</span>
+              <span className="text-gray-500 dark:text-gray-400 text-sm mr-1">@</span>
               <input
                 className="flex-1 text-sm bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none"
                 value={handle}
@@ -717,7 +721,7 @@ function XAccountEdit({
             </button>
           </div>
           {err && <p className="text-xs text-red-500">{err}</p>}
-          <p className="text-xs text-gray-400 dark:text-gray-500">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
             Xのユーザー名（@なし、またはURL）を入力するとプロフィールにXリンクが表示されます。
           </p>
         </div>

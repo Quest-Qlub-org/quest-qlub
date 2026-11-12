@@ -725,7 +725,7 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
                 type="button"
                 aria-label="閉じる"
                 onClick={closeLinkModal}
-                className="p-1 text-gray-400 hover:text-gray-600 rounded-lg"
+                className="p-1 text-gray-500 hover:text-gray-700 rounded-lg"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -797,7 +797,7 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
                 type="button"
                 aria-label="閉じる"
                 onClick={closeImageModal}
-                className="p-1 text-gray-400 hover:text-gray-600 rounded-lg"
+                className="p-1 text-gray-500 hover:text-gray-700 rounded-lg"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -844,7 +844,7 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
                 </label>
                 <div className="relative flex py-2 items-center">
                   <div className="flex-grow border-t border-gray-200" />
-                  <span className="flex-shrink mx-3 text-[11px] text-gray-400">
+                  <span className="flex-shrink mx-3 text-[11px] text-gray-500">
                     またはURLを指定
                   </span>
                   <div className="flex-grow border-t border-gray-200" />
