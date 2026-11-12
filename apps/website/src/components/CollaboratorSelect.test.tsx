@@ -125,6 +125,7 @@ describe("CollaboratorSelect", () => {
       "button[data-testid='remove-collaborator-w-2']",
     ) as HTMLButtonElement;
     expect(removeBtn).toBeTruthy();
+    expect(removeBtn.className).toContain("focus-visible:ring-2");
 
     act(() => {
       removeBtn.click();

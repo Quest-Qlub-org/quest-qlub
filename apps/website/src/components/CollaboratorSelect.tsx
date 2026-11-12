@@ -92,7 +92,7 @@ export const CollaboratorSelect: React.FC<CollaboratorSelectProps> = ({
                     type="button"
                     data-testid={`remove-collaborator-${collabId}`}
                     onClick={() => handleRemove(collabId)}
-                    className="hover:text-red-500 dark:hover:text-red-400 p-0.5 rounded-full transition-colors focus:outline-none"
+                    className="hover:text-red-500 dark:hover:text-red-400 p-0.5 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"
                     title="共同編集者を解除"
                     aria-label="共同編集者を解除"
                   >

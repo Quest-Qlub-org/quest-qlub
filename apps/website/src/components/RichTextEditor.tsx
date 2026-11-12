@@ -227,7 +227,8 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
     editorProps: {
       attributes: {
-        class: "article-content min-h-[480px] p-4 md:p-6 focus:outline-none",
+        class:
+          "article-content min-h-[480px] p-4 md:p-6 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900",
       },
     },
   });

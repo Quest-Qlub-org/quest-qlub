@@ -106,4 +106,11 @@ describe("RichTextEditor", () => {
     expect(radios.length).toBeGreaterThan(0);
     expect(radios[0].getAttribute("aria-checked")).not.toBeNull();
   });
+
+  it("applies focus-visible:ring-2 to editor content area (#113)", () => {
+    const { container } = render(<RichTextEditor content="<p>テキスト</p>" onChange={vi.fn()} />);
+    const proseMirror = container.querySelector(".ProseMirror");
+    expect(proseMirror).toBeTruthy();
+    expect(proseMirror?.className).toContain("focus-visible:ring-2");
+  });
 });
