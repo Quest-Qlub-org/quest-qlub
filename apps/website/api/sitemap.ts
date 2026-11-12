@@ -73,6 +73,25 @@ interface DbArticle {
 interface DbProfile {
   username?: string | null;
   created_at?: string | null;
+  role?: string | null;
+  roles?: string[] | null;
+}
+
+function isSitemapWriterProfile(profile: DbProfile | null | undefined): boolean {
+  if (!profile || typeof profile.username !== "string" || !profile.username.trim()) {
+    return false;
+  }
+  if (Array.isArray(profile.roles) && profile.roles.length > 0) {
+    return profile.roles.some((r) => {
+      const trimmed = typeof r === "string" ? r.trim() : "";
+      return trimmed === "writer" || trimmed === "editor";
+    });
+  }
+  if (typeof profile.role === "string" && profile.role.trim()) {
+    const trimmed = profile.role.trim();
+    return trimmed === "writer" || trimmed === "editor";
+  }
+  return profile.role === undefined && profile.roles === undefined;
 }
 
 export default async function handler(_req: VercelRequest, res: VercelResponse) {
@@ -130,20 +149,28 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
     }
 
     try {
-      // 2. ライタープロフィールを取得（role in writer,editor かつ username が存在するユーザー）
-      const writersRes = await fetch(
-        `${supabaseUrl}/rest/v1/profiles?role=in.(writer,editor)&username=not.is.null&select=username,created_at&order=created_at.desc&limit=5000`,
-        {
-          headers: {
-            apikey: supabaseAnonKey,
-            Authorization: `Bearer ${supabaseAnonKey}`,
-          },
-        },
+      // 2. ライタープロフィールを取得（role または roles 配列に writer/editor を含み、username が存在するユーザー）
+      const profileHeaders = {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`,
+      };
+      let writersRes = await fetch(
+        `${supabaseUrl}/rest/v1/profiles?or=(role.in.(writer,editor),roles.cs.%7Bwriter%7D,roles.cs.%7Beditor%7D)&username=not.is.null&select=username,created_at,role,roles&order=created_at.desc&limit=5000`,
+        { headers: profileHeaders },
       );
+
+      // スキーマドリフト耐性: roles カラム未適用環境 (400 Bad Request / 42703) の自動フォールバック
+      if (!writersRes.ok) {
+        writersRes = await fetch(
+          `${supabaseUrl}/rest/v1/profiles?role=in.(writer,editor)&username=not.is.null&select=username,created_at,role&order=created_at.desc&limit=5000`,
+          { headers: profileHeaders },
+        );
+      }
+
       if (writersRes.ok) {
         const data = await writersRes.json();
         if (Array.isArray(data)) {
-          writers = data.filter((w) => Boolean(w && w.username && w.username.trim()));
+          writers = data.filter((w) => isSitemapWriterProfile(w));
         }
       }
     } catch (err) {

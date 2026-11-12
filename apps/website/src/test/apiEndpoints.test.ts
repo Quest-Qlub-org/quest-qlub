@@ -358,7 +358,7 @@ describe("api/sitemap", () => {
             json: async () => mockArticles,
           });
         }
-        if (url.includes("profiles?role=in.(writer,editor)")) {
+        if (url.includes("/rest/v1/profiles?")) {
           return Promise.resolve({
             ok: true,
             json: async () => mockProfiles,
@@ -467,7 +467,7 @@ describe("api/sitemap", () => {
             json: async () => mockArticles,
           });
         }
-        if (url.includes("profiles?role=in.(writer,editor)")) {
+        if (url.includes("/rest/v1/profiles?")) {
           return Promise.resolve({
             ok: true,
             json: async () => mockProfiles,
@@ -488,5 +488,101 @@ describe("api/sitemap", () => {
     // Duplicate writer must be present exactly once
     const matchesWriter = res.body.match(/writers\/sameuser/g);
     expect(matchesWriter?.length).toBe(1);
+  });
+
+  it("includes multi-role writers and editors from profiles.roles even when primary role is viewer or engineer (#95)", async () => {
+    const req: any = { query: {}, headers: {} };
+    const res = createMockRes();
+
+    const mockProfiles = [
+      {
+        username: "multi_writer",
+        created_at: "2026-10-15T08:00:00Z",
+        role: "viewer",
+        roles: ["viewer", "writer"],
+      },
+      {
+        username: "eng_editor",
+        created_at: "2026-10-16T08:00:00Z",
+        role: "engineer",
+        roles: ["engineer", "editor"],
+      },
+      {
+        username: "legacy_writer",
+        created_at: "2026-10-17T08:00:00Z",
+        role: "writer",
+        roles: [],
+      },
+      {
+        username: "viewer_only",
+        created_at: "2026-10-18T08:00:00Z",
+        role: "viewer",
+        roles: ["viewer"],
+      },
+    ];
+
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.includes("articles?status=eq.published")) {
+        return Promise.resolve({ ok: true, json: async () => [] });
+      }
+      if (url.includes("/rest/v1/profiles?") && url.includes("roles.cs.")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => mockProfiles,
+        });
+      }
+      return Promise.resolve({ ok: false, json: async () => [] });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await sitemapHandler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain("<loc>https://quest-qlub.vercel.app/writers/multi_writer</loc>");
+    expect(res.body).toContain("<loc>https://quest-qlub.vercel.app/writers/eng_editor</loc>");
+    expect(res.body).toContain("<loc>https://quest-qlub.vercel.app/writers/legacy_writer</loc>");
+    expect(res.body).not.toContain("<loc>https://quest-qlub.vercel.app/writers/viewer_only</loc>");
+  });
+
+  it("falls back to single role query when profiles.roles column does not exist (42703 schema drift, #95)", async () => {
+    const req: any = { query: {}, headers: {} };
+    const res = createMockRes();
+
+    const fallbackProfiles = [
+      {
+        username: "fallback_writer",
+        created_at: "2026-10-15T08:00:00Z",
+        role: "writer",
+      },
+    ];
+
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.includes("articles?status=eq.published")) {
+        return Promise.resolve({ ok: true, json: async () => [] });
+      }
+      if (url.includes("/rest/v1/profiles?") && url.includes("roles")) {
+        return Promise.resolve({
+          ok: false,
+          status: 400,
+          json: async () => ({
+            code: "42703",
+            message: "column profiles.roles does not exist",
+          }),
+        });
+      }
+      if (url.includes("profiles?role=in.(writer,editor)")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => fallbackProfiles,
+        });
+      }
+      return Promise.resolve({ ok: false, json: async () => [] });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await sitemapHandler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain("<loc>https://quest-qlub.vercel.app/writers/fallback_writer</loc>");
   });
 });
