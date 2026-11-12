@@ -163,4 +163,81 @@ describe("WritersView (Follow actions and self-row protection)", () => {
     expect(mockNavigate).not.toHaveBeenCalledWith("login");
     expect(mockShowToast).toHaveBeenCalledWith("フォロー処理に失敗しました");
   });
+
+  it("renders writer rows as Link anchors to /writers/:username and prevents navigation when clicking follow button", async () => {
+    mockIsAuthenticated = true;
+    mockCurrentUserId = "user-other";
+    mockIsFollowing.mockImplementation((id?: string) => id === "editor-1");
+
+    const { container, unmount } = renderWithRouter(<WritersView />);
+    unmountFn = unmount;
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const links = Array.from(container.querySelectorAll("a"));
+    const hrefs = links.map((a) => a.getAttribute("href"));
+    expect(hrefs).toContain("/writers/editor1");
+    expect(hrefs).toContain("/writers/writer1");
+
+    const followButton = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("フォロー"),
+    );
+    expect(followButton).toBeDefined();
+    expect(followButton?.getAttribute("aria-pressed")).toBe("true");
+
+    await act(async () => {
+      followButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(mockToggleFollow).toHaveBeenCalledWith("editor-1");
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it("renders writer avatar with descriptive alt text and lazy loading attributes", async () => {
+    mockWriters = [
+      createTestProfile({
+        id: "writer-avatar",
+        display_name: "アバター太郎",
+        username: "avatar_taro",
+        role: "writer",
+        avatar_url: "https://example.com/avatar.jpg",
+      }),
+    ];
+
+    const { container, unmount } = renderWithRouter(<WritersView />);
+    unmountFn = unmount;
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const img = container.querySelector('img[src="https://example.com/avatar.jpg"]');
+    expect(img).not.toBeNull();
+    expect(img?.getAttribute("alt")).toContain("アバター太郎");
+    expect(img?.getAttribute("loading")).toBe("lazy");
+    expect(img?.getAttribute("decoding")).toBe("async");
+  });
+
+  it("uses WCAG AA contrast classes for empty writers message", async () => {
+    mockWriters = [];
+
+    const { container, unmount } = renderWithRouter(<WritersView />);
+    unmountFn = unmount;
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const emptyMsg = Array.from(container.querySelectorAll("p")).find((p) =>
+      p.textContent?.includes("ライターがまだいません"),
+    );
+    expect(emptyMsg).toBeDefined();
+    expect(emptyMsg?.classList.contains("text-gray-500")).toBe(true);
+    expect(emptyMsg?.classList.contains("dark:text-gray-400")).toBe(true);
+    expect(emptyMsg?.classList.contains("text-gray-400")).toBe(false);
+    expect(emptyMsg?.classList.contains("dark:text-gray-500")).toBe(false);
+  });
 });
