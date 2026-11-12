@@ -58,7 +58,7 @@ describe("SearchView", () => {
     });
   }
 
-  it("renders search input, tags, and writers initially without results area", () => {
+  it("renders initial published articles and stable 2-column grid layout when unfiltered", () => {
     const writer = createTestProfile({ id: "w-1", display_name: "ライター1" });
     const article1 = createTestArticle({
       id: "art-1",
@@ -78,9 +78,14 @@ describe("SearchView", () => {
     expect(container.textContent).toContain("ライターでしぼる");
     expect(container.textContent).toContain("ライター1");
 
-    // フィルター未指定時は検索結果エリアが表示されない仕様
+    // #91: 初期状態でも公開記事が表示され、検索結果ラベルはフィルター適用時のみになること
+    expect(container.textContent).toContain("公開中の記事 (1件)");
+    expect(container.textContent).toContain("物理学の基本");
     expect(container.textContent).not.toContain("検索結果 (");
-    expect(container.textContent).not.toContain("物理学の基本");
+
+    // #91: 初期状態から2カラムグリッドを維持しCLSを防止すること
+    const gridWrapper = container.querySelector(".md\\:grid-cols-\\[300px_1fr\\]");
+    expect(gridWrapper).not.toBeNull();
   });
 
   it("filters articles by keyword input in title, content, or writer name", () => {
@@ -401,5 +406,63 @@ describe("SearchView", () => {
 
     expect(container.textContent).toContain("量子技術の基礎");
     expect(container.textContent).toContain("検索結果 (1件)");
+  });
+
+  it("provides proper heading hierarchy, ARIA live status, aria-busy, accessible button labels, and toggle aria-pressed", () => {
+    const writer = createTestProfile({ id: "w-1", display_name: "科学ライター", role: "writer" });
+    const article = createTestArticle({
+      id: "art-a11y",
+      title: "アクセシビリティ入門",
+      tags: ["設計"],
+      status: "published",
+      writerId: "w-1",
+    });
+
+    setupAppMock({ articles: [article], writers: [writer] });
+    renderSearchView();
+
+    // #99: h1 タイトルと h2 セクション見出し（h1/h2 階層の遵守）
+    const h1 = container.querySelector("h1");
+    expect(h1).not.toBeNull();
+    expect(h1?.textContent).toContain("記事を探す");
+    const h2Texts = Array.from(container.querySelectorAll("h2")).map((h) => h.textContent?.trim());
+    expect(h2Texts).toContain("タグでしぼる");
+    expect(h2Texts).toContain("ライターでしぼる");
+    expect(h2Texts).toContain("公開中の記事 (1件)");
+
+    // #107: role="status" / aria-live="polite" / aria-busy
+    const statusRegion = container.querySelector('[role="status"][aria-live="polite"]');
+    expect(statusRegion).not.toBeNull();
+    const busyRegion = container.querySelector("[aria-busy]");
+    expect(busyRegion?.getAttribute("aria-busy")).toBe("false");
+
+    // #110: タグボタンとライターボタンの aria-pressed 状態
+    const tagButton = Array.from(container.querySelectorAll("button")).find((btn) =>
+      btn.textContent?.includes("#設計"),
+    );
+    expect(tagButton?.getAttribute("aria-pressed")).toBe("false");
+    act(() => {
+      tagButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(tagButton?.getAttribute("aria-pressed")).toBe("true");
+
+    const writerButton = Array.from(container.querySelectorAll("button")).find((btn) =>
+      btn.textContent?.includes("科学ライター"),
+    );
+    expect(writerButton?.getAttribute("aria-pressed")).toBe("false");
+    act(() => {
+      writerButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(writerButton?.getAttribute("aria-pressed")).toBe("true");
+
+    // #110: キーワードクリアボタンの aria-label
+    const searchInput = container.querySelector(
+      'input[placeholder="キーワードで検索"]',
+    ) as HTMLInputElement;
+    act(() => {
+      setNativeValue(searchInput, "入門");
+    });
+    const clearButton = container.querySelector('button[aria-label="検索キーワードをクリア"]');
+    expect(clearButton).not.toBeNull();
   });
 });
