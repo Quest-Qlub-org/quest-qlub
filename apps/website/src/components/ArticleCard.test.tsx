@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vite-plus/test";
 import { createRoot } from "react-dom/client";
 import { act } from "react";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { ArticleCard } from "./ArticleCard";
 import * as AppContextModule from "../context/AppContext";
 import { createTestArticle, createTestProfile } from "../test/test-utils";
@@ -47,6 +48,12 @@ describe("ArticleCard", () => {
     } as unknown as ReturnType<typeof AppContextModule.useApp>);
   }
 
+  function renderCard(ui: React.ReactElement) {
+    act(() => {
+      root!.render(<MemoryRouter>{ui}</MemoryRouter>);
+    });
+  }
+
   it("renders article title and writer display_name correctly", () => {
     const mockWriter = createTestProfile({ id: "writer-1", display_name: "山田太郎" });
     const mockArticle = createTestArticle({
@@ -57,9 +64,7 @@ describe("ArticleCard", () => {
 
     setupAppMock({ writers: [mockWriter], favorites: [] });
 
-    act(() => {
-      root!.render(<ArticleCard article={mockArticle} />);
-    });
+    renderCard(<ArticleCard article={mockArticle} />);
 
     expect(container.textContent).toContain("楽しく学ぶ天文学入門");
     expect(container.textContent).toContain("山田太郎");
@@ -79,9 +84,7 @@ describe("ArticleCard", () => {
 
     setupAppMock({ writers: [mockWriter], favorites: [] });
 
-    act(() => {
-      root!.render(<ArticleCard article={mockArticle} />);
-    });
+    renderCard(<ArticleCard article={mockArticle} />);
 
     expect(container.textContent).toContain("@astronomer");
   });
@@ -95,14 +98,12 @@ describe("ArticleCard", () => {
 
     setupAppMock({ writers: [], favorites: [] });
 
-    act(() => {
-      root!.render(<ArticleCard article={mockArticle} />);
-    });
+    renderCard(<ArticleCard article={mockArticle} />);
 
     expect(container.textContent).toContain("名称未設定");
   });
 
-  it("renders thumbnail image when thumbnailUrl is provided", () => {
+  it("renders thumbnail image with lazy loading and async decoding when thumbnailUrl is provided", () => {
     const mockArticle = createTestArticle({
       id: "art-thumb",
       thumbnailUrl: "https://example.com/thumb.jpg",
@@ -110,14 +111,14 @@ describe("ArticleCard", () => {
 
     setupAppMock();
 
-    act(() => {
-      root!.render(<ArticleCard article={mockArticle} />);
-    });
+    renderCard(<ArticleCard article={mockArticle} />);
 
     const img = container.querySelector("img");
     expect(img).not.toBeNull();
     expect(img?.getAttribute("src")).toBe("https://example.com/thumb.jpg");
     expect(img?.getAttribute("alt")).toBe(mockArticle.title);
+    expect(img?.getAttribute("loading")).toBe("lazy");
+    expect(img?.getAttribute("decoding")).toBe("async");
   });
 
   it("renders thumbnail color fallback when thumbnailUrl is null", () => {
@@ -129,14 +130,13 @@ describe("ArticleCard", () => {
 
     setupAppMock();
 
-    act(() => {
-      root!.render(<ArticleCard article={mockArticle} />);
-    });
+    renderCard(<ArticleCard article={mockArticle} />);
 
     // green の背景色クラス bg-green-100 が付与されていること
-    expect(container.querySelector(".bg-green-100")).not.toBeNull();
+    const bgContainer = container.querySelector(".bg-green-100");
+    expect(bgContainer).not.toBeNull();
     // ロゴ画像 (LogoIcon) が描画されること
-    const logoImg = container.querySelector('img[alt="Logo"]');
+    const logoImg = bgContainer?.querySelector("img");
     expect(logoImg).not.toBeNull();
   });
 
@@ -146,31 +146,61 @@ describe("ArticleCard", () => {
     // お気に入りに含まれている場合
     setupAppMock({ favorites: ["art-fav-1"] });
 
-    act(() => {
-      root!.render(<ArticleCard article={mockArticle} />);
-    });
+    renderCard(<ArticleCard article={mockArticle} />);
 
     // CustomStarIcon の active クラス（ring-yellow-400）の存在を検証
-    const starImg = container.querySelector('img[alt="Star"]');
+    const starImg = container.querySelector("img.ring-yellow-400");
     expect(starImg).not.toBeNull();
-    expect(starImg?.className).toContain("ring-yellow-400");
   });
 
-  it("calls navigate with article id when clicked", () => {
+  it("renders as an anchor link to /articles/:id and navigates on click", () => {
     const mockArticle = createTestArticle({ id: "art-clickable" });
+    let currentPathname = "";
 
+    const LocationProbe = () => {
+      currentPathname = useLocation().pathname;
+      return null;
+    };
+
+    setupAppMock();
+
+    act(() => {
+      root!.render(
+        <MemoryRouter initialEntries={["/"]}>
+          <ArticleCard article={mockArticle} />
+          <LocationProbe />
+        </MemoryRouter>,
+      );
+    });
+
+    const link = container.querySelector("a");
+    expect(link).not.toBeNull();
+    expect(link?.getAttribute("href")).toBe("/articles/art-clickable");
+
+    act(() => {
+      link?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }));
+    });
+
+    expect(currentPathname).toBe("/articles/art-clickable");
+  });
+
+  it("falls back to navigate when rendered outside router context", () => {
+    const mockArticle = createTestArticle({ id: "art-outside-router" });
     setupAppMock();
 
     act(() => {
       root!.render(<ArticleCard article={mockArticle} />);
     });
 
-    const card = container.firstElementChild as HTMLElement;
+    const link = container.querySelector("a");
+    expect(link).not.toBeNull();
+    expect(link?.getAttribute("href")).toBe("/articles/art-outside-router");
+
     act(() => {
-      card.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      link?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
     });
 
-    expect(mockNavigate).toHaveBeenCalledWith("article", "art-clickable");
+    expect(mockNavigate).toHaveBeenCalledWith("article", "art-outside-router");
   });
 
   it("applies horizontal and vertical layout styles", () => {
@@ -178,32 +208,33 @@ describe("ArticleCard", () => {
     setupAppMock();
 
     // 1. horizontal (デフォルト)
-    act(() => {
-      root!.render(<ArticleCard article={mockArticle} layout="horizontal" />);
-    });
+    renderCard(<ArticleCard article={mockArticle} layout="horizontal" />);
     expect((container.firstElementChild as HTMLElement).className).toContain("flex h-28");
     const contentDiv = container.firstElementChild?.lastElementChild as HTMLElement;
     expect(contentDiv.className).toContain("flex-1 min-w-0");
 
     // 2. vertical
-    act(() => {
-      root!.render(<ArticleCard article={mockArticle} layout="vertical" />);
-    });
+    renderCard(<ArticleCard article={mockArticle} layout="vertical" />);
     expect((container.firstElementChild as HTMLElement).className).toContain("flex flex-col");
   });
 
-  it("renders formatted publication date when createdAt is present", () => {
+  it("renders formatted publication date with WCAG AA contrast classes when createdAt is present", () => {
     const mockArticle = createTestArticle({
       id: "art-date",
       createdAt: "2026-10-24T10:00:00",
     });
     setupAppMock();
 
-    act(() => {
-      root!.render(<ArticleCard article={mockArticle} />);
-    });
+    renderCard(<ArticleCard article={mockArticle} />);
 
     expect(container.textContent).toContain("2026/10/24");
+    const dateSpan = Array.from(container.querySelectorAll("span")).find(
+      (s) => s.textContent === "2026/10/24",
+    );
+    expect(dateSpan?.classList.contains("text-gray-500")).toBe(true);
+    expect(dateSpan?.classList.contains("dark:text-gray-400")).toBe(true);
+    expect(dateSpan?.classList.contains("text-gray-400")).toBe(false);
+    expect(dateSpan?.classList.contains("dark:text-gray-500")).toBe(false);
   });
 
   it("renders 共同執筆 badge when isCollaborator is true", () => {
@@ -213,9 +244,7 @@ describe("ArticleCard", () => {
     });
     setupAppMock();
 
-    act(() => {
-      root!.render(<ArticleCard article={mockArticle} isCollaborator={true} />);
-    });
+    renderCard(<ArticleCard article={mockArticle} isCollaborator={true} />);
 
     const badge = container.querySelector('[data-testid="collaborator-badge"]');
     expect(badge).not.toBeNull();
@@ -229,9 +258,7 @@ describe("ArticleCard", () => {
     });
     setupAppMock();
 
-    act(() => {
-      root!.render(<ArticleCard article={mockArticle} />);
-    });
+    renderCard(<ArticleCard article={mockArticle} />);
 
     expect(container.querySelector('[data-testid="collaborator-badge"]')).toBeNull();
     expect(container.textContent).not.toContain("共同執筆");
