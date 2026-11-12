@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { Link } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { CustomUserIcon } from "../components/icons/NavIcons";
 import { ChevronLeft, Loader2, UserPlus, UserCheck } from "lucide-react";
@@ -13,81 +14,95 @@ const WriterRow = ({
   isFollowing,
   currentUserId,
   onToggleFollow,
-  onSelect,
 }: {
   w: Profile;
   isFollowing: boolean;
   currentUserId?: string | null;
   onToggleFollow: (id: string) => void;
-  onSelect: (usernameOrId: string) => void;
-}) => (
-  <div
-    className="flex items-center justify-between p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/80 rounded-xl m-2 cursor-pointer hover:bg-blue-50 dark:hover:bg-gray-700/60 transition-colors shadow-sm"
-    onClick={() => onSelect(w.username || w.id)}
-  >
-    <div className="flex items-center gap-4">
-      <div className="bg-gray-100 dark:bg-gray-700 rounded-full border border-gray-200 dark:border-gray-600 overflow-hidden w-12 h-12 flex items-center justify-center shrink-0">
-        {w.avatar_url ? (
-          <img src={w.avatar_url} className="w-12 h-12 object-cover" alt="" />
-        ) : (
-          <CustomUserIcon className="w-8 h-8" />
-        )}
-      </div>
-      <div>
-        <p className="font-bold text-gray-800 dark:text-gray-100 text-base">
-          {w.display_name ?? (w.username ? `@${w.username}` : "名称未設定")}
-        </p>
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {getProfileRoles(w).map((r) => (
-            <span
-              key={r}
-              className={`text-xs font-bold ${
-                r === "editor"
-                  ? "text-purple-600 dark:text-purple-400"
-                  : r === "engineer"
-                    ? "text-emerald-600 dark:text-emerald-400"
-                    : "text-blue-500 dark:text-blue-400"
-              }`}
-            >
-              {getRoleLabel(r)}
-            </span>
-          ))}
-        </div>
-      </div>
-    </div>
-    <div className="flex items-center gap-3">
-      {currentUserId !== w.id && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleFollow(w.id);
-          }}
-          className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm cursor-pointer ${
-            isFollowing
-              ? "bg-blue-600 text-white hover:bg-blue-700"
-              : "bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
-          }`}
-        >
-          {isFollowing ? (
-            <>
-              <UserCheck className="w-3.5 h-3.5" />
-              <span>フォロー中</span>
-            </>
+}) => {
+  const writerName = w.display_name ?? (w.username ? `@${w.username}` : "名称未設定");
+  const profilePath = `/writers/${w.username || w.id}`;
+
+  return (
+    <div className="relative flex items-center justify-between p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/80 rounded-xl m-2 hover:bg-blue-50 dark:hover:bg-gray-700/60 focus-within:ring-2 focus-within:ring-blue-500 transition-colors shadow-sm">
+      <Link
+        to={profilePath}
+        className="flex items-center gap-4 min-w-0 flex-1 after:absolute after:inset-0 focus-visible:outline-none"
+      >
+        <div className="bg-gray-100 dark:bg-gray-700 rounded-full border border-gray-200 dark:border-gray-600 overflow-hidden w-12 h-12 flex items-center justify-center shrink-0">
+          {w.avatar_url ? (
+            <img
+              src={w.avatar_url}
+              className="w-12 h-12 object-cover"
+              alt={`${writerName}のアバター`}
+              loading="lazy"
+              decoding="async"
+            />
           ) : (
-            <>
-              <UserPlus className="w-3.5 h-3.5" />
-              <span>フォロー</span>
-            </>
+            <CustomUserIcon className="w-8 h-8" />
           )}
-        </button>
-      )}
-      <span className="text-sm font-bold text-gray-500 dark:text-gray-400 hidden sm:flex items-center">
-        記事一覧 <ChevronLeft className="w-4 h-4 rotate-180 ml-1" />
-      </span>
+        </div>
+        <div className="min-w-0">
+          <p className="font-bold text-gray-800 dark:text-gray-100 text-base truncate">
+            {writerName}
+          </p>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {getProfileRoles(w).map((r) => (
+              <span
+                key={r}
+                className={`text-xs font-bold ${
+                  r === "editor"
+                    ? "text-purple-600 dark:text-purple-400"
+                    : r === "engineer"
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : "text-blue-600 dark:text-blue-400"
+                }`}
+              >
+                {getRoleLabel(r)}
+              </span>
+            ))}
+          </div>
+        </div>
+      </Link>
+      <div className="flex items-center gap-3 shrink-0 ml-2">
+        {currentUserId !== w.id && (
+          <button
+            type="button"
+            aria-pressed={isFollowing}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onToggleFollow(w.id);
+            }}
+            className={`relative z-10 inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm cursor-pointer ${
+              isFollowing
+                ? "bg-blue-600 text-white hover:bg-blue-700"
+                : "bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
+            }`}
+          >
+            {isFollowing ? (
+              <>
+                <UserCheck className="w-3.5 h-3.5" />
+                <span>フォロー中</span>
+              </>
+            ) : (
+              <>
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>フォロー</span>
+              </>
+            )}
+          </button>
+        )}
+        <span
+          className="text-sm font-bold text-gray-500 dark:text-gray-400 hidden sm:flex items-center pointer-events-none"
+          aria-hidden="true"
+        >
+          記事一覧 <ChevronLeft className="w-4 h-4 rotate-180 ml-1" />
+        </span>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 export const WritersView = () => {
   const {
@@ -165,7 +180,6 @@ export const WritersView = () => {
                     isFollowing={isFollowing(w.id)}
                     currentUserId={currentUserId}
                     onToggleFollow={handleToggleFollow}
-                    onSelect={(id) => navigate("profile", id)}
                   />
                 ))}
               </div>
@@ -185,12 +199,11 @@ export const WritersView = () => {
                     isFollowing={isFollowing(w.id)}
                     currentUserId={currentUserId}
                     onToggleFollow={handleToggleFollow}
-                    onSelect={(id) => navigate("profile", id)}
                   />
                 ))
               ) : (
                 <div className="col-span-2 text-center py-8 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-                  <p className="text-sm text-gray-400 dark:text-gray-500 font-medium">
+                  <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">
                     ライターがまだいません
                   </p>
                 </div>
@@ -202,6 +215,7 @@ export const WritersView = () => {
           {hasMoreWriters && (
             <div className="text-center pt-4">
               <button
+                type="button"
                 onClick={() => void loadMoreWriters()}
                 disabled={loadingMoreWriters}
                 className="px-6 py-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-700 dark:text-gray-200 text-sm font-bold rounded-xl transition-all shadow-sm hover:border-gray-400 dark:hover:border-gray-600 disabled:opacity-50 inline-flex items-center gap-2 cursor-pointer"

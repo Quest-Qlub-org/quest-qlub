@@ -380,4 +380,31 @@ describe("AboutView", () => {
 
     unmount();
   });
+
+  it("renders h1 page title and h2 section headings without skipping heading levels", () => {
+    mockTeamMembers = [
+      createTestProfile({
+        id: "usr-writer-1",
+        display_name: "テストライター",
+        username: "test_writer",
+        role: "writer",
+        roles: ["writer", "engineer"],
+      }),
+    ];
+
+    const { container, unmount } = renderWithRouter(<AboutView />);
+
+    const h1 = container.querySelector("h1");
+    expect(h1).not.toBeNull();
+    expect(h1?.textContent).toContain("Quest Qlub について");
+
+    const h2s = Array.from(container.querySelectorAll("h2")).map((h) => h.textContent?.trim());
+    expect(h2s).toContain("Quest Qlub とは");
+    expect(h2s).toContain("主な活動");
+    expect(h2s).toContain("ライター");
+    expect(h2s).toContain("エンジニア");
+    expect(container.querySelectorAll("h3").length).toBe(0);
+
+    unmount();
+  });
 });

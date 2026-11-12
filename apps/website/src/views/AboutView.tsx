@@ -117,13 +117,16 @@ export const AboutView = () => {
           className="h-20 sm:h-24 md:h-28 max-w-full object-contain mx-auto mb-2 dark:brightness-0 dark:invert transition-all"
           alt="Quest Qlub - 学びの『楽しい！』をつなげる -"
         />
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-4">
+          Quest Qlub について
+        </h1>
       </div>
       <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
           <div className="bg-gray-50 dark:bg-gray-800 p-5 rounded-xl border border-gray-100 dark:border-gray-700">
-            <h3 className="font-bold text-gray-800 dark:text-gray-100 border-b-2 border-blue-200 dark:border-blue-600 pb-2 mb-3 inline-block">
+            <h2 className="font-bold text-gray-800 dark:text-gray-100 border-b-2 border-blue-200 dark:border-blue-600 pb-2 mb-3 inline-block">
               Quest Qlub とは
-            </h3>
+            </h2>
             <p className="text-sm text-gray-600 dark:text-gray-300 leading-loose">
               　「学びの『楽しい！』をつなげる」をモットーに、ライターによって書かれる記事から、「学ぶこと」の楽しさや面白さを届けるコンテンツです。
             </p>
@@ -132,9 +135,9 @@ export const AboutView = () => {
             </p>
           </div>
           <div className="bg-gray-50 dark:bg-gray-800 p-5 rounded-xl border border-gray-100 dark:border-gray-700">
-            <h3 className="font-bold text-gray-800 dark:text-gray-100 border-b-2 border-blue-200 dark:border-blue-600 pb-2 mb-3 inline-block">
+            <h2 className="font-bold text-gray-800 dark:text-gray-100 border-b-2 border-blue-200 dark:border-blue-600 pb-2 mb-3 inline-block">
               主な活動
-            </h3>
+            </h2>
             <p className="text-sm text-gray-600 dark:text-gray-300 leading-loose">
               　Quest
               Qlubのライターが、「楽しい」「おもしろい」と感じたことを記事にすることで、その輪を広げています。
@@ -169,12 +172,12 @@ export const AboutView = () => {
             data-testid="writers-section"
             className="bg-gray-50 dark:bg-gray-800 p-5 rounded-xl border border-gray-100 dark:border-gray-700"
           >
-            <h3 className="font-bold text-gray-800 dark:text-gray-100 border-b-2 border-blue-200 dark:border-blue-600 pb-2 mb-3 inline-block">
+            <h2 className="font-bold text-gray-800 dark:text-gray-100 border-b-2 border-blue-200 dark:border-blue-600 pb-2 mb-3 inline-block">
               ライター
-            </h3>
+            </h2>
             {editors.length > 0 && (
               <div className="mb-3">
-                <span className="inline-block text-xs font-bold text-white bg-blue-500 px-2 py-0.5 rounded-full mb-2">
+                <span className="inline-block text-xs font-bold text-white bg-blue-600 px-2 py-0.5 rounded-full mb-2">
                   編集長
                 </span>
                 <ul className="text-sm text-gray-700 dark:text-gray-200 font-bold pl-1 space-y-1.5">
@@ -195,7 +198,7 @@ export const AboutView = () => {
             )}
             {writersList.length > 0 && (
               <div>
-                <span className="inline-block text-xs font-bold text-white bg-gray-400 dark:bg-gray-600 px-2 py-0.5 rounded-full mb-2">
+                <span className="inline-block text-xs font-bold text-white bg-gray-600 dark:bg-gray-600 px-2 py-0.5 rounded-full mb-2">
                   ライター
                 </span>
                 <ul className="text-sm text-gray-600 dark:text-gray-300 space-y-1.5 pl-1">
@@ -217,7 +220,7 @@ export const AboutView = () => {
             <button
               type="button"
               onClick={() => navigate("writers")}
-              className="mt-3 text-sm text-blue-500 dark:text-blue-400 font-bold underline hover:text-blue-700 dark:hover:text-blue-300 block cursor-pointer"
+              className="mt-3 text-sm text-blue-600 dark:text-blue-400 font-bold underline hover:text-blue-700 dark:hover:text-blue-300 block cursor-pointer"
             >
               ＞ 編集者一覧へ
             </button>
@@ -231,9 +234,9 @@ export const AboutView = () => {
               data-testid="engineers-section"
               className="bg-gray-50 dark:bg-gray-800 p-5 rounded-xl border border-gray-100 dark:border-gray-700"
             >
-              <h3 className="font-bold text-gray-800 dark:text-gray-100 border-b-2 border-blue-200 dark:border-blue-600 pb-2 mb-3 inline-block">
+              <h2 className="font-bold text-gray-800 dark:text-gray-100 border-b-2 border-blue-200 dark:border-blue-600 pb-2 mb-3 inline-block">
                 エンジニア
-              </h3>
+              </h2>
               <ul className="text-sm text-gray-600 dark:text-gray-300 space-y-1.5">
                 {engineers.map((m) => (
                   <li key={`engineer-${m.id}`} className="flex flex-wrap items-center">
@@ -258,9 +261,9 @@ export const AboutView = () => {
               data-testid={`role-section-${role}`}
               className="bg-gray-50 dark:bg-gray-800 p-5 rounded-xl border border-gray-100 dark:border-gray-700"
             >
-              <h3 className="font-bold text-gray-800 dark:text-gray-100 border-b-2 border-blue-200 dark:border-blue-600 pb-2 mb-3 inline-block">
+              <h2 className="font-bold text-gray-800 dark:text-gray-100 border-b-2 border-blue-200 dark:border-blue-600 pb-2 mb-3 inline-block">
                 {label}
-              </h3>
+              </h2>
               <ul className="text-sm text-gray-600 dark:text-gray-300 space-y-1.5">
                 {members.map((m) => (
                   <li key={`${role}-${m.id}`} className="flex flex-wrap items-center">
