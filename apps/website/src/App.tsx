@@ -158,14 +158,17 @@ export function NotFoundView() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[70vh] px-6 text-center animate-in fade-in duration-300">
-      <p className="text-8xl font-black text-gray-200 select-none mb-2">404</p>
-      <h1 className="text-2xl font-bold text-gray-800 mb-3">ページが見つかりません</h1>
-      <p className="text-gray-500 text-sm mb-8 max-w-xs">
+      <p className="text-8xl font-black text-gray-200 dark:text-gray-800 select-none mb-2">404</p>
+      <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-3">
+        ページが見つかりません
+      </h1>
+      <p className="text-gray-600 dark:text-gray-400 text-sm mb-8 max-w-xs">
         指定されたURLのページは存在しないか、移動した可能性があります。
       </p>
       <button
+        type="button"
         onClick={() => navigate("/")}
-        className="px-6 py-3 bg-gray-900 text-white text-sm font-bold rounded-xl hover:bg-gray-700 transition-colors shadow-sm"
+        className="px-6 py-3 bg-gray-900 hover:bg-gray-700 dark:bg-gray-100 dark:hover:bg-gray-200 text-white dark:text-gray-900 text-sm font-bold rounded-xl transition-colors shadow-sm"
       >
         トップへ戻る
       </button>

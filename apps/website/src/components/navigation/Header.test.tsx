@@ -69,46 +69,55 @@ describe("Header navigation", () => {
     });
   });
 
-  it("highlights active navigation item based on current location", () => {
+  it("renders main navigation landmark and semantic links with aria-current", () => {
     renderHeader("/search");
 
-    // 「探す」ボタンが active スタイル (text-blue-600) を持っていること
-    const buttons = Array.from(container.querySelectorAll("button"));
-    const searchButton = buttons.find((btn) => btn.textContent?.includes("探す"));
-    expect(searchButton).toBeDefined();
-    expect(searchButton?.querySelector(".text-blue-600")).not.toBeNull();
+    const nav = container.querySelector('nav[aria-label="メインナビゲーション"]');
+    expect(nav).not.toBeNull();
 
-    // 「トップ」ボタンは active ではないこと
-    const homeButton = buttons.find((btn) => btn.textContent?.includes("トップ"));
-    expect(homeButton?.querySelector(".text-blue-600")).toBeNull();
+    const links = Array.from(nav!.querySelectorAll("a"));
+    expect(links).toHaveLength(NAV_ITEMS.length);
+
+    // 「探す」リンクが active スタイルと aria-current="page" を持っていること
+    const searchLink = links.find((a) => a.textContent?.includes("探す"));
+    expect(searchLink).toBeDefined();
+    expect(searchLink?.getAttribute("href")).toBe("/search");
+    expect(searchLink?.getAttribute("aria-current")).toBe("page");
+    expect(searchLink?.querySelector(".text-blue-600")).not.toBeNull();
+
+    // 「トップ」リンクは active ではないこと
+    const homeLink = links.find((a) => a.textContent?.includes("トップ"));
+    expect(homeLink?.getAttribute("href")).toBe("/");
+    expect(homeLink?.getAttribute("aria-current")).toBeNull();
+    expect(homeLink?.querySelector(".text-blue-600")).toBeNull();
   });
 
-  it("navigates to target route when a nav button is clicked", () => {
+  it("navigates to target route when a nav link is clicked", () => {
     const { getCurrentPath } = renderHeader("/");
     expect(getCurrentPath()).toBe("/");
 
-    // 「ライター」ボタンをクリック
-    const buttons = Array.from(container.querySelectorAll("button"));
-    const writersButton = buttons.find((btn) => btn.textContent?.includes("ライター"));
-    expect(writersButton).toBeDefined();
+    // 「ライター」リンクをクリック
+    const links = Array.from(container.querySelectorAll("nav a"));
+    const writersLink = links.find((a) => a.textContent?.includes("ライター"));
+    expect(writersLink).toBeDefined();
 
     act(() => {
-      writersButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      writersLink!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
     });
 
     expect(getCurrentPath()).toBe("/writers");
   });
 
-  it("navigates to root when brand logo is clicked", () => {
+  it("navigates to root when brand logo link is clicked", () => {
     const { getCurrentPath } = renderHeader("/favorites");
     expect(getCurrentPath()).toBe("/favorites");
 
-    // ロゴ要素をクリック
-    const logoContainer = container.querySelector(".cursor-pointer") as HTMLElement;
-    expect(logoContainer).not.toBeNull();
+    // ロゴリンクをクリック
+    const logoLink = container.querySelector('a[href="/"]') as HTMLElement;
+    expect(logoLink).not.toBeNull();
 
     act(() => {
-      logoContainer.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      logoLink.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
     });
 
     expect(getCurrentPath()).toBe("/");

@@ -1,34 +1,34 @@
-import { useNavigate, useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { LogoIcon } from "../icons/NavIcons";
 import { NAV_ITEMS } from "./navItems";
 import imgTitle from "../../assets/brand_title.png";
 
 export function Header() {
-  const navigate = useNavigate();
   const location = useLocation();
 
   return (
     <header className="sticky top-0 z-50 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 shadow-sm w-full transition-colors">
       <div className="flex items-center justify-center md:justify-between px-4 md:px-8 py-1.5 max-w-6xl mx-auto w-full">
-        <div
-          className="flex items-center gap-2.5 cursor-pointer shrink-0"
-          onClick={() => navigate("/")}
-        >
+        <Link to="/" className="flex items-center gap-2.5 cursor-pointer shrink-0">
           <LogoIcon className="w-8 h-8" />
           <img
             src={imgTitle}
             className="h-7 md:h-8 object-contain inline-block dark:brightness-0 dark:invert transition-all"
             alt="Quest Qlub"
           />
-        </div>
-        <div className="hidden md:flex items-center gap-1 lg:gap-2 shrink-0">
+        </Link>
+        <nav
+          aria-label="メインナビゲーション"
+          className="hidden md:flex items-center gap-1 lg:gap-2 shrink-0"
+        >
           {NAV_ITEMS.map((item) => {
             const active = item.isActive(location.pathname);
             const Icon = item.Icon;
             return (
-              <button
+              <Link
                 key={item.id}
-                onClick={() => navigate(item.path)}
+                to={item.path}
+                aria-current={active ? "page" : undefined}
                 className={`flex items-center gap-1.5 px-2.5 lg:px-3 py-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors shrink-0 whitespace-nowrap ${
                   active ? "bg-gray-50 dark:bg-gray-800" : ""
                 }`}
@@ -41,10 +41,10 @@ export function Header() {
                 >
                   {item.label}
                 </span>
-              </button>
+              </Link>
             );
           })}
-        </div>
+        </nav>
       </div>
     </header>
   );

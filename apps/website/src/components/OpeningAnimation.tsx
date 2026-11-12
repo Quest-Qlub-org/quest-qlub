@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { LogoIcon } from "./icons/NavIcons";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 
 const STORAGE_KEY = "quest_qlub_has_seen_opening";
 const LEGACY_STORAGE_KEY = "share_quest_has_seen_opening";
@@ -22,21 +23,38 @@ export function OpeningAnimation({ onFinished }: { onFinished?: () => void }) {
   const [showSubText, setShowSubText] = useState(false);
   const [fadingOut, setFadingOut] = useState(false);
 
-  const finishAnimation = () => {
+  const onFinishedRef = useRef(onFinished);
+  onFinishedRef.current = onFinished;
+  const isFinishingRef = useRef(false);
+  const fadeOutTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const finishAnimation = useCallback(() => {
+    if (isFinishingRef.current) return;
+    isFinishingRef.current = true;
     setFadingOut(true);
     if (typeof window !== "undefined" && window.sessionStorage) {
       window.sessionStorage.setItem(STORAGE_KEY, "true");
       window.sessionStorage.setItem(LEGACY_STORAGE_KEY, "true");
     }
-    setTimeout(() => {
+    fadeOutTimerRef.current = setTimeout(() => {
       setVisible(false);
-      onFinished?.();
+      onFinishedRef.current?.();
     }, 600);
-  };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (fadeOutTimerRef.current) {
+        clearTimeout(fadeOutTimerRef.current);
+      }
+    };
+  }, []);
+
+  const dialogRef = useFocusTrap<HTMLDivElement>(visible, finishAnimation);
 
   useEffect(() => {
     if (!visible) {
-      onFinished?.();
+      onFinishedRef.current?.();
       return;
     }
 
@@ -72,24 +90,28 @@ export function OpeningAnimation({ onFinished }: { onFinished?: () => void }) {
       if (subTimer) clearTimeout(subTimer);
       if (finishTimer) clearTimeout(finishTimer);
     };
-  }, [visible, charIndex]);
+  }, [visible, charIndex, finishAnimation]);
 
   if (!visible) return null;
 
   return (
     <div
+      ref={dialogRef}
       role="dialog"
-      aria-label="オープニングアニメーション"
+      aria-modal="true"
+      aria-labelledby="opening-animation-title"
       className={`fixed inset-0 z-[100] flex flex-col items-center justify-center bg-gray-950 text-white transition-opacity duration-700 select-none ${
         fadingOut ? "opacity-0 pointer-events-none" : "opacity-100"
       }`}
     >
       {/* スキップボタン */}
       <button
+        type="button"
         onClick={finishAnimation}
+        aria-label="オープニングアニメーションをスキップ"
         className="absolute top-6 right-6 px-4 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-xs font-bold text-gray-300 hover:text-white transition-colors border border-white/10"
       >
-        スキップ &gt;
+        スキップ <span aria-hidden="true">&gt;</span>
       </button>
 
       <div className="flex flex-col items-center gap-6 px-4">
@@ -98,8 +120,15 @@ export function OpeningAnimation({ onFinished }: { onFinished?: () => void }) {
           <LogoIcon className="w-full h-full" />
         </div>
 
+        <h1 id="opening-animation-title" className="sr-only">
+          {TITLE_TEXT}
+        </h1>
+
         {/* 1文字ずつ表示されるタイトル */}
-        <div className="flex items-center tracking-widest text-3xl md:text-5xl font-black min-h-[3rem]">
+        <div
+          aria-hidden="true"
+          className="flex items-center tracking-widest text-3xl md:text-5xl font-black min-h-[3rem]"
+        >
           {TITLE_TEXT.split("").map((char, index) => (
             <span
               key={index}
@@ -120,7 +149,7 @@ export function OpeningAnimation({ onFinished }: { onFinished?: () => void }) {
 
         {/* サブテキスト */}
         <p
-          className={`text-sm md:text-base text-gray-400 font-medium tracking-wider transition-all duration-700 ${
+          className={`text-sm md:text-base text-gray-300 font-medium tracking-wider transition-all duration-700 ${
             showSubText ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"
           }`}
         >

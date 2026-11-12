@@ -79,8 +79,9 @@ describe("EnvironmentBanner", () => {
       root!.render(<EnvironmentBanner />);
     });
 
-    const closeButton = container.querySelector('button[title="バナーを閉じる"]');
+    const closeButton = container.querySelector('button[aria-label="バナーを閉じる"]');
     expect(closeButton).not.toBeNull();
+    expect(closeButton?.getAttribute("type")).toBe("button");
 
     act(() => {
       closeButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));

@@ -21,7 +21,10 @@ export const EnvironmentBanner = () => {
       <div className="flex items-center gap-2 max-w-7xl mx-auto w-full">
         {isConnectedToProductionDb ? (
           <>
-            <AlertTriangle className="w-4 h-4 shrink-0 animate-pulse text-amber-950" />
+            <AlertTriangle
+              className="w-4 h-4 shrink-0 animate-pulse text-amber-950"
+              aria-hidden="true"
+            />
             <span>
               <strong>【ローカル開発環境】</strong> 注意: 現在{" "}
               <span className="underline font-bold">本番用Supabaseデータベース</span>{" "}
@@ -30,7 +33,7 @@ export const EnvironmentBanner = () => {
           </>
         ) : (
           <>
-            <Database className="w-4 h-4 shrink-0" />
+            <Database className="w-4 h-4 shrink-0" aria-hidden="true" />
             <span>
               <strong>【ローカル開発環境】</strong> 開発・検証用データベースに接続しています。
             </span>
@@ -38,11 +41,13 @@ export const EnvironmentBanner = () => {
         )}
       </div>
       <button
+        type="button"
         onClick={() => setDismissed(true)}
+        aria-label="バナーを閉じる"
         className="p-1 hover:bg-black/10 rounded transition-colors ml-2 shrink-0"
         title="バナーを閉じる"
       >
-        <X className="w-3.5 h-3.5" />
+        <X className="w-3.5 h-3.5" aria-hidden="true" />
       </button>
     </div>
   );

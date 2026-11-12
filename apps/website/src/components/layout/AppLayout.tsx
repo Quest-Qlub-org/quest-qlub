@@ -1,5 +1,5 @@
-import { Suspense } from "react";
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { X } from "lucide-react";
 import { supabase } from "../../supabase";
 import { Header } from "../navigation/Header";
@@ -30,6 +30,44 @@ export function AppLayout() {
   const { toastMessage, hideToast } = useUI();
 
   const hideHeader = HIDE_HEADER_PATHS.some((path) => location.pathname.startsWith(path));
+  const mainRef = useRef<HTMLElement | null>(null);
+  const prevPathnameRef = useRef(location.pathname);
+  const [pageTitleAnnouncement, setPageTitleAnnouncement] = useState("");
+
+  useEffect(() => {
+    if (prevPathnameRef.current === location.pathname) return;
+    prevPathnameRef.current = location.pathname;
+
+    if (typeof window !== "undefined" && typeof window.scrollTo === "function") {
+      window.scrollTo(0, 0);
+    }
+
+    mainRef.current?.focus({ preventScroll: true });
+
+    const announceTitle = () => {
+      const title = document.title.trim();
+      if (title) {
+        setPageTitleAnnouncement(title);
+      }
+    };
+
+    announceTitle();
+    const timer = setTimeout(announceTitle, 150);
+
+    const titleEl = document.querySelector("title");
+    let observer: MutationObserver | undefined;
+    if (titleEl && typeof MutationObserver !== "undefined") {
+      observer = new MutationObserver(() => {
+        announceTitle();
+      });
+      observer.observe(titleEl, { childList: true, characterData: true, subtree: true });
+    }
+
+    return () => {
+      clearTimeout(timer);
+      observer?.disconnect();
+    };
+  }, [location.pathname]);
 
   // Root-level MFA Barrier: 2FAが未完了の場合は Outlet を一切マウントせず、検証ツールによるDOM削除バイパスを物理的に無力化
   // ただし /login 等の認証画面では LoginView 自身がインライン2FAを処理するためアンマウントしない（再ログイン画面ループ防止）
@@ -57,12 +95,23 @@ export function AppLayout() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-800 dark:text-gray-100 font-sans selection:bg-blue-200 dark:selection:bg-blue-900/50 flex flex-col justify-between overflow-x-hidden transition-colors">
       <div>
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[60] focus:px-4 focus:py-2 focus:bg-blue-600 focus:text-white focus:rounded-lg focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-white text-sm font-bold"
+        >
+          メインコンテンツへスキップ
+        </a>
         <EnvironmentBanner />
         {!hideHeader && <Header />}
         <OfflineBanner />
         {!hideHeader && <MobileNav />}
 
-        <main className="max-w-6xl mx-auto flex-1 w-full min-w-0">
+        <main
+          id="main-content"
+          ref={mainRef}
+          tabIndex={-1}
+          className="max-w-6xl mx-auto flex-1 w-full min-w-0 focus:outline-none"
+        >
           <ErrorBoundary>
             <Suspense
               fallback={
@@ -82,77 +131,74 @@ export function AppLayout() {
           <div className="max-w-6xl mx-auto px-4 py-8">
             <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-8 mb-6">
               <div className="flex flex-col gap-2">
-                <div
-                  className="flex items-center gap-2.5 cursor-pointer"
-                  onClick={() => navigate("/")}
-                >
+                <Link to="/" className="flex items-center gap-2.5 w-fit">
                   <LogoIcon className="w-8 h-8" />
                   <img
                     src={imgTitle}
                     className="h-7 object-contain dark:brightness-0 dark:invert transition-all"
                     alt="Quest Qlub"
                   />
-                </div>
-                <p className="text-xs text-gray-400 dark:text-gray-400 max-w-xs leading-relaxed">
+                </Link>
+                <p className="text-xs text-gray-600 dark:text-gray-400 max-w-xs leading-relaxed">
                   学びをシェアする、知識のクエスト。実践的なノウハウ・知見が集まるメディアプラットフォーム。
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-6 text-xs text-gray-500 dark:text-gray-400">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-6 text-xs text-gray-600 dark:text-gray-400">
                 <div className="flex flex-col gap-2">
                   <p className="font-bold text-gray-700 dark:text-gray-200">コンテンツ</p>
-                  <button
-                    onClick={() => navigate("/")}
+                  <Link
+                    to="/"
                     className="text-left hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                   >
                     トップ
-                  </button>
-                  <button
-                    onClick={() => navigate("/search")}
+                  </Link>
+                  <Link
+                    to="/search"
                     className="text-left hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                   >
                     探す
-                  </button>
-                  <button
-                    onClick={() => navigate("/writers")}
+                  </Link>
+                  <Link
+                    to="/writers"
                     className="text-left hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                   >
                     ライター一覧
-                  </button>
-                  <button
-                    onClick={() => navigate("/favorites")}
+                  </Link>
+                  <Link
+                    to="/favorites"
                     className="text-left hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                   >
                     お気に入り
-                  </button>
+                  </Link>
                 </div>
 
                 <div className="flex flex-col gap-2">
                   <p className="font-bold text-gray-700 dark:text-gray-200">サービスについて</p>
-                  <button
-                    onClick={() => navigate("/about")}
+                  <Link
+                    to="/about"
                     className="text-left hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                   >
                     Quest Qlubとは
-                  </button>
-                  <button
-                    onClick={() => navigate("/contact")}
+                  </Link>
+                  <Link
+                    to="/contact"
                     className="text-left hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                   >
                     お問い合わせ
-                  </button>
-                  <button
-                    onClick={() => navigate("/terms")}
+                  </Link>
+                  <Link
+                    to="/terms"
                     className="text-left hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                   >
                     利用規約
-                  </button>
-                  <button
-                    onClick={() => navigate("/privacy")}
+                  </Link>
+                  <Link
+                    to="/privacy"
                     className="text-left hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                   >
                     プライバシーポリシー
-                  </button>
+                  </Link>
                 </div>
 
                 <div className="flex flex-col gap-2 col-span-2 sm:col-span-1">
@@ -165,18 +211,18 @@ export function AppLayout() {
                   >
                     <span>公式X (@QuestQlub)</span>
                   </a>
-                  <button
-                    onClick={() => navigate("/writer-apply")}
-                    className="text-left text-xs text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+                  <Link
+                    to="/writer-apply"
+                    className="text-left text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
                   >
                     ライター応募フォーム →
-                  </button>
+                  </Link>
                 </div>
               </div>
             </div>
 
             <div className="border-t border-gray-200 dark:border-gray-800 pt-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-              <p className="text-xs text-gray-400 dark:text-gray-500">
+              <p className="text-xs text-gray-600 dark:text-gray-400">
                 © 2026 Quest Qlub. All rights reserved.
               </p>
             </div>
@@ -185,17 +231,28 @@ export function AppLayout() {
       )}
 
       {toastMessage && (
-        <div className="fixed bottom-20 md:bottom-8 left-1/2 -translate-x-1/2 max-w-[calc(100vw-2rem)] bg-gray-900/90 dark:bg-gray-800/95 dark:border dark:border-gray-700 backdrop-blur text-white px-5 py-3 rounded-2xl md:rounded-full shadow-2xl z-[60] animate-in slide-in-from-bottom-5 fade-in duration-300 flex items-center gap-3 text-xs md:text-sm font-bold break-words">
+        <div
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          className="fixed bottom-20 md:bottom-8 left-1/2 -translate-x-1/2 max-w-[calc(100vw-2rem)] bg-gray-900/90 dark:bg-gray-800/95 dark:border dark:border-gray-700 backdrop-blur text-white px-5 py-3 rounded-2xl md:rounded-full shadow-2xl z-[60] animate-in slide-in-from-bottom-5 fade-in duration-300 flex items-center gap-3 text-xs md:text-sm font-bold break-words"
+        >
           <span className="min-w-0 break-words">{toastMessage}</span>
           <button
+            type="button"
             onClick={hideToast}
             aria-label="通知を閉じる"
             className="p-1 rounded-full hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors shrink-0"
           >
-            <X className="w-4 h-4" />
+            <X className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
       )}
+
+      {/* スクリーンリーダー向けルート遷移アナウンサー */}
+      <div role="status" aria-live="assertive" aria-atomic="true" className="sr-only">
+        {pageTitleAnnouncement}
+      </div>
 
       {/* PWA 更新プロンプト */}
       <ReloadPrompt />

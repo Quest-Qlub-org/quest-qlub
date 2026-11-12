@@ -28,8 +28,15 @@ describe("OpeningAnimation", () => {
       root.render(<OpeningAnimation />);
     });
 
-    // Opening animation dialog is rendered
-    expect(container.querySelector('[role="dialog"]')).not.toBeNull();
+    // Opening animation dialog is rendered with accessible modal attributes
+    const dialog = container.querySelector('[role="dialog"]');
+    expect(dialog).not.toBeNull();
+    expect(dialog?.getAttribute("aria-modal")).toBe("true");
+    expect(dialog?.getAttribute("aria-labelledby")).toBe("opening-animation-title");
+    expect(container.querySelector("#opening-animation-title")?.textContent).toBe("QUEST QLUB");
+    expect(
+      container.querySelector('button[aria-label="オープニングアニメーションをスキップ"]'),
+    ).not.toBeNull();
     expect(container.textContent).toContain("スキップ");
 
     // Advance timer to finish typing
@@ -64,6 +71,28 @@ describe("OpeningAnimation", () => {
     });
 
     expect(onFinished).toHaveBeenCalled();
+  });
+
+  it("closes on Escape key and calls onFinished", () => {
+    const onFinished = vi.fn();
+    const root = createRoot(container);
+
+    act(() => {
+      root.render(<OpeningAnimation onFinished={onFinished} />);
+    });
+
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", cancelable: true }));
+    });
+
+    expect(sessionStorage.getItem("quest_qlub_has_seen_opening")).toBe("true");
+
+    act(() => {
+      vi.advanceTimersByTime(700);
+    });
+
+    expect(onFinished).toHaveBeenCalled();
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
   });
 
   it("does not render if already seen via quest_qlub_has_seen_opening in sessionStorage", () => {
