@@ -84,7 +84,7 @@ export const FavoritesView = () => {
         <div className="text-center py-16 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
           <CustomStarIcon className="w-16 h-16 mx-auto mb-4 opacity-50" />
           <p className="text-gray-600 dark:text-gray-200 font-bold mb-2">ログインが必要です</p>
-          <p className="text-sm text-gray-400 dark:text-gray-400 mb-6">
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
             お気に入り機能を利用するには
             <br />
             ログインしてください。
@@ -106,7 +106,7 @@ export const FavoritesView = () => {
           <p className="text-gray-600 dark:text-gray-200 font-bold mb-2">
             登録されている記事がありません
           </p>
-          <p className="text-sm text-gray-400 dark:text-gray-400 mb-6">
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
             好きな記事を見つけて☆アイコンをタップしましょう
           </p>
           <button

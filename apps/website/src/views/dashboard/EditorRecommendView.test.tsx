@@ -105,4 +105,35 @@ describe("EditorRecommendView", () => {
     expect(updatedPop[0].isRecommended).toBe(true);
     expect(updatedPop[0].isPopular).toBe(false);
   });
+
+  it("uses WCAG AA compliant contrast classes on loading and empty states", async () => {
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      setArticles: mockSetGlobalArticles,
+    } as any);
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+          }),
+        } as any;
+      }
+      return {} as any;
+    });
+
+    let container: HTMLElement = document.createElement("div");
+    await act(async () => {
+      const rendered = renderWithRouter(<EditorRecommendView />);
+      container = rendered.container;
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const emptyHint = Array.from(container.querySelectorAll("p")).find((p) =>
+      p.textContent?.includes("記事が公開されると、ここで設定できます"),
+    );
+    expect(emptyHint?.className).toContain("text-gray-500");
+    expect(emptyHint?.className).toContain("dark:text-gray-400");
+    expect(emptyHint?.className).not.toContain("dark:text-gray-500");
+  });
 });

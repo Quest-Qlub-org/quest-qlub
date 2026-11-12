@@ -361,4 +361,53 @@ describe("EditorWritersView", () => {
 
     unmount();
   });
+
+  it("uses WCAG AA compliant contrast classes for placeholders and metadata", async () => {
+    const mockProfiles = [
+      createTestProfile({
+        id: "usr-contrast",
+        display_name: "テストユーザー",
+        username: "contrast_user",
+        email: "contrast@example.com",
+        role: "writer",
+        roles: ["writer"],
+      }),
+    ];
+
+    vi.spyOn(supabase, "rpc").mockImplementation(((fn: string) => {
+      if (fn === "admin_get_all_profiles") {
+        return Promise.resolve({ data: mockProfiles, error: null });
+      }
+      return Promise.resolve({ data: null, error: null });
+    }) as any);
+
+    let renderResult!: ReturnType<typeof renderWithRouter>;
+    await act(async () => {
+      renderResult = renderWithRouter(<EditorWritersView />);
+    });
+    const { container, unmount } = renderResult;
+
+    const emailInput = container.querySelector(
+      'input[placeholder="メールアドレス"]',
+    ) as HTMLInputElement;
+    expect(emailInput.className).toContain("placeholder-gray-500");
+    expect(emailInput.className).toContain("dark:placeholder-gray-300");
+    expect(emailInput.className).not.toContain("placeholder-gray-400");
+    expect(emailInput.className).not.toContain("dark:placeholder-gray-500");
+
+    const searchInput = container.querySelector(
+      'input[placeholder="名前・ID・メアドで検索"]',
+    ) as HTMLInputElement;
+    expect(searchInput.className).toContain("placeholder-gray-500");
+    expect(searchInput.className).toContain("dark:placeholder-gray-300");
+
+    const usernameSpan = Array.from(container.querySelectorAll("span")).find(
+      (s) => s.textContent === "@contrast_user",
+    );
+    expect(usernameSpan?.className).toContain("text-gray-500");
+    expect(usernameSpan?.className).toContain("dark:text-gray-400");
+    expect(usernameSpan?.className).not.toContain("dark:text-gray-500");
+
+    unmount();
+  });
 });
