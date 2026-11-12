@@ -96,6 +96,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let title = "Quest Qlub | 学びの「楽しい！」をつなげる";
   let description = "Quest Qlubは、学びの「楽しい！」をつなげる記事プラットフォームです。";
   let imageUrl = `${siteUrl}/ogp.png`;
+  let articleFound = false;
 
   const { url: supabaseUrl, key: supabaseAnonKey } = getSupabaseConfig();
 
@@ -140,6 +141,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
 
           if (!isFutureScheduled) {
+            articleFound = true;
             if (article.title) {
               title = article.title.includes("Quest Qlub")
                 ? article.title
@@ -147,7 +149,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
             if (article.summary) description = article.summary;
             if (isSafeImageUrl(article.thumbnail_url)) {
-              imageUrl = article.thumbnail_url!;
+              const trimmedImg = article.thumbnail_url!.trim();
+              imageUrl = trimmedImg.startsWith("/") ? `${siteUrl}${trimmedImg}` : trimmedImg;
             }
           }
         }
@@ -157,13 +160,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
+  const robotsOrCanonicalTag = articleFound
+    ? `<link rel="canonical" href="${escapeHtml(articleUrl)}">`
+    : `<meta name="robots" content="noindex">`;
+
   const html = `<!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
   <title>${escapeHtml(title)}</title>
   <meta name="description" content="${escapeHtml(description)}">
-  <link rel="canonical" href="${escapeHtml(articleUrl)}">
+  ${robotsOrCanonicalTag}
 
   <!-- Open Graph -->
   <meta property="og:type" content="article">
@@ -192,6 +199,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 </html>`;
 
   res.setHeader("Content-Type", "text/html; charset=utf-8");
-  res.setHeader("Cache-Control", "public, s-maxage=3600, stale-while-revalidate=86400");
-  return res.status(200).send(html);
+  if (articleFound) {
+    res.setHeader("Cache-Control", "public, s-maxage=3600, stale-while-revalidate=86400");
+    return res.status(200).send(html);
+  }
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  return res.status(404).send(html);
 }

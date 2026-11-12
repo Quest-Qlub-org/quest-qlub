@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vite-plus/test";
+import fs from "node:fs";
+import path from "node:path";
 import sitemapHandler from "../../api/sitemap";
 import articleOgpHandler, { BOT_USER_AGENTS } from "../../api/article-ogp";
 
@@ -121,6 +123,9 @@ describe("api/article-ogp", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.headers["content-type"]).toBe("text/html; charset=utf-8");
+    expect(res.headers["cache-control"]).toBe(
+      "public, s-maxage=3600, stale-while-revalidate=86400",
+    );
     expect(res.body).toContain("<title>LINEシェア確認記事 | Quest Qlub</title>");
     expect(res.body).toContain(
       '<meta property="og:title" content="LINEシェア確認記事 | Quest Qlub">',
@@ -189,7 +194,9 @@ describe("api/article-ogp", () => {
 
     await articleOgpHandler(req, res);
 
-    expect(res.statusCode).toBe(200);
+    expect(res.statusCode).toBe(404);
+    expect(res.headers["cache-control"]).toBe("no-cache, no-store, must-revalidate");
+    expect(res.body).toContain('<meta name="robots" content="noindex">');
     // 未来の記事内容は一切漏洩せず、サイト標準のタイトル・サマリー・画像にフォールバックすること
     expect(res.body).not.toContain("極秘の未来記事タイトル");
     expect(res.body).not.toContain("まだ公開してはいけない極秘要約");
@@ -201,6 +208,31 @@ describe("api/article-ogp", () => {
     expect(res.body).toContain(
       '<meta property="og:image" content="https://quest-qlub.vercel.app/ogp.png">',
     );
+  });
+
+  it("returns 404 with noindex and no-store cache-control for non-existent articles (#102)", async () => {
+    const req: any = {
+      query: { id: "missing-article" },
+      headers: {
+        "user-agent": "twitterbot/1.0",
+      },
+    };
+    const res = createMockRes();
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => [],
+      }),
+    );
+
+    await articleOgpHandler(req, res);
+
+    expect(res.statusCode).toBe(404);
+    expect(res.headers["cache-control"]).toBe("no-cache, no-store, must-revalidate");
+    expect(res.body).toContain('<meta name="robots" content="noindex">');
+    expect(res.body).not.toContain('<link rel="canonical"');
   });
 
   it("displays article metadata for already reached scheduled articles", async () => {
@@ -375,10 +407,10 @@ describe("api/sitemap", () => {
     expect(res.body).toContain('<?xml version="1.0" encoding="UTF-8"?>');
     expect(res.body).toContain('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">');
 
-    // Static pages
+    // Static pages (/search is excluded per #102)
     expect(res.body).toContain("<loc>https://quest-qlub.vercel.app/</loc>");
     expect(res.body).toContain("<loc>https://quest-qlub.vercel.app/writers</loc>");
-    expect(res.body).toContain("<loc>https://quest-qlub.vercel.app/search</loc>");
+    expect(res.body).not.toContain("<loc>https://quest-qlub.vercel.app/search</loc>");
     expect(res.body).toContain("<loc>https://quest-qlub.vercel.app/about</loc>");
     expect(res.body).toContain("<loc>https://quest-qlub.vercel.app/contact</loc>");
     expect(res.body).toContain("<loc>https://quest-qlub.vercel.app/writer-apply</loc>");
@@ -676,5 +708,16 @@ describe("api/sitemap", () => {
     expect(res.body).toContain(
       "<loc>https://quest-qlub.vercel.app/articles/art-prod-updated</loc>\n    <lastmod>2026-10-28</lastmod>",
     );
+  });
+});
+
+describe("public/robots.txt", () => {
+  it("disallows parameterized search URLs (/search?*) while keeping sitemap reference (#102)", () => {
+    const robotsPath = path.resolve(process.cwd(), "apps/website/public/robots.txt");
+    const fallbackPath = path.resolve(process.cwd(), "public/robots.txt");
+    const content = fs.readFileSync(fs.existsSync(robotsPath) ? robotsPath : fallbackPath, "utf-8");
+
+    expect(content).toContain("Disallow: /search?*");
+    expect(content).toContain("Sitemap: https://quest-qlub.vercel.app/sitemap.xml");
   });
 });

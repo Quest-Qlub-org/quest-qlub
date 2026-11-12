@@ -55,7 +55,6 @@ function getStaticPages(siteUrl: string): StaticPage[] {
   return [
     { loc: `${siteUrl}/`, changefreq: "daily", priority: "1.0" },
     { loc: `${siteUrl}/writers`, changefreq: "weekly", priority: "0.8" },
-    { loc: `${siteUrl}/search`, changefreq: "weekly", priority: "0.7" },
     { loc: `${siteUrl}/about`, changefreq: "monthly", priority: "0.5" },
     { loc: `${siteUrl}/contact`, changefreq: "monthly", priority: "0.5" },
     { loc: `${siteUrl}/writer-apply`, changefreq: "monthly", priority: "0.5" },

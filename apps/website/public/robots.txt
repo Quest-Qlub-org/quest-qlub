@@ -9,5 +9,6 @@ Disallow: /register
 Disallow: /forgot-password
 Disallow: /reset-password
 Disallow: /setup-profile
+Disallow: /search?*
 
 Sitemap: https://quest-qlub.vercel.app/sitemap.xml
