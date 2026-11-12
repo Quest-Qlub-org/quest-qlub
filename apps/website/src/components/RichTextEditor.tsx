@@ -194,11 +194,15 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
   const [linkError, setLinkError] = useState("");
   const [showImageInput, setShowImageInput] = useState(false);
   const [imageUrl, setImageUrl] = useState("");
+  const [imageAlt, setImageAlt] = useState("");
   const [imageUploading, setImageUploading] = useState(false);
   const colorRef = useRef<HTMLDivElement>(null);
 
   const closeLinkModal = useCallback(() => setShowLinkInput(false), []);
-  const closeImageModal = useCallback(() => setShowImageInput(false), []);
+  const closeImageModal = useCallback(() => {
+    setShowImageInput(false);
+    setImageAlt("");
+  }, []);
   const linkModalRef = useFocusTrap<HTMLDivElement>(showLinkInput, closeLinkModal);
   const imageModalRef = useFocusTrap<HTMLDivElement>(showImageInput, closeImageModal);
 
@@ -293,10 +297,16 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
 
   const insertImage = useCallback(() => {
     if (!editor || !imageUrl.trim()) return;
-    editor.chain().focus().setImage({ src: imageUrl.trim() }).run();
+    const alt = imageAlt.trim();
+    editor
+      .chain()
+      .focus()
+      .setImage({ src: imageUrl.trim(), ...(alt ? { alt } : {}) })
+      .run();
     setShowImageInput(false);
     setImageUrl("");
-  }, [editor, imageUrl]);
+    setImageAlt("");
+  }, [editor, imageUrl, imageAlt]);
 
   const handleImageFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -305,9 +315,15 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
     try {
       const uploadedUrl = await onUploadImage(file);
       if (uploadedUrl) {
-        editor.chain().focus().setImage({ src: uploadedUrl }).run();
+        const alt = imageAlt.trim();
+        editor
+          .chain()
+          .focus()
+          .setImage({ src: uploadedUrl, ...(alt ? { alt } : {}) })
+          .run();
         setShowImageInput(false);
         setImageUrl("");
+        setImageAlt("");
       }
     } finally {
       setImageUploading(false);
@@ -786,6 +802,23 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
               </button>
             </div>
 
+            <div>
+              <label
+                htmlFor="rte-image-alt-input"
+                className="block text-xs font-medium text-gray-700 mb-1"
+              >
+                代替テキスト（alt・任意）
+              </label>
+              <input
+                id="rte-image-alt-input"
+                type="text"
+                value={imageAlt}
+                onChange={(e) => setImageAlt(e.target.value)}
+                placeholder="画像の説明（スクリーンリーダー用）"
+                className="w-full border border-gray-300 rounded-xl px-3.5 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-400"
+              />
+            </div>
+
             {onUploadImage && (
               <div>
                 <label className="w-full py-3 px-4 border-2 border-dashed border-blue-300 bg-blue-50/50 hover:bg-blue-50 text-blue-700 rounded-xl font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-colors">
@@ -819,7 +852,11 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
             )}
 
             <div>
+              <label htmlFor="rte-image-url-input" className="sr-only">
+                画像URL
+              </label>
               <input
+                id="rte-image-url-input"
                 type="url"
                 value={imageUrl}
                 onChange={(e) => setImageUrl(e.target.value)}
