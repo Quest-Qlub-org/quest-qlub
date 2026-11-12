@@ -419,19 +419,33 @@ export const WriterSeriesPage = () => {
       <div className="md:grid md:grid-cols-2 md:gap-6 md:items-start space-y-6 md:space-y-0">
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-gray-700 space-y-4">
           <h2 className="font-bold text-gray-800 dark:text-gray-100">新しい連載を作成</h2>
-          <input
-            className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-400"
-            placeholder="連載名 *"
-            value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
-          />
-          <textarea
-            className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
-            placeholder="連載の説明（任意）"
-            rows={3}
-            value={newDesc}
-            onChange={(e) => setNewDesc(e.target.value)}
-          />
+          <div>
+            <label htmlFor="new-series-title" className="sr-only">
+              連載名（必須）
+            </label>
+            <input
+              id="new-series-title"
+              required
+              aria-required="true"
+              className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-400"
+              placeholder="連載名 *"
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+            />
+          </div>
+          <div>
+            <label htmlFor="new-series-desc" className="sr-only">
+              連載の説明（任意）
+            </label>
+            <textarea
+              id="new-series-desc"
+              className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
+              placeholder="連載の説明（任意）"
+              rows={3}
+              value={newDesc}
+              onChange={(e) => setNewDesc(e.target.value)}
+            />
+          </div>
           <CollaboratorSelect
             value={newCollaboratorIds}
             onChange={setNewCollaboratorIds}
@@ -468,21 +482,35 @@ export const WriterSeriesPage = () => {
                     <h3 className="font-bold text-sm text-blue-600 dark:text-blue-400">
                       連載を編集
                     </h3>
-                    <input
-                      data-testid="edit-series-title"
-                      className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 font-bold"
-                      placeholder="連載名を編集 *"
-                      value={editTitle}
-                      onChange={(e) => setEditTitle(e.target.value)}
-                    />
-                    <textarea
-                      data-testid="edit-series-desc"
-                      className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
-                      placeholder="連載の説明（任意）"
-                      rows={2}
-                      value={editDesc}
-                      onChange={(e) => setEditDesc(e.target.value)}
-                    />
+                    <div>
+                      <label htmlFor={`edit-series-title-${s.id}`} className="sr-only">
+                        連載名（必須）
+                      </label>
+                      <input
+                        id={`edit-series-title-${s.id}`}
+                        required
+                        aria-required="true"
+                        data-testid="edit-series-title"
+                        className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 font-bold"
+                        placeholder="連載名を編集 *"
+                        value={editTitle}
+                        onChange={(e) => setEditTitle(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor={`edit-series-desc-${s.id}`} className="sr-only">
+                        連載の説明（任意）
+                      </label>
+                      <textarea
+                        id={`edit-series-desc-${s.id}`}
+                        data-testid="edit-series-desc"
+                        className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
+                        placeholder="連載の説明（任意）"
+                        rows={2}
+                        value={editDesc}
+                        onChange={(e) => setEditDesc(e.target.value)}
+                      />
+                    </div>
                     <CollaboratorSelect
                       value={editCollaboratorIds}
                       onChange={setEditCollaboratorIds}
@@ -646,7 +674,11 @@ export const WriterSeriesPage = () => {
 
                       {unassignedArticles.length > 0 && (
                         <div className="pt-2 border-t border-gray-200/70 dark:border-gray-700 flex flex-col sm:flex-row gap-2">
+                          <label htmlFor={`add-article-select-${s.id}`} className="sr-only">
+                            連載に追加する記事を選択
+                          </label>
                           <select
+                            id={`add-article-select-${s.id}`}
                             data-testid={`add-article-select-${s.id}`}
                             value={addingArticleBySeries[s.id] || ""}
                             onChange={(e) =>

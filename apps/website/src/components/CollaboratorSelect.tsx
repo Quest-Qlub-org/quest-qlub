@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useId } from "react";
 import { Users, X } from "lucide-react";
 import { useApp } from "../context/AppContext";
 
@@ -22,6 +22,7 @@ export const CollaboratorSelect: React.FC<CollaboratorSelectProps> = ({
   disabled = false,
 }) => {
   const { writers } = useApp();
+  const selectId = useId();
 
   const availableWriters = (writers ?? []).filter(
     (w) =>
@@ -48,7 +49,10 @@ export const CollaboratorSelect: React.FC<CollaboratorSelectProps> = ({
   return (
     <div className={`space-y-2 ${className}`}>
       <div className="flex items-center justify-between">
-        <label className="flex items-center gap-1.5 text-xs font-bold text-gray-700 dark:text-gray-300">
+        <label
+          htmlFor={selectId}
+          className="flex items-center gap-1.5 text-xs font-bold text-gray-700 dark:text-gray-300"
+        >
           <Users className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
           <span>{label}</span>
         </label>
@@ -104,6 +108,7 @@ export const CollaboratorSelect: React.FC<CollaboratorSelectProps> = ({
       {!disabled && (
         <div>
           <select
+            id={selectId}
             data-testid="collaborator-select-input"
             value=""
             onChange={handleSelect}

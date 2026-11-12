@@ -79,6 +79,10 @@ describe("SecuritySettingsSection - Password Change", () => {
     });
 
     expect(container.textContent).toContain("パスワードは8文字以上で入力してください");
+    const errAlert = container.querySelector('[data-testid="password-error-message"]');
+    expect(errAlert?.getAttribute("role")).toBe("alert");
+    expect(newPasswordInput.getAttribute("aria-invalid")).toBe("true");
+    expect(newPasswordInput.getAttribute("aria-describedby")).toBe("password-change-error");
 
     // 不一致
     act(() => {

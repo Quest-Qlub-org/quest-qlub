@@ -250,7 +250,11 @@ export const MfaEnrollModal = ({
 
         <div className="p-6 space-y-5">
           {error && (
-            <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl text-xs text-red-600 dark:text-red-400 flex items-start gap-2">
+            <div
+              id="mfa-enroll-error"
+              role="alert"
+              className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl text-xs text-red-600 dark:text-red-400 flex items-start gap-2"
+            >
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
@@ -374,11 +378,19 @@ export const MfaEnrollModal = ({
 
               <form onSubmit={(e) => void handleVerify(e)} className="space-y-4 pt-2">
                 <div className="space-y-1">
-                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300">
+                  <label
+                    htmlFor="mfa-enroll-code-input"
+                    className="block text-xs font-bold text-gray-700 dark:text-gray-300"
+                  >
                     ステップ 2: 認証アプリに表示された6桁のコードを入力
                   </label>
                   <input
+                    id="mfa-enroll-code-input"
                     type="text"
+                    required
+                    aria-required="true"
+                    aria-invalid={Boolean(error)}
+                    aria-describedby={error ? "mfa-enroll-error" : undefined}
                     inputMode="numeric"
                     autoComplete="one-time-code"
                     maxLength={6}

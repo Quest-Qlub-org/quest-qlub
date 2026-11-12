@@ -283,11 +283,19 @@ export function SecuritySettingsSection({ showToast }: { showToast: (msg: string
               className="space-y-3 pt-1 max-w-sm"
             >
               <div>
-                <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">
+                <label
+                  htmlFor="security-new-password-input"
+                  className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1"
+                >
                   新しいパスワード
                 </label>
                 <input
+                  id="security-new-password-input"
                   type="password"
+                  required
+                  aria-required="true"
+                  aria-invalid={Boolean(passwordError)}
+                  aria-describedby={passwordError ? "password-change-error" : undefined}
                   data-testid="new-password-input"
                   value={newPassword}
                   onChange={(e) => {
@@ -300,11 +308,19 @@ export function SecuritySettingsSection({ showToast }: { showToast: (msg: string
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">
+                <label
+                  htmlFor="security-confirm-password-input"
+                  className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1"
+                >
                   新しいパスワード（確認）
                 </label>
                 <input
+                  id="security-confirm-password-input"
                   type="password"
+                  required
+                  aria-required="true"
+                  aria-invalid={Boolean(passwordError)}
+                  aria-describedby={passwordError ? "password-change-error" : undefined}
                   data-testid="confirm-password-input"
                   value={confirmPassword}
                   onChange={(e) => {
@@ -317,7 +333,12 @@ export function SecuritySettingsSection({ showToast }: { showToast: (msg: string
               </div>
 
               {passwordError && (
-                <p data-testid="password-error-message" className="text-xs text-red-500 font-bold">
+                <p
+                  id="password-change-error"
+                  role="alert"
+                  data-testid="password-error-message"
+                  className="text-xs text-red-500 font-bold"
+                >
                   {passwordError}
                 </p>
               )}

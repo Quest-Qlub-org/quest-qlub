@@ -848,10 +848,16 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                 {/* タイトル＆要約カード */}
                 <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 md:p-6 shadow-sm border border-gray-200 dark:border-gray-700 space-y-4">
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1.5">
+                    <label
+                      htmlFor="article-title-input"
+                      className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1.5"
+                    >
                       記事タイトル <span className="text-red-500">*</span>
                     </label>
                     <input
+                      id="article-title-input"
+                      required
+                      aria-required="true"
                       className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-300 dark:placeholder:text-gray-500 rounded-xl px-4 py-3 text-lg md:text-xl font-bold focus:outline-none focus:ring-2 focus:ring-blue-400 transition-shadow"
                       placeholder="読者の目を引くタイトルを入力..."
                       value={formTitle}
@@ -863,13 +869,17 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1.5">
+                    <label
+                      htmlFor="article-summary-input"
+                      className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1.5"
+                    >
                       リード文・要約{" "}
                       <span className="text-gray-400 dark:text-gray-500 font-normal">
                         （記事冒頭やSNSシェア時の説明文に表示されます）
                       </span>
                     </label>
                     <textarea
+                      id="article-summary-input"
                       className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 placeholder:text-gray-300 dark:placeholder:text-gray-500 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
                       rows={2}
                       placeholder="この記事のポイントや概要を1〜2文で入力（省略可）"
@@ -910,7 +920,10 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                       {/* 左カラム: サムネイル設定 */}
                       <div className="space-y-4">
                         <div>
-                          <label className="flex items-center gap-1.5 text-xs font-bold text-gray-600 dark:text-gray-300 mb-2">
+                          <label
+                            htmlFor="article-thumbnail-upload"
+                            className="flex items-center gap-1.5 text-xs font-bold text-gray-600 dark:text-gray-300 mb-2"
+                          >
                             <ImageIcon className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                             <span>サムネイル画像（推奨 16:9）</span>
                           </label>
@@ -941,6 +954,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                                   ? "画像を変更"
                                   : "画像をアップロード"}
                               <input
+                                id="article-thumbnail-upload"
                                 type="file"
                                 accept="image/jpeg,image/png,image/webp,image/gif"
                                 className="hidden"
@@ -965,12 +979,15 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
 
                         {!thumbnailUrl && (
                           <div>
-                            <label className="block text-xs font-bold text-gray-600 dark:text-gray-300 mb-2">
+                            <p
+                              id="article-bg-color-label"
+                              className="block text-xs font-bold text-gray-600 dark:text-gray-300 mb-2"
+                            >
                               背景カラー（画像未設定時）:{" "}
                               <span className="text-gray-500 dark:text-gray-400 font-normal">
                                 {getThumbnailColor(formColor).label}
                               </span>
-                            </label>
+                            </p>
                             <div className="flex gap-2 flex-wrap">
                               {THUMBNAIL_COLORS.map((color) => (
                                 <button
@@ -1016,7 +1033,10 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                       {/* 右カラム: タグ＆連載設定 */}
                       <div className="space-y-4">
                         <div>
-                          <label className="flex items-center gap-1.5 text-xs font-bold text-gray-600 dark:text-gray-300 mb-2">
+                          <label
+                            htmlFor="article-tag-input"
+                            className="flex items-center gap-1.5 text-xs font-bold text-gray-600 dark:text-gray-300 mb-2"
+                          >
                             <Tag className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                             <span>タグ</span>
                           </label>
@@ -1030,6 +1050,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                                   #{tag}
                                   <button
                                     type="button"
+                                    aria-label={`タグ「${tag}」を削除`}
                                     onClick={() => removeTag(tag)}
                                     className="hover:text-red-500 font-bold leading-none ml-0.5"
                                   >
@@ -1041,6 +1062,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                           )}
                           <div className="flex gap-2">
                             <input
+                              id="article-tag-input"
                               className="flex-1 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
                               placeholder="タグを入力（Enterまたはカンマで追加）"
                               value={tagInput}
@@ -1064,10 +1086,14 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
 
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                           <div className={formSeriesId ? "sm:col-span-2" : "sm:col-span-3"}>
-                            <label className="block text-xs font-bold text-gray-600 dark:text-gray-300 mb-1.5">
+                            <label
+                              htmlFor="article-series-select"
+                              className="block text-xs font-bold text-gray-600 dark:text-gray-300 mb-1.5"
+                            >
                               連載シリーズ
                             </label>
                             <select
+                              id="article-series-select"
                               className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
                               value={formSeriesId}
                               onChange={(e) => {
@@ -1094,10 +1120,14 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                           </div>
                           {formSeriesId && (
                             <div>
-                              <label className="block text-xs font-bold text-gray-600 dark:text-gray-300 mb-1.5">
+                              <label
+                                htmlFor="article-episode-input"
+                                className="block text-xs font-bold text-gray-600 dark:text-gray-300 mb-1.5"
+                              >
                                 話数
                               </label>
                               <input
+                                id="article-episode-input"
                                 type="number"
                                 min={1}
                                 className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"

@@ -388,11 +388,15 @@ export function EditorArticlesView() {
             </div>
             <div className="p-4 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-2 flex-wrap">
-                <label className="text-xs font-bold text-gray-600 dark:text-gray-300 flex items-center gap-1">
+                <label
+                  htmlFor="editor-schedule-datetime-input"
+                  className="text-xs font-bold text-gray-600 dark:text-gray-300 flex items-center gap-1"
+                >
                   <Clock className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
                   <span>公開予約:</span>
                 </label>
                 <input
+                  id="editor-schedule-datetime-input"
                   type="datetime-local"
                   value={scheduleInput}
                   onChange={(e) => setScheduleInput(e.target.value)}
