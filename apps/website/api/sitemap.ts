@@ -68,6 +68,7 @@ interface DbArticle {
   id: string;
   created_at?: string | null;
   scheduled_at?: string | null;
+  updated_at?: string | null;
 }
 
 interface DbProfile {
@@ -104,27 +105,29 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
 
   if (supabaseUrl && supabaseAnonKey) {
     try {
-      // 1. 公開記事を取得 (scheduled_at カラムが存在する場合)
+      // 1. 公開記事を取得 (scheduled_at / updated_at カラムが存在する場合)
+      const articleHeaders = {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`,
+      };
       let articlesRes = await fetch(
-        `${supabaseUrl}/rest/v1/articles?status=eq.published&select=id,created_at,scheduled_at&order=created_at.desc&limit=5000`,
-        {
-          headers: {
-            apikey: supabaseAnonKey,
-            Authorization: `Bearer ${supabaseAnonKey}`,
-          },
-        },
+        `${supabaseUrl}/rest/v1/articles?status=eq.published&select=id,created_at,scheduled_at,updated_at&order=created_at.desc&limit=5000`,
+        { headers: articleHeaders },
       );
 
-      // スキーマドリフト耐性: scheduled_at カラム未適用環境 (400 Bad Request / 42703) の自動フォールバック
+      // スキーマドリフト耐性: scheduled_at カラム未適用環境 (400 Bad Request / 42703) でも updated_at を維持してフォールバック
+      if (!articlesRes.ok) {
+        articlesRes = await fetch(
+          `${supabaseUrl}/rest/v1/articles?status=eq.published&select=id,created_at,updated_at&order=created_at.desc&limit=5000`,
+          { headers: articleHeaders },
+        );
+      }
+
+      // さらにレガシーな環境（updated_at も未存在）へのフォールバック
       if (!articlesRes.ok) {
         articlesRes = await fetch(
           `${supabaseUrl}/rest/v1/articles?status=eq.published&select=id,created_at&order=created_at.desc&limit=5000`,
-          {
-            headers: {
-              apikey: supabaseAnonKey,
-              Authorization: `Bearer ${supabaseAnonKey}`,
-            },
-          },
+          { headers: articleHeaders },
         );
       }
 
@@ -186,6 +189,10 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
     }
     if (article.scheduled_at) {
       const t = new Date(article.scheduled_at).getTime();
+      if (!Number.isNaN(t) && t <= nowMs) dates.push(t);
+    }
+    if (article.updated_at) {
+      const t = new Date(article.updated_at).getTime();
       if (!Number.isNaN(t) && t <= nowMs) dates.push(t);
     }
     if (dates.length === 0) {

@@ -585,4 +585,96 @@ describe("api/sitemap", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain("<loc>https://quest-qlub.vercel.app/writers/fallback_writer</loc>");
   });
+
+  it("uses updated_at for article <lastmod> when newer than created_at and scheduled_at (#103)", async () => {
+    const req: any = { query: {}, headers: {} };
+    const res = createMockRes();
+
+    const futureDate = new Date(Date.now() + 86400000 * 3).toISOString();
+    const mockArticles = [
+      {
+        id: "art-updated",
+        created_at: "2026-10-10T10:00:00Z",
+        scheduled_at: "2026-10-12T10:00:00Z",
+        updated_at: "2026-10-25T15:30:00Z",
+      },
+      {
+        id: "art-sched-newer",
+        created_at: "2026-10-10T10:00:00Z",
+        scheduled_at: "2026-10-20T10:00:00Z",
+        updated_at: "2026-10-15T10:00:00Z",
+      },
+      {
+        id: "art-future-updated",
+        created_at: "2026-10-18T10:00:00Z",
+        updated_at: futureDate,
+      },
+    ];
+
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.includes("articles?status=eq.published") && url.includes("updated_at")) {
+        return Promise.resolve({ ok: true, json: async () => mockArticles });
+      }
+      if (url.includes("/rest/v1/profiles?")) {
+        return Promise.resolve({ ok: true, json: async () => [] });
+      }
+      return Promise.resolve({ ok: false, json: async () => [] });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await sitemapHandler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain(
+      "<loc>https://quest-qlub.vercel.app/articles/art-updated</loc>\n    <lastmod>2026-10-25</lastmod>",
+    );
+    expect(res.body).toContain(
+      "<loc>https://quest-qlub.vercel.app/articles/art-sched-newer</loc>\n    <lastmod>2026-10-20</lastmod>",
+    );
+    expect(res.body).toContain(
+      "<loc>https://quest-qlub.vercel.app/articles/art-future-updated</loc>\n    <lastmod>2026-10-18</lastmod>",
+    );
+  });
+
+  it("keeps updated_at when falling back from missing scheduled_at column (#103)", async () => {
+    const req: any = { query: {}, headers: {} };
+    const res = createMockRes();
+
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.includes("articles?status=eq.published") && url.includes("scheduled_at")) {
+        return Promise.resolve({
+          ok: false,
+          status: 400,
+          json: async () => ({
+            code: "42703",
+            message: "column articles.scheduled_at does not exist",
+          }),
+        });
+      }
+      if (url.includes("articles?status=eq.published") && url.includes("updated_at")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => [
+            {
+              id: "art-prod-updated",
+              created_at: "2026-10-10T10:00:00Z",
+              updated_at: "2026-10-28T12:00:00Z",
+            },
+          ],
+        });
+      }
+      if (url.includes("/rest/v1/profiles?")) {
+        return Promise.resolve({ ok: true, json: async () => [] });
+      }
+      return Promise.resolve({ ok: false, json: async () => [] });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await sitemapHandler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain(
+      "<loc>https://quest-qlub.vercel.app/articles/art-prod-updated</loc>\n    <lastmod>2026-10-28</lastmod>",
+    );
+  });
 });
