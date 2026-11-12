@@ -906,4 +906,27 @@ describe("vercel.json routing config", () => {
       expect(uaRule?.value).toContain("applebot");
     }
   });
+
+  it("configures X-Robots-Tag: noindex, nofollow for non-production preview hosts (#104)", () => {
+    const vercelPath = path.resolve(process.cwd(), "apps/website/vercel.json");
+    const fallbackPath = path.resolve(process.cwd(), "vercel.json");
+    const config = JSON.parse(
+      fs.readFileSync(fs.existsSync(vercelPath) ? vercelPath : fallbackPath, "utf-8"),
+    );
+
+    const previewNoindexRule = config.headers.find(
+      (rule: any) =>
+        Array.isArray(rule.headers) &&
+        rule.headers.some((h: any) => h.key === "X-Robots-Tag" && h.value === "noindex, nofollow"),
+    );
+
+    expect(previewNoindexRule).toBeDefined();
+    expect(previewNoindexRule.source).toBe("/(.*)");
+    expect(previewNoindexRule.missing).toEqual([
+      {
+        type: "host",
+        value: "^quest-qlub\\.vercel\\.app$",
+      },
+    ]);
+  });
 });

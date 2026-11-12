@@ -28,6 +28,21 @@
     },
     {
       "source": "/(.*)",
+      "missing": [
+        {
+          "type": "host",
+          "value": "^quest-qlub\\.vercel\\.app$"
+        }
+      ],
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)",
       "headers": [
         {
           "key": "X-Frame-Options",
