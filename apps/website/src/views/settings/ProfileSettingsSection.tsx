@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { Users, X } from "lucide-react";
 import { supabase } from "../../supabase";
 import type { Profile } from "../../supabase";
@@ -75,7 +75,6 @@ export function ProfileSettingsSection({
 }
 
 function FollowManageSection({ profile }: { profile: Profile | null }) {
-  const navigate = useNavigate();
   const [followingCount, setFollowingCount] = useState(0);
   const [followersCount, setFollowersCount] = useState(0);
   const [modalTab, setModalTab] = useState<"following" | "followers" | null>(null);
@@ -211,13 +210,11 @@ function FollowManageSection({ profile }: { profile: Profile | null }) {
                 </p>
               ) : (
                 (modalTab === "following" ? followingList : followersList).map((item) => (
-                  <div
+                  <Link
                     key={item.id}
-                    onClick={() => {
-                      setModalTab(null);
-                      void navigate(`/writers/${item.username || item.id}`);
-                    }}
-                    className="flex items-center justify-between p-3 rounded-xl border border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
+                    to={`/writers/${item.username || item.id}`}
+                    onClick={closeModal}
+                    className="flex items-center justify-between p-3 rounded-xl border border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 overflow-hidden flex items-center justify-center shrink-0">
@@ -240,7 +237,7 @@ function FollowManageSection({ profile }: { profile: Profile | null }) {
                         )}
                       </div>
                     </div>
-                  </div>
+                  </Link>
                 ))
               )}
             </div>
