@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Users, X } from "lucide-react";
 import { supabase } from "../../supabase";
 import type { Profile } from "../../supabase";
 import { fetchFollowCounts, fetchFollowDetails } from "../../hooks/useFollows";
+import { useFocusTrap } from "../../hooks/useFocusTrap";
 import { CustomUserIcon } from "../../components/icons/NavIcons";
 
 function notifyProfileUpdated() {
@@ -82,6 +83,9 @@ function FollowManageSection({ profile }: { profile: Profile | null }) {
   const [followersList, setFollowersList] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(false);
 
+  const closeModal = useCallback(() => setModalTab(null), []);
+  const modalRef = useFocusTrap<HTMLDivElement>(Boolean(modalTab), closeModal);
+
   useEffect(() => {
     if (!profile?.id) return;
     let isMounted = true;
@@ -141,24 +145,30 @@ function FollowManageSection({ profile }: { profile: Profile | null }) {
       {modalTab && (
         <div
           className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
-          onClick={() => setModalTab(null)}
+          onClick={closeModal}
         >
           <div
+            ref={modalRef}
             role="dialog"
             aria-modal="true"
+            aria-labelledby="follow-manage-modal-title"
             className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-700">
               <div className="flex items-center gap-2">
                 <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                <h4 className="font-bold text-gray-900 dark:text-gray-100 text-base">
+                <h4
+                  id="follow-manage-modal-title"
+                  className="font-bold text-gray-900 dark:text-gray-100 text-base"
+                >
                   フォロー・フォロワー一覧
                 </h4>
               </div>
               <button
                 type="button"
-                onClick={() => setModalTab(null)}
+                aria-label="閉じる"
+                onClick={closeModal}
                 className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
               >
                 <X className="w-4 h-4" />

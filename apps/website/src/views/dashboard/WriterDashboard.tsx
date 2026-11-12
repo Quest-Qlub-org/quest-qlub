@@ -14,6 +14,7 @@ import {
 import { ChevronLeft, Plus, Edit3, Loader2, Eye, X, Clock, RotateCcw } from "lucide-react";
 import { updateMetaTags } from "../../utils/seo";
 import { profileHasRole } from "../../utils/roles";
+import { useFocusTrap } from "../../hooks/useFocusTrap";
 
 function enrichWriterArticle(article: Article): Article {
   const localSched = getLocalScheduledAt(article.id);
@@ -41,6 +42,9 @@ export const WriterDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [previewArticle, setPreviewArticle] = useState<Article | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+
+  const closePreviewModal = useCallback(() => setPreviewArticle(null), []);
+  const previewModalRef = useFocusTrap<HTMLDivElement>(Boolean(previewArticle), closePreviewModal);
 
   useEffect(() => {
     updateMetaTags({
@@ -401,11 +405,13 @@ export const WriterDashboard = () => {
         <div
           data-testid="writer-inline-preview-modal"
           className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4"
-          onClick={() => setPreviewArticle(null)}
+          onClick={closePreviewModal}
         >
           <div
+            ref={previewModalRef}
             role="dialog"
             aria-modal="true"
+            aria-labelledby="writer-preview-modal-title"
             className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-2xl max-h-[88vh] flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
@@ -422,7 +428,7 @@ export const WriterDashboard = () => {
               <button
                 type="button"
                 aria-label="閉じる"
-                onClick={() => setPreviewArticle(null)}
+                onClick={closePreviewModal}
                 className="p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
               >
                 <X className="w-5 h-5" />
@@ -430,7 +436,10 @@ export const WriterDashboard = () => {
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 break-words">
+              <h2
+                id="writer-preview-modal-title"
+                className="text-xl font-bold text-gray-900 dark:text-gray-100 break-words"
+              >
                 {previewArticle.title}
               </h2>
               {previewArticle.summary && (

@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { updateMetaTags } from "../../utils/seo";
 import { profileHasRole } from "../../utils/roles";
+import { useFocusTrap } from "../../hooks/useFocusTrap";
 
 function enrichArticleWithLocalSchedule(article: Article): Article {
   const localSched = getLocalScheduledAt(article.id);
@@ -47,6 +48,9 @@ export const EditorDashboard = () => {
   const [previewArticle, setPreviewArticle] = useState<Article | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [scheduleInput, setScheduleInput] = useState("");
+
+  const closePreviewModal = useCallback(() => setPreviewArticle(null), []);
+  const previewModalRef = useFocusTrap<HTMLDivElement>(Boolean(previewArticle), closePreviewModal);
 
   useEffect(() => {
     updateMetaTags({
@@ -426,12 +430,13 @@ export const EditorDashboard = () => {
         <div
           data-testid="editor-inline-preview-modal"
           className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4"
-          onClick={() => setPreviewArticle(null)}
+          onClick={closePreviewModal}
         >
           <div
+            ref={previewModalRef}
             role="dialog"
             aria-modal="true"
-            aria-label="記事プレビュー"
+            aria-labelledby="editor-dash-preview-title"
             className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
@@ -470,7 +475,7 @@ export const EditorDashboard = () => {
                 <button
                   type="button"
                   aria-label="閉じる"
-                  onClick={() => setPreviewArticle(null)}
+                  onClick={closePreviewModal}
                   className="p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-pointer"
                 >
                   <X className="w-5 h-5" />
@@ -496,7 +501,10 @@ export const EditorDashboard = () => {
                 </div>
               )}
 
-              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100 leading-snug break-words">
+              <h2
+                id="editor-dash-preview-title"
+                className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100 leading-snug break-words"
+              >
                 {previewArticle.title}
               </h2>
 

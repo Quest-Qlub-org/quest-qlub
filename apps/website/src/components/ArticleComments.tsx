@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../supabase";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 import {
   COMMENT_COOLDOWN_DURATION_MS,
   COMMENT_COOLDOWN_KEY,
@@ -117,6 +118,12 @@ export function ArticleComments({
   const [historyTargetComment, setHistoryTargetComment] = useState<CommentItem | null>(null);
   const [historyItems, setHistoryItems] = useState<CommentHistoryItem[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+
+  const closeHistoryModal = useCallback(() => setHistoryTargetComment(null), []);
+  const historyModalRef = useFocusTrap<HTMLDivElement>(
+    Boolean(historyTargetComment),
+    closeHistoryModal,
+  );
 
   const currentUserId = profile?.id || user?.id || null;
   const isAuthenticated = userRole !== "guest" && !!currentUserId;
@@ -834,24 +841,30 @@ export function ArticleComments({
       {historyTargetComment && (
         <div
           className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in"
-          onClick={() => setHistoryTargetComment(null)}
+          onClick={closeHistoryModal}
         >
           <div
+            ref={historyModalRef}
             role="dialog"
             aria-modal="true"
+            aria-labelledby="comment-history-modal-title"
             className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-700">
               <div className="flex items-center gap-2">
                 <History className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                <h4 className="font-bold text-gray-900 dark:text-gray-100 text-base">
+                <h4
+                  id="comment-history-modal-title"
+                  className="font-bold text-gray-900 dark:text-gray-100 text-base"
+                >
                   コメントの編集履歴
                 </h4>
               </div>
               <button
                 type="button"
-                onClick={() => setHistoryTargetComment(null)}
+                aria-label="閉じる"
+                onClick={closeHistoryModal}
                 className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-pointer"
               >
                 <X className="w-4 h-4" />

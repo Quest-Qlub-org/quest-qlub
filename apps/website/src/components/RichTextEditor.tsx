@@ -10,6 +10,7 @@ import Placeholder from "@tiptap/extension-placeholder";
 import TextAlign from "@tiptap/extension-text-align";
 import { Extension, Node as TipTapNode, mergeAttributes } from "@tiptap/core";
 import { useEffect, useCallback, useRef, useState, useMemo } from "react";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 import {
   Bold,
   Italic,
@@ -195,6 +196,11 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
   const [imageUrl, setImageUrl] = useState("");
   const [imageUploading, setImageUploading] = useState(false);
   const colorRef = useRef<HTMLDivElement>(null);
+
+  const closeLinkModal = useCallback(() => setShowLinkInput(false), []);
+  const closeImageModal = useCallback(() => setShowImageInput(false), []);
+  const linkModalRef = useFocusTrap<HTMLDivElement>(showLinkInput, closeLinkModal);
+  const imageModalRef = useFocusTrap<HTMLDivElement>(showImageInput, closeImageModal);
 
   const editor = useEditor({
     extensions: [
@@ -673,17 +679,24 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
       {showLinkInput && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          onClick={() => setShowLinkInput(false)}
+          onClick={closeLinkModal}
         >
           <div
+            ref={linkModalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="rte-link-modal-title"
             className="bg-white border border-gray-200 rounded-2xl shadow-xl p-5 w-full max-w-sm"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-bold text-gray-800">リンクURLを設定</p>
+              <p id="rte-link-modal-title" className="text-sm font-bold text-gray-800">
+                リンクURLを設定
+              </p>
               <button
                 type="button"
-                onClick={() => setShowLinkInput(false)}
+                aria-label="閉じる"
+                onClick={closeLinkModal}
                 className="p-1 text-gray-400 hover:text-gray-600 rounded-lg"
               >
                 <X className="w-4 h-4" />
@@ -738,17 +751,24 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
       {showImageInput && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          onClick={() => setShowImageInput(false)}
+          onClick={closeImageModal}
         >
           <div
+            ref={imageModalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="rte-image-modal-title"
             className="bg-white border border-gray-200 rounded-2xl shadow-xl p-5 w-full max-w-sm space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
-              <p className="text-sm font-bold text-gray-800">本文に画像を挿入</p>
+              <p id="rte-image-modal-title" className="text-sm font-bold text-gray-800">
+                本文に画像を挿入
+              </p>
               <button
                 type="button"
-                onClick={() => setShowImageInput(false)}
+                aria-label="閉じる"
+                onClick={closeImageModal}
                 className="p-1 text-gray-400 hover:text-gray-600 rounded-lg"
               >
                 <X className="w-4 h-4" />

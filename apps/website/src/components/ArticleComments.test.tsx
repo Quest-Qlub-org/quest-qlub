@@ -210,8 +210,16 @@ describe("ArticleComments (DB-backed, Auth-required, Role permissions, Pinning &
     // 編集履歴モーダルが表示され、過去の内容が確認できること
     const modal = document.body.querySelector('[role="dialog"]');
     expect(modal).not.toBeNull();
+    expect(modal?.getAttribute("aria-labelledby")).toBe("comment-history-modal-title");
+    expect(modal?.querySelector('button[aria-label="閉じる"]')).not.toBeNull();
     expect(modal?.textContent).toContain("コメントの編集履歴");
     expect(modal?.textContent).toContain("編集前の初期コメント本文");
+
+    // Escapeキーでモーダルが閉じられること
+    await act(async () => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull();
 
     unmount();
   });
