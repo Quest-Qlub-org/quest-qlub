@@ -26,11 +26,38 @@ describe("sanitizeHtml", () => {
     expect(output).not.toContain("javascript:");
   });
 
-  it('adds rel="noopener noreferrer" to links with target="_blank"', () => {
+  it('adds rel="ugc noopener noreferrer" to external links with target="_blank"', () => {
     const input = '<a href="https://example.com" target="_blank">External Link</a>';
     const output = sanitizeHtml(input);
-    expect(output).toContain('rel="noopener noreferrer"');
+    expect(output).toContain('rel="ugc noopener noreferrer"');
     expect(output).toContain('target="_blank"');
+  });
+
+  it('adds rel="ugc noopener noreferrer" to external links even without target="_blank"', () => {
+    const input = '<a href="http://external.example.org/page">External Link</a>';
+    const output = sanitizeHtml(input);
+    expect(output).toContain('rel="ugc noopener noreferrer"');
+  });
+
+  it('does not add rel="ugc" to internal links on quest-qlub.vercel.app or relative links', () => {
+    const internalAbs = sanitizeHtml(
+      '<a href="https://quest-qlub.vercel.app/articles/1">Internal</a>',
+    );
+    expect(internalAbs).not.toContain("ugc");
+    expect(internalAbs).not.toContain("nofollow");
+
+    const internalBlank = sanitizeHtml(
+      '<a href="https://quest-qlub.vercel.app/articles/1" target="_blank">Internal Blank</a>',
+    );
+    expect(internalBlank).toContain('rel="noopener noreferrer"');
+    expect(internalBlank).not.toContain("ugc");
+
+    const relativeLink = sanitizeHtml('<a href="/articles/2">Relative</a>');
+    expect(relativeLink).not.toContain("ugc");
+
+    const relativeBlank = sanitizeHtml('<a href="/articles/2" target="_blank">Relative Blank</a>');
+    expect(relativeBlank).toContain('rel="noopener noreferrer"');
+    expect(relativeBlank).not.toContain("ugc");
   });
 
   it("preserves TipTap CustomFrame attributes", () => {

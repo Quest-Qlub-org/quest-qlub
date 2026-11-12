@@ -119,11 +119,40 @@ function filterSafeStyles(rawStyle: string): string {
   return safeDeclarations.join("; ");
 }
 
-// 外部リンクのリバースタブナビング防止 & style属性のプロパティ制限
+const INTERNAL_HOSTNAMES = new Set<string>(["quest-qlub.vercel.app"]);
+
+try {
+  const configuredSiteUrl = (import.meta.env?.VITE_SITE_URL as string | undefined)?.trim();
+  if (configuredSiteUrl) {
+    INTERNAL_HOSTNAMES.add(new URL(configuredSiteUrl).hostname.toLowerCase());
+  }
+} catch {
+  // 無効な VITE_SITE_URL は無視
+}
+
+function isExternalHttpLink(href: string): boolean {
+  const trimmed = href.trim();
+  if (!/^https?:\/\//i.test(trimmed)) {
+    return false;
+  }
+  try {
+    const parsed = new URL(trimmed);
+    return !INTERNAL_HOSTNAMES.has(parsed.hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
+// 外部リンクへの rel="ugc noopener noreferrer" 付与・リバースタブナビング防止 & style属性のプロパティ制限
 if (typeof DOMPurify?.addHook === "function") {
   DOMPurify.addHook("afterSanitizeAttributes", (node) => {
-    if (node.tagName === "A" && node.getAttribute("target") === "_blank") {
-      node.setAttribute("rel", "noopener noreferrer");
+    if (node.tagName === "A") {
+      const href = node.getAttribute("href") || "";
+      if (isExternalHttpLink(href)) {
+        node.setAttribute("rel", "ugc noopener noreferrer");
+      } else if (node.getAttribute("target") === "_blank") {
+        node.setAttribute("rel", "noopener noreferrer");
+      }
     }
 
     if (node.hasAttribute("style")) {
