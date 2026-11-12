@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { getThumbnailColor, ARTICLE_STATUS_CONFIG } from "../types";
 import { mapDbArticleToArticle } from "../types";
@@ -26,7 +26,13 @@ import {
 } from "../utils/profileQueries";
 import { ArticleComments } from "../components/ArticleComments";
 import { useFollows } from "../hooks/useFollows";
-import { updateMetaTags, resetMetaTags, generateArticleJsonLd } from "../utils/seo";
+import {
+  updateMetaTags,
+  resetMetaTags,
+  generateArticleJsonLd,
+  generateBreadcrumbJsonLd,
+  toCanonicalUrl,
+} from "../utils/seo";
 import { formatArticleDate } from "../utils/date";
 import {
   formatScheduledDateTime,
@@ -227,28 +233,37 @@ export const ArticleView = () => {
     }
   };
 
-  // Issue #25 & #46: 個別記事のOGP・SEOメタタグ・JSON-LD構造化データの動的適用
+  // Issue #25 & #46 & #100 & #101 & #104: 個別記事のOGP・SEOメタタグ・JSON-LD構造化データの動的適用
   useEffect(() => {
     if (!article) return;
     const writerObj = writers.find((w) => w.id === article.writerId) || writerFallback;
     const authorName =
       writerObj?.display_name ||
       (writerObj?.username ? `@${writerObj.username}` : "Quest Qlub Writer");
+    const authorUrl = writerObj
+      ? toCanonicalUrl(`/writers/${writerObj.username?.replace(/^@/, "") || writerObj.id}`)
+      : undefined;
     const description =
       article.summary ||
       (article.content
         ? article.content.replace(/<[^>]+>/g, "").slice(0, 120)
         : "Quest Qlubの記事です");
-    const currentUrl = `${window.location.origin}/articles/${article.id}`;
+    const currentUrl = toCanonicalUrl(`/articles/${article.id}`);
 
-    const jsonLd = generateArticleJsonLd({
+    const articleJsonLd = generateArticleJsonLd({
       title: article.title,
       description,
       url: currentUrl,
       image: article.thumbnailUrl,
       authorName,
+      authorUrl,
       datePublished: article.createdAt ?? undefined,
     });
+    const breadcrumbJsonLd = generateBreadcrumbJsonLd([
+      { name: "Quest Qlub", url: "/" },
+      { name: "記事", url: "/search" },
+      { name: article.title, url: currentUrl },
+    ]);
 
     updateMetaTags({
       title: article.status !== "published" ? `[プレビュー] ${article.title}` : article.title,
@@ -259,7 +274,8 @@ export const ArticleView = () => {
       twitterCard: "summary_large_image",
       author: authorName,
       publishedTime: article.createdAt ?? undefined,
-      jsonLd,
+      twitterCreator: writerObj?.x_account ?? undefined,
+      jsonLd: [articleJsonLd, breadcrumbJsonLd],
       noindex: article.status !== "published",
     });
 
@@ -284,7 +300,9 @@ export const ArticleView = () => {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
         <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
-        <p className="text-sm text-gray-500 font-medium">記事を読み込んでいます...</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">
+          記事を読み込んでいます...
+        </p>
       </div>
     );
   }
@@ -292,7 +310,7 @@ export const ArticleView = () => {
   if (notFound || !article) {
     return (
       <div className="p-12 text-center space-y-4">
-        <p className="text-gray-500 text-base font-bold">記事が見つかりません</p>
+        <p className="text-gray-500 dark:text-gray-400 text-base font-bold">記事が見つかりません</p>
         <button
           onClick={() => navigate("/")}
           className="px-5 py-2.5 bg-gray-900 text-white text-xs font-bold rounded-xl hover:bg-gray-800 transition-colors"
@@ -305,7 +323,7 @@ export const ArticleView = () => {
 
   const writer = writers.find((w) => w.id === article.writerId) || writerFallback;
   const isFav = favorites.includes(article.id);
-  const articleUrl = `${window.location.origin}/articles/${article.id}`;
+  const articleUrl = toCanonicalUrl(`/articles/${article.id}`);
   const color = getThumbnailColor(article.thumbnailColor ?? null);
   const isAuthor = Boolean(
     (profile?.id && profile.id === article.writerId) ||
@@ -320,7 +338,7 @@ export const ArticleView = () => {
   if (!isArticlePubliclyVisible(article) && !isAuthor && !isCollaborator && !isEditor) {
     return (
       <div className="p-12 text-center space-y-4">
-        <p className="text-gray-500 text-base font-bold">記事が見つかりません</p>
+        <p className="text-gray-500 dark:text-gray-400 text-base font-bold">記事が見つかりません</p>
         <button
           onClick={() => navigate("/")}
           className="px-5 py-2.5 bg-gray-900 text-white text-xs font-bold rounded-xl hover:bg-gray-800 transition-colors"
@@ -500,7 +518,7 @@ export const ArticleView = () => {
                   {series.title}
                 </span>
                 {article.episodeNumber != null && (
-                  <span className="text-xs text-gray-400 dark:text-gray-500">
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
                     第{article.episodeNumber}話
                   </span>
                 )}
@@ -534,7 +552,10 @@ export const ArticleView = () => {
             </span>
           </div>
           <button
+            type="button"
             onClick={() => void handleToggleFavorite()}
+            aria-label={isFav ? "お気に入りから削除" : "お気に入りに追加"}
+            aria-pressed={isFav}
             className={`p-2 rounded-full border shadow-sm transition-all cursor-pointer ${
               isFav
                 ? "bg-yellow-50 dark:bg-yellow-950/40 border-yellow-300 dark:border-yellow-600 scale-110"
@@ -592,11 +613,15 @@ export const ArticleView = () => {
 
             if (!singleWriter) return null;
 
+            const singleWriterName =
+              singleWriter.display_name ??
+              (singleWriter.username ? `@${singleWriter.username}` : "名称未設定");
+
             return (
-              <div
+              <Link
+                to={`/writers/${singleWriter.username || singleWriter.id}`}
                 data-testid={`author-card-${singleWriter.id}`}
                 className="flex items-center justify-between p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xs cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors"
-                onClick={() => navigate(`/writers/${singleWriter.username || singleWriter.id}`)}
               >
                 <div className="flex items-center gap-3">
                   <div className="bg-gray-100 dark:bg-gray-700 p-2 rounded-full border border-gray-200 dark:border-gray-600">
@@ -604,7 +629,9 @@ export const ArticleView = () => {
                       <img
                         src={singleWriter.avatar_url}
                         className="w-8 h-8 rounded-full object-cover"
-                        alt=""
+                        alt={`${singleWriterName}のアバター`}
+                        loading="lazy"
+                        decoding="async"
                       />
                     ) : (
                       <CustomUserIcon className="w-8 h-8" />
@@ -614,10 +641,7 @@ export const ArticleView = () => {
                     <p className="text-xs text-gray-500 dark:text-gray-400 font-bold mb-0.5">
                       この記事を執筆した人
                     </p>
-                    <p className="font-bold text-gray-800 dark:text-gray-100">
-                      {singleWriter.display_name ??
-                        (singleWriter.username ? `@${singleWriter.username}` : "名称未設定")}
-                    </p>
+                    <p className="font-bold text-gray-800 dark:text-gray-100">{singleWriterName}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -625,6 +649,7 @@ export const ArticleView = () => {
                     <button
                       type="button"
                       onClick={async (e) => {
+                        e.preventDefault();
                         e.stopPropagation();
                         if (!isAuthenticated) {
                           showToast("フォローするにはログインが必要です");
@@ -664,11 +689,11 @@ export const ArticleView = () => {
                       )}
                     </button>
                   )}
-                  <span className="text-xs font-bold text-blue-500 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 px-3 py-1.5 rounded-full hidden sm:inline-block">
+                  <span className="text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 px-3 py-1.5 rounded-full hidden sm:inline-block">
                     プロフィールへ
                   </span>
                 </div>
-              </div>
+              </Link>
             );
           }
 
@@ -693,9 +718,9 @@ export const ArticleView = () => {
 
           return (
             <div className="space-y-3 pt-2">
-              <h3 className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">
+              <h2 className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">
                 この記事を執筆した人
-              </h3>
+              </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {authors.map(({ profile: authorProfile, roleLabel, isPrimary }) => {
                   const displayName =
@@ -704,13 +729,11 @@ export const ArticleView = () => {
                   const isMe = currentUserId === authorProfile.id;
 
                   return (
-                    <div
+                    <Link
                       key={authorProfile.id}
+                      to={`/writers/${authorProfile.username || authorProfile.id}`}
                       data-testid={`author-card-${authorProfile.id}`}
                       className="flex items-center justify-between p-3.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xs cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors"
-                      onClick={() =>
-                        navigate(`/writers/${authorProfile.username || authorProfile.id}`)
-                      }
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="bg-gray-100 dark:bg-gray-700 p-2 rounded-full border border-gray-200 dark:border-gray-600 shrink-0">
@@ -718,7 +741,9 @@ export const ArticleView = () => {
                             <img
                               src={authorProfile.avatar_url}
                               className="w-8 h-8 rounded-full object-cover"
-                              alt=""
+                              alt={`${displayName}のアバター`}
+                              loading="lazy"
+                              decoding="async"
                             />
                           ) : (
                             <CustomUserIcon className="w-8 h-8" />
@@ -746,6 +771,7 @@ export const ArticleView = () => {
                           <button
                             type="button"
                             onClick={async (e) => {
+                              e.preventDefault();
                               e.stopPropagation();
                               if (!isAuthenticated) {
                                 showToast("フォローするにはログインが必要です");
@@ -787,11 +813,11 @@ export const ArticleView = () => {
                             )}
                           </button>
                         )}
-                        <span className="text-xs font-bold text-blue-500 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 px-2.5 py-1 rounded-full hidden sm:inline-block">
+                        <span className="text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 px-2.5 py-1 rounded-full hidden sm:inline-block">
                           詳細
                         </span>
                       </div>
-                    </div>
+                    </Link>
                   );
                 })}
               </div>
@@ -805,7 +831,7 @@ export const ArticleView = () => {
           {article.content ? (
             <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(article.content) }} />
           ) : (
-            <span className="text-gray-400 dark:text-gray-500 italic">
+            <span className="text-gray-500 dark:text-gray-400 italic">
               本文はまだ書かれていません
             </span>
           )}
@@ -815,6 +841,8 @@ export const ArticleView = () => {
           <p className="font-bold text-gray-800 dark:text-gray-200 text-center">この記事を共有</p>
           <div className="flex flex-wrap justify-center gap-x-6 gap-y-2">
             <button
+              type="button"
+              aria-label="Xで共有"
               onClick={() =>
                 window.open(
                   `https://twitter.com/intent/tweet?text=${encodeURIComponent(
@@ -828,6 +856,8 @@ export const ArticleView = () => {
               <span className="font-bold text-2xl">X</span>
             </button>
             <button
+              type="button"
+              aria-label="LINEで共有"
               onClick={() =>
                 window.open(
                   `https://line.me/R/msg/text/?${encodeURIComponent(
@@ -841,6 +871,8 @@ export const ArticleView = () => {
               <span className="font-bold text-sm">LINE</span>
             </button>
             <button
+              type="button"
+              aria-label="記事のリンクをコピー"
               onClick={() => {
                 void navigator.clipboard.writeText(articleUrl);
                 showToast("リンクをコピーしました");
