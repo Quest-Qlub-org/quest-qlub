@@ -858,7 +858,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                       id="article-title-input"
                       required
                       aria-required="true"
-                      className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-300 dark:placeholder:text-gray-500 rounded-xl px-4 py-3 text-lg md:text-xl font-bold focus:outline-none focus:ring-2 focus:ring-blue-400 transition-shadow"
+                      className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-300 rounded-xl px-4 py-3 text-lg md:text-xl font-bold focus:outline-none focus:ring-2 focus:ring-blue-400 transition-shadow"
                       placeholder="読者の目を引くタイトルを入力..."
                       value={formTitle}
                       onChange={(e) => {
@@ -880,7 +880,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                     </label>
                     <textarea
                       id="article-summary-input"
-                      className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 placeholder:text-gray-300 dark:placeholder:text-gray-500 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
+                      className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 placeholder:text-gray-500 dark:placeholder:text-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
                       rows={2}
                       placeholder="この記事のポイントや概要を1〜2文で入力（省略可）"
                       value={formSummary}
@@ -1070,7 +1070,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                           <div className="flex gap-2">
                             <input
                               id="article-tag-input"
-                              className="flex-1 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
+                              className="flex-1 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-300 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
                               placeholder="タグを入力（Enterまたはカンマで追加）"
                               value={tagInput}
                               onChange={(e) => setTagInput(e.target.value)}
