@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "../supabase";
 import { useApp } from "../context/AppContext";
-import { PenTool, CheckCircle, Send, ArrowLeft } from "lucide-react";
+import { PenTool, CheckCircle, Send, ArrowLeft, Sparkles, ListChecks } from "lucide-react";
 import { updateMetaTags } from "../utils/seo";
 import {
   verifySpamCheck,
@@ -181,195 +181,290 @@ export const WriterApplyView = () => {
 
   if (submitted) {
     return (
-      <div className="p-4 md:p-8 max-w-xl mx-auto animate-in fade-in duration-300">
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-8 text-center space-y-4">
-          <div className="w-16 h-16 bg-green-50 dark:bg-green-900/40 text-green-600 dark:text-green-400 rounded-full flex items-center justify-center mx-auto mb-2 border border-green-100 dark:border-green-800">
-            <CheckCircle className="w-8 h-8" />
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-            ご応募ありがとうございます！
-          </h1>
-          <p className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed max-w-md mx-auto">
-            ライター応募を受け付けました。運営チームにて内容を確認の上、1〜3営業日以内にご連絡いたします。
-          </p>
-          <div className="pt-4 flex flex-col sm:flex-row gap-3 justify-center">
-            <button
-              onClick={() => navigate("/")}
-              className="px-6 py-2.5 bg-gray-900 hover:bg-gray-800 dark:bg-gray-100 dark:hover:bg-gray-200 text-white dark:text-gray-900 font-bold text-sm rounded-xl transition-colors cursor-pointer"
-            >
-              トップへ戻る
-            </button>
-            <button
-              onClick={() => {
-                setSubmitted(false);
-                setMotivation("");
-                setPortfolio("");
-                setGenres([]);
-              }}
-              className="px-6 py-2.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-bold text-sm rounded-xl transition-colors cursor-pointer"
-            >
-              別の内容で応募する
-            </button>
+      <div className="animate-in fade-in duration-300 min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+        <div className="p-4 md:p-8 max-w-xl mx-auto pt-8 md:pt-16">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-8 text-center space-y-4">
+            <div className="w-16 h-16 bg-green-50 dark:bg-green-900/40 text-green-600 dark:text-green-400 rounded-full flex items-center justify-center mx-auto mb-2 border border-green-100 dark:border-green-800">
+              <CheckCircle className="w-8 h-8" aria-hidden="true" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+              ご応募ありがとうございます！
+            </h1>
+            <p className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed max-w-md mx-auto">
+              ライター応募を受け付けました。運営チームにて内容を確認の上、1〜3営業日以内にご連絡いたします。
+            </p>
+            <div className="pt-4 flex flex-col sm:flex-row gap-3 justify-center">
+              <button
+                type="button"
+                onClick={() => navigate("/")}
+                className="px-6 py-2.5 bg-gray-900 hover:bg-gray-800 dark:bg-gray-100 dark:hover:bg-gray-200 text-white dark:text-gray-900 font-bold text-sm rounded-xl transition-colors cursor-pointer"
+              >
+                トップへ戻る
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSubmitted(false);
+                  setMotivation("");
+                  setPortfolio("");
+                  setGenres([]);
+                }}
+                className="px-6 py-2.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-bold text-sm rounded-xl transition-colors cursor-pointer"
+              >
+                別の内容で応募する
+              </button>
+            </div>
           </div>
         </div>
       </div>
     );
   }
 
+  const errorId = error ? "writer-apply-error" : undefined;
+
   return (
-    <div className="p-4 md:p-8 max-w-2xl mx-auto space-y-6 animate-in fade-in duration-300">
-      <button
-        onClick={() => navigate(-1)}
-        className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors cursor-pointer"
-      >
-        <ArrowLeft className="w-3.5 h-3.5" />
-        <span>戻る</span>
-      </button>
-
-      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-6 text-white shadow-sm space-y-2">
-        <div className="inline-flex items-center gap-2 px-2.5 py-1 bg-white/20 backdrop-blur-sm rounded-full text-xs font-semibold">
-          <PenTool className="w-3.5 h-3.5" />
-          <span>Writer Recruitment</span>
-        </div>
-        <h1 className="text-2xl font-bold">ライター応募フォーム</h1>
-        <p className="text-blue-100 text-xs md:text-sm leading-relaxed">
-          Quest Qlub
-          では、知見や技術、アイデアを発信してコミュニティを盛り上げてくれるライターを随時募集しています。
-        </p>
-      </div>
-
-      <form
-        onSubmit={handleSubmit}
-        className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-700 space-y-5"
-      >
-        {/* Honeypot field (hidden from real users, attractive to bots) */}
-        <div
-          style={{
-            position: "absolute",
-            left: "-9999px",
-            opacity: 0,
-            pointerEvents: "none",
-          }}
-          aria-hidden="true"
-        >
-          <label htmlFor="_website_hp">Leave this field empty</label>
-          <input
-            id="_website_hp"
-            type="text"
-            name="_hp"
-            tabIndex={-1}
-            autoComplete="off"
-            value={honeypot}
-            onChange={(e) => setHoneypot(e.target.value)}
-          />
-        </div>
-
-        {error && (
-          <div className="p-3.5 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl text-xs text-red-600 dark:text-red-400 font-medium">
-            {error}
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
-              お名前 / ペンネーム <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              required
-              placeholder="山田 太郎"
-              value={name}
-              onChange={(e) => {
-                setName(e.target.value);
-                setHasEditedName(true);
-              }}
-              className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
-              メールアドレス <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="email"
-              required
-              placeholder="example@quest-qlub.com"
-              value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                setHasEditedEmail(true);
-              }}
-              className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
-            希望執筆ジャンル（複数選択可）
-          </label>
-          <div className="flex flex-wrap gap-2 pt-1">
-            {GENRE_OPTIONS.map((genre) => (
-              <button
-                key={genre}
-                type="button"
-                onClick={() => toggleGenre(genre)}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
-                  genres.includes(genre)
-                    ? "bg-blue-600 border-blue-600 text-white shadow-sm"
-                    : "bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
-                }`}
-              >
-                {genre}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
-            ポートフォリオ・ブログ・過去記事URL（任意）
-          </label>
-          <input
-            type="url"
-            placeholder="https://github.com/..., https://zenn.dev/..."
-            value={portfolio}
-            onChange={(e) => setPortfolio(e.target.value)}
-            className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-
-        <div>
-          <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
-            志望動機・書きたい記事のテーマ <span className="text-red-500">*</span>
-          </label>
-          <textarea
-            required
-            rows={4}
-            placeholder="得意な技術領域や、Quest Qlubで発信したい内容について自由にご記入ください。"
-            value={motivation}
-            onChange={(e) => setMotivation(e.target.value)}
-            className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-          />
-        </div>
-
+    <div className="animate-in fade-in duration-300 min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+      <div className="max-w-5xl mx-auto px-4 py-6 md:py-8 space-y-6">
         <button
-          type="submit"
-          disabled={submitting || cooldown > 0}
-          className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl transition-colors shadow-sm disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+          type="button"
+          onClick={() => navigate(-1)}
+          className="inline-flex items-center gap-1.5 text-xs text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 transition-colors cursor-pointer"
         >
-          <Send className="w-4 h-4" />
-          <span>
-            {submitting
-              ? "送信中..."
-              : cooldown > 0
-                ? `送信待機中 (${cooldown}秒)`
-                : "応募を送信する"}
-          </span>
+          <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
+          <span>戻る</span>
         </button>
-      </form>
+
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-6 text-white shadow-sm space-y-2">
+          <div className="inline-flex items-center gap-2 px-2.5 py-1 bg-white/20 backdrop-blur-sm rounded-full text-xs font-semibold">
+            <PenTool className="w-3.5 h-3.5" aria-hidden="true" />
+            <span>Writer Recruitment</span>
+          </div>
+          <h1 className="text-2xl font-bold">ライター応募フォーム</h1>
+          <p className="text-blue-100 text-xs md:text-sm leading-relaxed">
+            Quest Qlub
+            では、知見や技術、アイデアを発信してコミュニティを盛り上げてくれるライターを随時募集しています。
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+          <aside className="md:col-span-5 space-y-4">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-700 space-y-4">
+              <h2 className="text-base font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" aria-hidden="true" />
+                <span>Quest Qlub で執筆する魅力</span>
+              </h2>
+              <ul className="space-y-2.5 text-xs md:text-sm text-gray-600 dark:text-gray-300 leading-relaxed list-disc list-inside">
+                <li>学びや開発の知見を記事や連載として発信できます</li>
+                <li>共同執筆機能でチームや仲間と一緒に記事を作成できます</li>
+                <li>編集チームのサポートを受けながら安心して公開できます</li>
+              </ul>
+            </div>
+
+            <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-700 space-y-4">
+              <h2 className="text-base font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                <ListChecks
+                  className="w-4 h-4 text-blue-600 dark:text-blue-400"
+                  aria-hidden="true"
+                />
+                <span>応募から執筆開始までの流れ</span>
+              </h2>
+              <ol className="space-y-2.5 text-xs md:text-sm text-gray-600 dark:text-gray-300 leading-relaxed list-decimal list-inside">
+                <li>右側のフォームから必要事項を送信</li>
+                <li>運営チームが内容を確認（1〜3営業日以内）</li>
+                <li>承認後、アカウントへライター権限を付与・ご連絡</li>
+              </ol>
+              <div className="pt-3 border-t border-gray-100 dark:border-gray-700 flex flex-wrap gap-2 text-xs">
+                <Link
+                  to="/terms"
+                  className="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 font-medium transition-colors"
+                >
+                  利用規約
+                </Link>
+                <Link
+                  to="/privacy"
+                  className="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 font-medium transition-colors"
+                >
+                  プライバシーポリシー
+                </Link>
+              </div>
+            </div>
+          </aside>
+
+          <form
+            onSubmit={handleSubmit}
+            className="md:col-span-7 bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-700 space-y-5"
+          >
+            {/* Honeypot field (hidden from real users, attractive to bots) */}
+            <div
+              style={{
+                position: "absolute",
+                left: "-9999px",
+                opacity: 0,
+                pointerEvents: "none",
+              }}
+              aria-hidden="true"
+            >
+              <label htmlFor="_website_hp">Leave this field empty</label>
+              <input
+                id="_website_hp"
+                type="text"
+                name="_hp"
+                tabIndex={-1}
+                autoComplete="off"
+                value={honeypot}
+                onChange={(e) => setHoneypot(e.target.value)}
+              />
+            </div>
+
+            {error && (
+              <div
+                id="writer-apply-error"
+                role="alert"
+                className="p-3.5 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl text-xs text-red-600 dark:text-red-400 font-medium"
+              >
+                {error}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label
+                  htmlFor="writer-apply-name"
+                  className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5"
+                >
+                  お名前 / ペンネーム <span className="text-red-600 dark:text-red-400">*</span>
+                </label>
+                <input
+                  id="writer-apply-name"
+                  type="text"
+                  required
+                  aria-required="true"
+                  aria-invalid={Boolean(error)}
+                  aria-describedby={errorId}
+                  placeholder="山田 太郎"
+                  value={name}
+                  onChange={(e) => {
+                    setName(e.target.value);
+                    setHasEditedName(true);
+                  }}
+                  className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="writer-apply-email"
+                  className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5"
+                >
+                  メールアドレス <span className="text-red-600 dark:text-red-400">*</span>
+                </label>
+                <input
+                  id="writer-apply-email"
+                  type="email"
+                  required
+                  aria-required="true"
+                  aria-invalid={Boolean(error)}
+                  aria-describedby={errorId}
+                  placeholder="example@quest-qlub.com"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    setHasEditedEmail(true);
+                  }}
+                  className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <span
+                id="writer-apply-genres-label"
+                className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5"
+              >
+                希望執筆ジャンル（複数選択可）
+              </span>
+              <div
+                role="group"
+                aria-labelledby="writer-apply-genres-label"
+                className="flex flex-wrap gap-2 pt-1"
+              >
+                {GENRE_OPTIONS.map((genre) => {
+                  const isSelected = genres.includes(genre);
+                  return (
+                    <button
+                      key={genre}
+                      type="button"
+                      aria-pressed={isSelected}
+                      onClick={() => toggleGenre(genre)}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+                        isSelected
+                          ? "bg-blue-600 border-blue-600 text-white shadow-sm"
+                          : "bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
+                      }`}
+                    >
+                      {genre}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <label
+                htmlFor="writer-apply-portfolio"
+                className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5"
+              >
+                ポートフォリオ・ブログ・過去記事URL（任意）
+              </label>
+              <input
+                id="writer-apply-portfolio"
+                type="url"
+                placeholder="https://github.com/..., https://zenn.dev/..."
+                value={portfolio}
+                onChange={(e) => setPortfolio(e.target.value)}
+                className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="writer-apply-motivation"
+                className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5"
+              >
+                志望動機・書きたい記事のテーマ{" "}
+                <span className="text-red-600 dark:text-red-400">*</span>
+              </label>
+              <textarea
+                id="writer-apply-motivation"
+                required
+                aria-required="true"
+                aria-invalid={Boolean(error)}
+                aria-describedby={errorId}
+                rows={4}
+                placeholder="得意な技術領域や、Quest Qlubで発信したい内容について自由にご記入ください。"
+                value={motivation}
+                onChange={(e) => setMotivation(e.target.value)}
+                className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={submitting || cooldown > 0}
+              className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl transition-colors shadow-sm disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <Send className="w-4 h-4" aria-hidden="true" />
+              <span>
+                {submitting
+                  ? "送信中..."
+                  : cooldown > 0
+                    ? `送信待機中 (${cooldown}秒)`
+                    : "応募を送信する"}
+              </span>
+            </button>
+          </form>
+        </div>
+      </div>
     </div>
   );
 };

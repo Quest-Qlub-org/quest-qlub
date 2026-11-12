@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "../../supabase";
 import { useApp } from "../../context/AppContext";
 import { setInMemorySudoAuthorized } from "../../components/RoleRoute";
@@ -284,8 +285,12 @@ export const LoginView = () => {
           </p>
 
           {error && (
-            <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl text-xs text-red-600 dark:text-red-400 flex items-start gap-2 mb-4 text-left">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <div
+              id="login-mfa-error"
+              role="alert"
+              className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl text-xs text-red-600 dark:text-red-400 flex items-start gap-2 mb-4 text-left"
+            >
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
               <span>{error}</span>
             </div>
           )}
@@ -293,14 +298,22 @@ export const LoginView = () => {
           {step === "mfa_backup" ? (
             <form onSubmit={(e) => void handleVerifyBackupCode(e)} className="space-y-4">
               <div>
+                <label htmlFor="login-mfa-backup" className="sr-only">
+                  バックアップコード
+                </label>
                 <input
+                  id="login-mfa-backup"
                   type="text"
+                  required
+                  aria-required="true"
+                  aria-invalid={Boolean(error)}
+                  aria-describedby={error ? "login-mfa-error" : undefined}
                   autoComplete="off"
                   placeholder="例: abcd-1234"
                   autoFocus
                   value={backupCode}
                   onChange={(e) => setBackupCode(e.target.value)}
-                  className="w-full text-center font-mono text-lg tracking-wider uppercase border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full text-center font-mono text-lg tracking-wider uppercase border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
@@ -328,23 +341,31 @@ export const LoginView = () => {
                   type="button"
                   onClick={() => void handleCancelMfa()}
                   disabled={loading}
-                  className="w-full py-2 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 font-bold flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
+                  className="w-full py-2 text-xs text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 font-bold flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
                 >
-                  <LogOut className="w-3.5 h-3.5" />
+                  <LogOut className="w-3.5 h-3.5" aria-hidden="true" />
                   <span>別のアカウントでログイン</span>
                 </button>
               </div>
             </form>
           ) : fetchingFactor ? (
-            <div className="py-8 text-center text-gray-400 text-sm">
+            <div className="py-8 text-center text-gray-600 dark:text-gray-400 text-sm">
               <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
               認証設定を確認中...
             </div>
           ) : (
             <form onSubmit={(e) => void handleVerifyTotp(e)} className="space-y-4">
               <div>
+                <label htmlFor="login-mfa-totp" className="sr-only">
+                  6桁の認証コード
+                </label>
                 <input
+                  id="login-mfa-totp"
                   type="text"
+                  required
+                  aria-required="true"
+                  aria-invalid={Boolean(error)}
+                  aria-describedby={error ? "login-mfa-error" : undefined}
                   inputMode="numeric"
                   autoComplete="one-time-code"
                   maxLength={6}
@@ -352,7 +373,7 @@ export const LoginView = () => {
                   autoFocus
                   value={verifyCode}
                   onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, ""))}
-                  className="w-full text-center tracking-[0.4em] font-mono text-2xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full text-center tracking-[0.4em] font-mono text-2xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
@@ -380,9 +401,9 @@ export const LoginView = () => {
                   type="button"
                   onClick={() => void handleCancelMfa()}
                   disabled={loading}
-                  className="w-full py-2 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 font-bold flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
+                  className="w-full py-2 text-xs text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 font-bold flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
                 >
-                  <LogOut className="w-3.5 h-3.5" />
+                  <LogOut className="w-3.5 h-3.5" aria-hidden="true" />
                   <span>別のアカウントでログイン</span>
                 </button>
               </div>
@@ -400,22 +421,48 @@ export const LoginView = () => {
         <h1 className="text-2xl font-bold text-center mb-6 text-gray-900 dark:text-gray-100">
           ログイン
         </h1>
-        {error && <p className="text-red-500 text-sm mb-4 text-center">{error}</p>}
+        {error && (
+          <p
+            id="login-error"
+            role="alert"
+            className="text-red-600 dark:text-red-400 text-sm mb-4 text-center"
+          >
+            {error}
+          </p>
+        )}
         <form onSubmit={handleLogin} className="space-y-4">
-          <input
-            type="email"
-            placeholder="メールアドレス"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <div className="space-y-1">
+          <div>
+            <label htmlFor="login-email" className="sr-only">
+              メールアドレス
+            </label>
             <input
+              id="login-email"
+              type="email"
+              required
+              aria-required="true"
+              aria-invalid={Boolean(error)}
+              aria-describedby={error ? "login-error" : undefined}
+              placeholder="メールアドレス"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div className="space-y-1">
+            <label htmlFor="login-password" className="sr-only">
+              パスワード
+            </label>
+            <input
+              id="login-password"
               type="password"
+              required
+              aria-required="true"
+              aria-invalid={Boolean(error)}
+              aria-describedby={error ? "login-error" : undefined}
               placeholder="パスワード"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <div className="text-right">
               <button
@@ -439,16 +486,19 @@ export const LoginView = () => {
         <div className="space-y-4 mt-4">
           <div className="relative my-4 flex py-1 items-center">
             <div className="flex-grow border-t border-gray-200 dark:border-gray-700"></div>
-            <span className="flex-shrink mx-4 text-gray-400 text-xs font-bold">または</span>
+            <span className="flex-shrink mx-4 text-gray-500 dark:text-gray-400 text-xs font-bold">
+              または
+            </span>
             <div className="flex-grow border-t border-gray-200 dark:border-gray-700"></div>
           </div>
 
           <button
+            type="button"
             onClick={handleGoogleLogin}
             disabled={loading}
             className="w-full py-3 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 font-bold rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center justify-center gap-2 bg-white dark:bg-gray-800 transition-colors disabled:opacity-50 cursor-pointer"
           >
-            <svg className="w-5 h-5" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">
               <path
                 fill="#4285F4"
                 d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v3.92h6.69c-.29 1.5-.1.84-2.48 2.43v2.01h4.02c2.34-2.15 3.69-5.32 3.69-8.29z"
@@ -471,18 +521,40 @@ export const LoginView = () => {
 
           {isPasskeySupported && (
             <button
+              type="button"
               onClick={handlePasskeyLogin}
               disabled={loading}
               className="w-full py-3 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 font-bold rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center justify-center gap-2 bg-white dark:bg-gray-800 transition-colors disabled:opacity-50 cursor-pointer"
             >
-              <Key className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+              <Key className="w-5 h-5 text-gray-600 dark:text-gray-400" aria-hidden="true" />
               パスキーでログイン
             </button>
           )}
+
+          <p className="text-[11px] sm:text-xs text-gray-600 dark:text-gray-400 text-center leading-relaxed">
+            Google等でログインすることで、
+            <Link
+              to="/terms"
+              className="text-blue-600 dark:text-blue-400 underline hover:text-blue-700 dark:hover:text-blue-300 mx-0.5"
+            >
+              利用規約
+            </Link>
+            および
+            <Link
+              to="/privacy"
+              className="text-blue-600 dark:text-blue-400 underline hover:text-blue-700 dark:hover:text-blue-300 mx-0.5"
+            >
+              プライバシーポリシー
+            </Link>
+            に同意したものとみなされます。
+          </p>
         </div>
         <div className="mt-4 text-center">
-          <p className="text-xs text-gray-400 mb-2">アカウントをお持ちでない方</p>
+          <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
+            アカウントをお持ちでない方
+          </p>
           <button
+            type="button"
             onClick={() => navigate("register")}
             className="w-full py-3 border-2 border-blue-500 text-blue-600 dark:text-blue-400 font-bold rounded-xl hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors cursor-pointer"
           >

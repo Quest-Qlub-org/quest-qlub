@@ -88,22 +88,50 @@ export const ResetPasswordView = () => {
         <p className="text-xs text-gray-500 dark:text-gray-400 text-center mb-6 font-medium">
           新しいパスワードを入力してください
         </p>
-        {error && <p className="text-red-500 text-sm mb-4 text-center">{error}</p>}
+        {error && (
+          <p
+            id="reset-password-error"
+            role="alert"
+            className="text-red-600 dark:text-red-400 text-sm mb-4 text-center"
+          >
+            {error}
+          </p>
+        )}
         <form onSubmit={handleResetPassword} className="space-y-4">
-          <input
-            type="password"
-            placeholder="新しいパスワード（8文字以上）"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <input
-            type="password"
-            placeholder="新しいパスワード（確認）"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          <div>
+            <label htmlFor="reset-password" className="sr-only">
+              新しいパスワード（8文字以上）
+            </label>
+            <input
+              id="reset-password"
+              type="password"
+              required
+              aria-required="true"
+              aria-invalid={Boolean(error)}
+              aria-describedby={error ? "reset-password-error" : undefined}
+              placeholder="新しいパスワード（8文字以上）"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label htmlFor="reset-password-confirm" className="sr-only">
+              新しいパスワード（確認）
+            </label>
+            <input
+              id="reset-password-confirm"
+              type="password"
+              required
+              aria-required="true"
+              aria-invalid={Boolean(error)}
+              aria-describedby={error ? "reset-password-error" : undefined}
+              placeholder="新しいパスワード（確認）"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
           <button
             type="submit"
             disabled={loading}
