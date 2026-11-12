@@ -536,6 +536,7 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
             type="button"
             title="文字色"
             aria-label="文字色"
+            aria-expanded={showColorPicker}
             onClick={() => setShowColorPicker((v) => !v)}
             className="flex flex-col items-center justify-center w-8 h-8 rounded-lg hover:bg-gray-200/70 transition-colors"
           >
@@ -547,25 +548,35 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
           </button>
           {showColorPicker && (
             <div className="absolute top-10 left-0 z-50 bg-white border border-gray-200 rounded-xl shadow-xl p-3 w-48">
-              <p className="text-[11px] font-bold text-gray-500 mb-2">文字色を選択</p>
-              <div className="grid grid-cols-6 gap-1.5">
-                {COLORS.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => {
-                      editor.chain().focus().setColor(c).run();
-                      setShowColorPicker(false);
-                    }}
-                    className={`w-6 h-6 rounded-md border transition-transform hover:scale-110 ${
-                      activeColor.toLowerCase() === c.toLowerCase()
-                        ? "border-gray-900 ring-2 ring-blue-400"
-                        : "border-gray-200"
-                    }`}
-                    style={{ backgroundColor: c }}
-                    title={c}
-                  />
-                ))}
+              <p id="rte-color-picker-label" className="text-[11px] font-bold text-gray-500 mb-2">
+                文字色を選択
+              </p>
+              <div
+                role="radiogroup"
+                aria-labelledby="rte-color-picker-label"
+                className="grid grid-cols-6 gap-1.5"
+              >
+                {COLORS.map((c) => {
+                  const isColorSelected = activeColor.toLowerCase() === c.toLowerCase();
+                  return (
+                    <button
+                      key={c}
+                      type="button"
+                      role="radio"
+                      aria-checked={isColorSelected}
+                      aria-label={`文字色 ${c} を選択`}
+                      onClick={() => {
+                        editor.chain().focus().setColor(c).run();
+                        setShowColorPicker(false);
+                      }}
+                      className={`w-6 h-6 rounded-md border transition-transform hover:scale-110 ${
+                        isColorSelected ? "border-gray-900 ring-2 ring-blue-400" : "border-gray-200"
+                      }`}
+                      style={{ backgroundColor: c }}
+                      title={c}
+                    />
+                  );
+                })}
               </div>
               <button
                 type="button"

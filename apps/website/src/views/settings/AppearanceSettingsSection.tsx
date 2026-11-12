@@ -39,7 +39,11 @@ export function AppearanceSettingsSection({
           </p>
         </div>
         <div className="p-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          <div
+            role="radiogroup"
+            aria-label="外観テーマ設定"
+            className="grid grid-cols-1 sm:grid-cols-3 gap-2.5"
+          >
             {themeOptions.map((opt) => {
               const Icon = opt.icon;
               const isSelected = theme === opt.value;
@@ -47,6 +51,8 @@ export function AppearanceSettingsSection({
                 <button
                   key={opt.value}
                   type="button"
+                  role="radio"
+                  aria-checked={isSelected}
                   onClick={() => {
                     setTheme(opt.value);
                     showToast(`外観テーマを「${opt.label}」に設定しました`);
@@ -76,11 +82,17 @@ export function AppearanceSettingsSection({
           </p>
         </div>
         <div className="p-4">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div
+            role="radiogroup"
+            aria-label="記事文字サイズ設定"
+            className="grid grid-cols-2 sm:grid-cols-4 gap-2"
+          >
             {fontOptions.map((opt) => (
               <button
                 key={opt.value}
                 type="button"
+                role="radio"
+                aria-checked={fontSize === opt.value}
                 onClick={() => {
                   setFontSize(opt.value);
                   showToast(`文字サイズを「${opt.label}」に変更しました`);

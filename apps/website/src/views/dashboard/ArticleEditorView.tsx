@@ -988,10 +988,17 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                                 {getThumbnailColor(formColor).label}
                               </span>
                             </p>
-                            <div className="flex gap-2 flex-wrap">
+                            <div
+                              role="radiogroup"
+                              aria-labelledby="article-bg-color-label"
+                              className="flex gap-2 flex-wrap"
+                            >
                               {THUMBNAIL_COLORS.map((color) => (
                                 <button
                                   type="button"
+                                  role="radio"
+                                  aria-checked={formColor === color.id}
+                                  aria-label={`${color.label}を背景色に選択`}
                                   key={color.id}
                                   onClick={() => {
                                     setFormColor(color.id);

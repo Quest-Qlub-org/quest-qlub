@@ -348,6 +348,14 @@ describe("ArticleComments (DB-backed, Auth-required, Role permissions, Pinning &
       '[data-testid="pin-comment-c-1"]',
     ) as HTMLButtonElement;
     expect(pinBtnC1).not.toBeNull();
+    expect(pinBtnC1.getAttribute("aria-pressed")).toBe("false");
+    expect(pinBtnC1.getAttribute("aria-label")).toBe("コメントをピン留め");
+
+    const pinBtnC2 = writerContainer.querySelector(
+      '[data-testid="pin-comment-c-2"]',
+    ) as HTMLButtonElement;
+    expect(pinBtnC2.getAttribute("aria-pressed")).toBe("true");
+    expect(pinBtnC2.getAttribute("aria-label")).toBe("ピン留めを解除");
 
     // すでに3件ピン留めされている状態で4件目(c-1)をピン留めしようとすると制限エラーメッセージが表示されること
     await act(async () => {
@@ -377,6 +385,7 @@ describe("ArticleComments (DB-backed, Auth-required, Role permissions, Pinning &
     ) as HTMLButtonElement;
     const editBtnC2 = container.querySelector('[data-testid="edit-comment-c-2"]');
     expect(editBtnC1).not.toBeNull();
+    expect(editBtnC1.getAttribute("aria-label")).toBe("コメントを編集");
     expect(editBtnC2).toBeNull();
 
     // c-1 を編集
@@ -438,6 +447,7 @@ describe("ArticleComments (DB-backed, Auth-required, Role permissions, Pinning &
     ) as HTMLButtonElement;
     const deleteBtnC2 = container.querySelector('[data-testid="delete-comment-c-2"]');
     expect(deleteBtnC1).not.toBeNull();
+    expect(deleteBtnC1.getAttribute("aria-label")).toBe("コメントを削除");
     expect(deleteBtnC2).toBeNull();
 
     await act(async () => {

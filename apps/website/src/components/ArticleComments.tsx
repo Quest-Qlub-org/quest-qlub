@@ -562,6 +562,7 @@ export function ArticleComments({
           <button
             type="button"
             data-testid="toggle-comments-enabled"
+            aria-pressed={commentsEnabled}
             onClick={() => void onToggleCommentsEnabled(!commentsEnabled)}
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-colors border cursor-pointer ${
               commentsEnabled
@@ -682,6 +683,8 @@ export function ArticleComments({
                         type="button"
                         data-testid={`pin-comment-${comment.id}`}
                         onClick={() => void handleTogglePin(comment)}
+                        aria-label={comment.isPinned ? "ピン留めを解除" : "コメントをピン留め"}
+                        aria-pressed={comment.isPinned}
                         title={
                           comment.isPinned ? "ピン留めを解除" : "コメントをピン留め（最大3件）"
                         }
@@ -701,6 +704,7 @@ export function ArticleComments({
                         type="button"
                         data-testid={`edit-comment-${comment.id}`}
                         onClick={() => startEdit(comment)}
+                        aria-label="コメントを編集"
                         title="コメントを編集"
                         className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
                       >
@@ -714,6 +718,7 @@ export function ArticleComments({
                         type="button"
                         data-testid={`delete-comment-${comment.id}`}
                         onClick={() => void handleDelete(comment)}
+                        aria-label="コメントを削除"
                         title="コメントを削除"
                         className="p-1.5 rounded-lg text-gray-400 hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-600 dark:hover:text-red-400 transition-colors cursor-pointer"
                       >
