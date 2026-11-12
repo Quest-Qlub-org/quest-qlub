@@ -1074,4 +1074,200 @@ describe("ArticleView", () => {
     expect(container.textContent).toContain("フォールバックライター");
     expect(container.textContent).toContain("フォールバック共同執筆者");
   });
+
+  it("renders SEO meta tags, canonical URL, Twitter creator, and Article + BreadcrumbList JSON-LD (#100, #101, #104)", async () => {
+    const articleData = {
+      id: "art-seo-123",
+      title: "SEO検証記事",
+      content: "<p>本文テキスト</p>",
+      summary: "記事の要約文",
+      status: "published",
+      writer_id: "writer-seo-1",
+      created_at: "2026-11-01T08:00:00Z",
+    };
+
+    const mockWriter = createTestProfile({
+      id: "writer-seo-1",
+      display_name: "SEOライター",
+      username: "seo_writer",
+      x_account: "@seo_writer_x",
+      role: "writer",
+    });
+
+    const createQueryChain = (data: any = null) => {
+      const arr = data ? (Array.isArray(data) ? data : [data]) : [];
+      const promise = Promise.resolve({ data: arr, error: null });
+      const chain: any = Object.assign(promise, {
+        select: vi.fn(() => chain),
+        eq: vi.fn(() => chain),
+        in: vi.fn(() => chain),
+        order: vi.fn(() => chain),
+        range: vi.fn(() => Promise.resolve({ data: [], error: null })),
+        maybeSingle: vi.fn(() => Promise.resolve({ data: arr[0] ?? null, error: null })),
+        single: vi.fn(() => Promise.resolve({ data: arr[0] ?? null, error: null })),
+      });
+      return chain;
+    };
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") return createQueryChain(articleData);
+      if (table === "profiles") return createQueryChain(mockWriter);
+      return createQueryChain(null);
+    });
+
+    await act(async () => {
+      root!.render(
+        <MemoryRouter initialEntries={["/articles/art-seo-123"]}>
+          <AppProviders>
+            <Routes>
+              <Route path="/articles/:id" element={<ArticleView />} />
+            </Routes>
+          </AppProviders>
+        </MemoryRouter>,
+      );
+    });
+
+    for (let i = 0; i < 100; i++) {
+      if (document.title.includes("SEO検証記事")) break;
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 20));
+      });
+    }
+
+    expect(document.querySelector('link[rel="canonical"]')?.getAttribute("href")).toBe(
+      "https://quest-qlub.vercel.app/articles/art-seo-123",
+    );
+    expect(document.querySelector('meta[name="author"]')?.getAttribute("content")).toBe(
+      "SEOライター",
+    );
+    expect(document.querySelector('meta[property="article:author"]')?.getAttribute("content")).toBe(
+      "SEOライター",
+    );
+    expect(
+      document.querySelector('meta[property="article:published_time"]')?.getAttribute("content"),
+    ).toBe("2026-11-01T08:00:00Z");
+    expect(document.querySelector('meta[name="twitter:site"]')?.getAttribute("content")).toBe(
+      "@QuestQlub",
+    );
+    expect(document.querySelector('meta[name="twitter:creator"]')?.getAttribute("content")).toBe(
+      "@seo_writer_x",
+    );
+
+    const script = document.getElementById("structured-data-json-ld");
+    expect(script).not.toBeNull();
+    const schemas = JSON.parse(script?.textContent || "[]");
+    expect(Array.isArray(schemas)).toBe(true);
+    const articleSchema = schemas.find((s: any) => s["@type"] === "Article");
+    const breadcrumbSchema = schemas.find((s: any) => s["@type"] === "BreadcrumbList");
+
+    expect(articleSchema).toBeDefined();
+    expect(articleSchema.mainEntityOfPage["@id"]).toBe(
+      "https://quest-qlub.vercel.app/articles/art-seo-123",
+    );
+    expect(articleSchema.dateModified).toBe("2026-11-01T08:00:00Z");
+    expect(articleSchema.author.url).toBe("https://quest-qlub.vercel.app/writers/seo_writer");
+
+    expect(breadcrumbSchema).toBeDefined();
+    expect(breadcrumbSchema.itemListElement).toHaveLength(3);
+  });
+
+  it("provides accessible labels/pressed states on favorite & share buttons and renders author cards as Link elements (#110, #112)", async () => {
+    const articleData = {
+      id: "art-a11y-123",
+      title: "アクセシビリティテスト記事",
+      content: "<p>本文</p>",
+      status: "published",
+      writer_id: "writer-a11y",
+      collaborator_ids: ["collab-a11y"],
+      created_at: "2026-11-01T08:00:00Z",
+    };
+
+    const mainWriter = createTestProfile({
+      id: "writer-a11y",
+      display_name: "メイン著者",
+      username: "main_a11y",
+      role: "writer",
+    });
+    const collabWriter = createTestProfile({
+      id: "collab-a11y",
+      display_name: "共同著者",
+      username: "collab_a11y",
+      role: "writer",
+    });
+
+    const createQueryChain = (data: any = null) => {
+      const arr = data ? (Array.isArray(data) ? data : [data]) : [];
+      const promise = Promise.resolve({ data: arr, error: null });
+      const chain: any = Object.assign(promise, {
+        select: vi.fn(() => chain),
+        eq: vi.fn(() => chain),
+        in: vi.fn(() => chain),
+        order: vi.fn(() => chain),
+        range: vi.fn(() => Promise.resolve({ data: [], error: null })),
+        maybeSingle: vi.fn(() => Promise.resolve({ data: arr[0] ?? null, error: null })),
+        single: vi.fn(() => Promise.resolve({ data: arr[0] ?? null, error: null })),
+      });
+      return chain;
+    };
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") return createQueryChain(articleData);
+      if (table === "profiles") return createQueryChain([mainWriter, collabWriter]);
+      return createQueryChain(null);
+    });
+
+    vi.spyOn(useFollowsModule, "useFollows").mockReturnValue({
+      followedIds: [],
+      isFollowing: () => false,
+      toggleFollow: vi.fn(async () => true),
+      isAuthenticated: true,
+      currentUserId: "viewer-1",
+      loading: false,
+    });
+
+    await act(async () => {
+      root!.render(
+        <MemoryRouter initialEntries={["/articles/art-a11y-123"]}>
+          <AppProviders>
+            <Routes>
+              <Route path="/articles/:id" element={<ArticleView />} />
+              <Route path="/writers/:username" element={<div>ライターページ</div>} />
+            </Routes>
+          </AppProviders>
+        </MemoryRouter>,
+      );
+    });
+
+    for (let i = 0; i < 100; i++) {
+      if (container.textContent?.includes("アクセシビリティテスト記事")) break;
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 20));
+      });
+    }
+
+    const favBtn = container.querySelector('button[aria-label="お気に入りに追加"]');
+    expect(favBtn).not.toBeNull();
+    expect(favBtn?.getAttribute("aria-pressed")).toBe("false");
+
+    expect(container.querySelector('button[aria-label="Xで共有"]')).not.toBeNull();
+    expect(container.querySelector('button[aria-label="LINEで共有"]')).not.toBeNull();
+    expect(container.querySelector('button[aria-label="記事のリンクをコピー"]')).not.toBeNull();
+
+    const mainCard = container.querySelector('[data-testid="author-card-writer-a11y"]');
+    expect(mainCard?.tagName).toBe("A");
+    expect(mainCard?.getAttribute("href")).toBe("/writers/main_a11y");
+
+    const collabCard = container.querySelector('[data-testid="author-card-collab-a11y"]');
+    expect(collabCard?.tagName).toBe("A");
+    expect(collabCard?.getAttribute("href")).toBe("/writers/collab_a11y");
+
+    // 著者カード内のフォローボタンを押してもリンク遷移しないこと
+    const followBtnInsideCard = mainCard?.querySelector("button");
+    expect(followBtnInsideCard).not.toBeNull();
+    await act(async () => {
+      followBtnInsideCard?.click();
+      await Promise.resolve();
+    });
+    expect(container.textContent).not.toContain("ライターページ");
+  });
 });

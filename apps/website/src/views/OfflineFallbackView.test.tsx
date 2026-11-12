@@ -31,10 +31,14 @@ describe("OfflineFallbackView component", () => {
     vi.restoreAllMocks();
   });
 
-  it("renders offline warning heading and description", () => {
+  it("renders offline warning heading and description and sets single-suffix meta title", () => {
     const { container, unmount } = renderWithRouter(<OfflineFallbackView />);
     expect(container.textContent).toContain("オフラインです");
     expect(container.textContent).toContain("通信状況を確認してもう一度お試しください");
+    expect(document.title).toBe("オフライン | Quest Qlub");
+    expect(document.querySelector('meta[name="robots"]')?.getAttribute("content")).toBe(
+      "noindex, nofollow",
+    );
     unmount();
   });
 

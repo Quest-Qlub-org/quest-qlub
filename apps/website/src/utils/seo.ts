@@ -11,8 +11,39 @@ export interface MetaTagsOptions {
   twitterCard?: "summary" | "summary_large_image";
   author?: string;
   publishedTime?: string;
+  twitterCreator?: string;
   jsonLd?: Record<string, any> | Array<Record<string, any>>;
   noindex?: boolean;
+}
+
+export interface BreadcrumbItem {
+  name: string;
+  url?: string;
+}
+
+export function getSiteUrl(): string {
+  const raw = (import.meta.env?.VITE_SITE_URL as string | undefined)?.trim();
+  return (raw || "https://quest-qlub.vercel.app").replace(/\/+$/, "");
+}
+
+/**
+ * 任意のパスや URL を本番正規ドメイン基準・クエリパラメータなしの Canonical URL に変換する
+ */
+export function toCanonicalUrl(pathOrUrl?: string): string {
+  const base = getSiteUrl();
+  const raw =
+    pathOrUrl !== undefined && pathOrUrl !== ""
+      ? pathOrUrl
+      : typeof window !== "undefined"
+        ? window.location.pathname
+        : "/";
+
+  try {
+    const parsed = new URL(raw, base);
+    return `${base}${parsed.pathname || "/"}`;
+  } catch {
+    return `${base}/`;
+  }
 }
 
 export const DEFAULT_META = {
@@ -35,6 +66,13 @@ function setOrCreateMeta(attrName: "name" | "property", attrValue: string, conte
   element.setAttribute("content", content);
 }
 
+function removeMeta(attrName: "name" | "property", attrValue: string): void {
+  const element = document.querySelector<HTMLMetaElement>(`meta[${attrName}="${attrValue}"]`);
+  if (element) {
+    element.remove();
+  }
+}
+
 function setOrCreateLink(rel: string, href: string): void {
   let element = document.querySelector<HTMLLinkElement>(`link[rel="${rel}"]`);
   if (!element) {
@@ -45,23 +83,30 @@ function setOrCreateLink(rel: string, href: string): void {
   element.setAttribute("href", href);
 }
 
+function formatPageTitle(title?: string): string {
+  if (!title) return DEFAULT_META.title;
+  if (
+    title === "Quest Qlub" ||
+    title.startsWith("Quest Qlub | ") ||
+    title.startsWith("Quest Qlub - ") ||
+    title.endsWith(" | Quest Qlub") ||
+    title.endsWith(" - Quest Qlub")
+  ) {
+    return title;
+  }
+  return `${title} | Quest Qlub`;
+}
+
 /**
  * ページごとのメタタグ・OGP・JSON-LD を更新する
  */
 export function updateMetaTags(options: MetaTagsOptions): void {
   if (typeof document === "undefined") return;
 
-  const fullTitle = options.title
-    ? options.title.startsWith("Quest Qlub | ") ||
-      options.title.endsWith(" | Quest Qlub") ||
-      options.title === "Quest Qlub"
-      ? options.title
-      : `${options.title} | Quest Qlub`
-    : DEFAULT_META.title;
+  const fullTitle = formatPageTitle(options.title);
 
   const description = options.description ?? DEFAULT_META.description;
-  const url =
-    options.url ?? (typeof window !== "undefined" ? window.location.href : DEFAULT_META.url);
+  const url = toCanonicalUrl(options.url);
   const image = options.image || DEFAULT_META.image;
   const type = options.type ?? DEFAULT_META.type;
   const twitterCard = options.twitterCard ?? DEFAULT_META.twitterCard;
@@ -77,6 +122,20 @@ export function updateMetaTags(options: MetaTagsOptions): void {
   setOrCreateMeta("name", "description", description);
   setOrCreateLink("canonical", url);
 
+  if (options.author) {
+    setOrCreateMeta("name", "author", options.author);
+    setOrCreateMeta("property", "article:author", options.author);
+  } else {
+    setOrCreateMeta("name", "author", "Quest Qlub");
+    removeMeta("property", "article:author");
+  }
+
+  if (options.publishedTime) {
+    setOrCreateMeta("property", "article:published_time", options.publishedTime);
+  } else {
+    removeMeta("property", "article:published_time");
+  }
+
   // Open Graph
   setOrCreateMeta("property", "og:title", fullTitle);
   setOrCreateMeta("property", "og:description", description);
@@ -87,6 +146,13 @@ export function updateMetaTags(options: MetaTagsOptions): void {
 
   // Twitter Cards
   setOrCreateMeta("name", "twitter:card", twitterCard);
+  setOrCreateMeta("name", "twitter:site", "@QuestQlub");
+  const cleanCreator = options.twitterCreator?.replace(/^@/, "").trim();
+  if (cleanCreator) {
+    setOrCreateMeta("name", "twitter:creator", `@${cleanCreator}`);
+  } else {
+    removeMeta("name", "twitter:creator");
+  }
   setOrCreateMeta("name", "twitter:title", fullTitle);
   setOrCreateMeta("name", "twitter:description", description);
   setOrCreateMeta("name", "twitter:image", image);
@@ -167,34 +233,99 @@ export function generateArticleJsonLd({
   url,
   image,
   authorName,
+  authorUrl,
   datePublished,
+  dateModified,
 }: {
   title: string;
   description: string;
   url: string;
   image?: string | null;
   authorName?: string;
+  authorUrl?: string;
   datePublished?: string;
+  dateModified?: string;
 }) {
+  const canonicalUrl = toCanonicalUrl(url);
+  const published = datePublished || new Date().toISOString();
+  const modified = dateModified || published;
+  const siteUrl = getSiteUrl();
+
   return {
     "@context": "https://schema.org",
     "@type": "Article",
+    mainEntityOfPage: {
+      "@type": "WebPage",
+      "@id": canonicalUrl,
+    },
     headline: title,
     description: description,
-    url: url,
-    image: image ? [image] : [DEFAULT_META.image],
-    datePublished: datePublished || new Date().toISOString(),
+    url: canonicalUrl,
+    image: image ? [image] : [`${siteUrl}/ogp.png`],
+    datePublished: published,
+    dateModified: modified,
     author: {
       "@type": "Person",
       name: authorName || "Quest Qlub Writer",
+      ...(authorUrl ? { url: toCanonicalUrl(authorUrl) } : {}),
     },
     publisher: {
       "@type": "Organization",
       name: "Quest Qlub",
       logo: {
         "@type": "ImageObject",
-        url: "https://quest-qlub.vercel.app/brand_logo.jpg",
+        url: `${siteUrl}/brand_logo.jpg`,
       },
+    },
+  };
+}
+
+/**
+ * パンくずリスト (BreadcrumbList) 構造化データを生成
+ */
+export function generateBreadcrumbJsonLd(items: BreadcrumbItem[]) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: items.map((item, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: item.name,
+      ...(item.url ? { item: toCanonicalUrl(item.url) } : {}),
+    })),
+  };
+}
+
+/**
+ * ライタープロフィール (ProfilePage + Person) 構造化データを生成
+ */
+export function generateProfileJsonLd({
+  name,
+  url,
+  image,
+  description,
+  xAccount,
+}: {
+  name: string;
+  url: string;
+  image?: string | null;
+  description?: string | null;
+  xAccount?: string | null;
+}) {
+  const canonicalUrl = toCanonicalUrl(url);
+  const cleanX = xAccount ? xAccount.replace(/^@/, "").trim() : "";
+
+  return {
+    "@context": "https://schema.org",
+    "@type": "ProfilePage",
+    url: canonicalUrl,
+    mainEntity: {
+      "@type": "Person",
+      name,
+      url: canonicalUrl,
+      ...(image ? { image } : {}),
+      ...(description ? { description } : {}),
+      ...(cleanX ? { sameAs: [`https://x.com/${encodeURIComponent(cleanX)}`] } : {}),
     },
   };
 }
