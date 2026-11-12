@@ -342,4 +342,48 @@ describe("WriterApplyView", () => {
 
     spy.mockRestore();
   });
+
+  it("supports accessible labels, aria-pressed on genre buttons, and alert errors", async () => {
+    setupAppMock();
+    await act(async () => {
+      root!.render(
+        <BrowserRouter>
+          <WriterApplyView />
+        </BrowserRouter>,
+      );
+    });
+
+    expect(container.querySelector('label[for="writer-apply-name"]')).not.toBeNull();
+    expect(container.querySelector('label[for="writer-apply-email"]')).not.toBeNull();
+    expect(container.querySelector('label[for="writer-apply-portfolio"]')).not.toBeNull();
+    expect(container.querySelector('label[for="writer-apply-motivation"]')).not.toBeNull();
+
+    const genreGroup = container.querySelector(
+      '[role="group"][aria-labelledby="writer-apply-genres-label"]',
+    );
+    expect(genreGroup).not.toBeNull();
+
+    const genreButtons = Array.from(genreGroup!.querySelectorAll("button"));
+    expect(genreButtons.length).toBeGreaterThan(0);
+    expect(genreButtons[0]?.getAttribute("aria-pressed")).toBe("false");
+
+    act(() => {
+      genreButtons[0]?.click();
+    });
+    expect(genreButtons[0]?.getAttribute("aria-pressed")).toBe("true");
+
+    // Trigger validation error by submitting with empty motivation
+    const form = container.querySelector("form")!;
+    await act(async () => {
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+
+    const alertEl = container.querySelector('[role="alert"]');
+    expect(alertEl).not.toBeNull();
+    expect(alertEl?.id).toBe("writer-apply-error");
+
+    const motivationEl = container.querySelector("#writer-apply-motivation") as HTMLTextAreaElement;
+    expect(motivationEl.getAttribute("aria-invalid")).toBe("true");
+    expect(motivationEl.getAttribute("aria-describedby")).toBe("writer-apply-error");
+  });
 });

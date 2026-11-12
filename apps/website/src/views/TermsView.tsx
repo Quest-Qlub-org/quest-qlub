@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { ChevronLeft } from "lucide-react";
+import { ArrowLeft, FileText } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { updateMetaTags } from "../utils/seo";
 
@@ -52,18 +52,25 @@ export function TermsView() {
   ];
   return (
     <div className="animate-in fade-in duration-300 min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
-      <div className="max-w-3xl mx-auto px-4 py-8">
-        <div className="bg-purple-600 dark:bg-purple-800 rounded-2xl p-6 mb-6 text-white shadow-sm">
-          <button
-            onClick={() => navigate(-1)}
-            className="flex items-center gap-1 text-purple-100 hover:text-white text-sm mb-3 cursor-pointer"
-          >
-            <ChevronLeft className="w-4 h-4" />
-            戻る
-          </button>
-          <h2 className="text-2xl font-bold">利用規約</h2>
-          <p className="text-purple-100 text-xs mt-1">最終更新日：2026年5月</p>
+      <div className="max-w-3xl mx-auto px-4 py-6 md:py-8 space-y-6">
+        <button
+          type="button"
+          onClick={() => navigate(-1)}
+          className="inline-flex items-center gap-1.5 text-xs text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 transition-colors cursor-pointer"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
+          <span>戻る</span>
+        </button>
+
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-6 text-white shadow-sm space-y-2">
+          <div className="inline-flex items-center gap-2 px-2.5 py-1 bg-white/20 backdrop-blur-sm rounded-full text-xs font-semibold">
+            <FileText className="w-3.5 h-3.5" aria-hidden="true" />
+            <span>Terms of Service</span>
+          </div>
+          <h1 className="text-2xl font-bold">利用規約</h1>
+          <p className="text-blue-100 text-xs md:text-sm leading-relaxed">最終更新日：2026年5月</p>
         </div>
+
         <div className="space-y-4 text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
           <p>
             Quest
@@ -72,9 +79,9 @@ export function TermsView() {
           {sections.map((s) => (
             <div
               key={s.title}
-              className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700"
+              className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-700"
             >
-              <h3 className="font-bold text-gray-800 dark:text-gray-100 mb-2 text-sm">{s.title}</h3>
+              <h2 className="font-bold text-gray-800 dark:text-gray-100 mb-2 text-sm">{s.title}</h2>
               {s.items ? (
                 <ul className="list-disc list-inside space-y-1 text-gray-600 dark:text-gray-300">
                   {s.items.map((i) => (
@@ -86,11 +93,12 @@ export function TermsView() {
               )}
             </div>
           ))}
-          <div className="bg-blue-50 dark:bg-blue-950/40 rounded-xl p-4 border border-blue-100 dark:border-blue-900/60 text-blue-900 dark:text-blue-200">
+          <div className="bg-blue-50 dark:bg-blue-950/40 rounded-2xl p-6 border border-blue-100 dark:border-blue-900/60 text-blue-900 dark:text-blue-200">
             <p>規約に関するご質問はお問い合わせページからお気軽にどうぞ。</p>
             <button
+              type="button"
               onClick={() => navigate("/contact")}
-              className="mt-2 px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 cursor-pointer"
+              className="mt-3 px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 cursor-pointer"
             >
               お問い合わせはこちら
             </button>

@@ -164,4 +164,45 @@ describe("ContactView", () => {
     expect(container.textContent).toContain("送信に失敗しました");
     expect(container.textContent).not.toContain("送信完了");
   });
+
+  it("renders accessible heading, associated labels, required attributes, and alert error state", async () => {
+    await act(async () => {
+      root!.render(
+        <MemoryRouter>
+          <ContactView />
+        </MemoryRouter>,
+      );
+    });
+
+    const h1 = container.querySelector("h1");
+    expect(h1?.textContent).toBe("お問い合わせ");
+
+    const nameInput = container.querySelector("#contact-name") as HTMLInputElement;
+    const emailInput = container.querySelector("#contact-email") as HTMLInputElement;
+    const subjectInput = container.querySelector("#contact-subject") as HTMLInputElement;
+    const bodyTextarea = container.querySelector("#contact-body") as HTMLTextAreaElement;
+
+    expect(container.querySelector('label[for="contact-name"]')).not.toBeNull();
+    expect(container.querySelector('label[for="contact-email"]')).not.toBeNull();
+    expect(container.querySelector('label[for="contact-subject"]')).not.toBeNull();
+    expect(container.querySelector('label[for="contact-body"]')).not.toBeNull();
+
+    expect(nameInput.required).toBe(true);
+    expect(emailInput.required).toBe(true);
+    expect(subjectInput.required).toBe(true);
+    expect(bodyTextarea.required).toBe(true);
+    expect(nameInput.getAttribute("aria-required")).toBe("true");
+    expect(nameInput.getAttribute("aria-invalid")).toBe("false");
+
+    const form = container.querySelector("form")!;
+    await act(async () => {
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+
+    const alertEl = container.querySelector('[role="alert"]');
+    expect(alertEl).not.toBeNull();
+    expect(alertEl?.id).toBe("contact-form-error");
+    expect(nameInput.getAttribute("aria-invalid")).toBe("true");
+    expect(nameInput.getAttribute("aria-describedby")).toBe("contact-form-error");
+  });
 });
