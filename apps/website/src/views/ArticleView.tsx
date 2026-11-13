@@ -350,10 +350,17 @@ export const ArticleView = () => {
   }
 
   const handleQuickStatusChange = async (nextStatus: ArticleStatus) => {
-    const { error } = await supabase
+    let { error } = await supabase
       .from("articles")
-      .update({ status: nextStatus })
+      .update({ status: nextStatus, scheduled_at: null })
       .eq("id", article.id);
+    if (error) {
+      const retry = await supabase
+        .from("articles")
+        .update({ status: nextStatus })
+        .eq("id", article.id);
+      error = retry.error;
+    }
     if (!error) {
       if (nextStatus === "published" || nextStatus === "draft") {
         setLocalScheduledAt(article.id, null);

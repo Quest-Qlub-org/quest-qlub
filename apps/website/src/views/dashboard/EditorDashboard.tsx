@@ -180,18 +180,17 @@ export const EditorDashboard = () => {
     const isFuture = isArticleScheduledFuture(targetIso);
     const nextStatus: ArticleStatus = isFuture ? "scheduled" : "published";
 
-    const updatePayload: Record<string, unknown> = targetIso
+    const updatePayload: Record<string, unknown> = isFuture
       ? { status: nextStatus, scheduled_at: targetIso }
-      : { status: "published" };
+      : { status: "published", scheduled_at: null };
 
     let { error } = await supabase.from("articles").update(updatePayload).eq("id", article.id);
 
     // scheduled_at カラム未適用環境や status check 制約環境での安全なフォールバック
     if (error) {
-      const fallbackStatus = isFuture ? "published" : "published";
       const retry = await supabase
         .from("articles")
-        .update({ status: fallbackStatus })
+        .update({ status: "published" })
         .eq("id", article.id);
       error = retry.error;
     }
@@ -216,10 +215,17 @@ export const EditorDashboard = () => {
   };
 
   const handleRejectArticle = async (article: Article) => {
-    const { error } = await supabase
+    let { error } = await supabase
       .from("articles")
-      .update({ status: "draft" })
+      .update({ status: "draft", scheduled_at: null })
       .eq("id", article.id);
+    if (error) {
+      const retry = await supabase
+        .from("articles")
+        .update({ status: "draft" })
+        .eq("id", article.id);
+      error = retry.error;
+    }
     if (!error) {
       setLocalScheduledAt(article.id, null);
       updateLocalArticleState(article.id, { status: "draft", scheduledAt: null });

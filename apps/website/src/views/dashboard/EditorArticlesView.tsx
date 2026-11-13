@@ -151,10 +151,17 @@ export function EditorArticlesView() {
         : `「${article.title}」を公開しますか？`;
     if (!confirm(promptMsg)) return;
 
-    const { error } = await supabase
+    let { error } = await supabase
       .from("articles")
-      .update({ status: nextStatus })
+      .update({ status: nextStatus, scheduled_at: null })
       .eq("id", article.id);
+    if (error) {
+      const retry = await supabase
+        .from("articles")
+        .update({ status: nextStatus })
+        .eq("id", article.id);
+      error = retry.error;
+    }
 
     if (!error) {
       setLocalScheduledAt(article.id, null);
@@ -192,9 +199,9 @@ export function EditorArticlesView() {
     const isFuture = isArticleScheduledFuture(scheduledIso);
     const effectiveStatus: ArticleStatus =
       targetStatus === "draft" ? "draft" : isFuture ? "scheduled" : "published";
-    const updatePayload: Record<string, unknown> = scheduledIso
+    const updatePayload: Record<string, unknown> = isFuture
       ? { status: effectiveStatus, scheduled_at: scheduledIso }
-      : { status: effectiveStatus };
+      : { status: effectiveStatus, scheduled_at: null };
 
     let { error } = await supabase.from("articles").update(updatePayload).eq("id", article.id);
     if (error) {

@@ -340,6 +340,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
       seriesId: formSeriesId,
       episodeNumber: formEpisodeNumber,
       commentsEnabled: formCommentsEnabled,
+      scheduledAt: scheduledIso,
       collaboratorIds,
     };
 
@@ -353,9 +354,6 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
       const updatePayload = buildBaseArticlePayload(currentValues);
       if (nextStatus) {
         updatePayload.status = nextStatus;
-      }
-      if (scheduledIso || effectiveEditingArticle?.scheduledAt) {
-        updatePayload.scheduled_at = scheduledIso;
       }
 
       const { error } = await updateArticleWithFallback(targetId, updatePayload);
@@ -594,9 +592,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
       if (autoSaveIdRef.current) {
         const updatePayload = buildBaseArticlePayload(currentValues);
         await updateArticleWithFallback(autoSaveIdRef.current, updatePayload);
-        if (scheduledIso) {
-          setLocalScheduledAt(autoSaveIdRef.current, scheduledIso);
-        }
+        setLocalScheduledAt(autoSaveIdRef.current, scheduledIso);
       } else {
         const insertPayload = buildBaseArticlePayload(currentValues);
         insertPayload.writer_id = currentUserId;
@@ -609,9 +605,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
         const { data } = await insertArticleWithFallback(insertPayload);
         if (data) {
           autoSaveIdRef.current = data.id;
-          if (scheduledIso) {
-            setLocalScheduledAt(data.id, scheduledIso);
-          }
+          setLocalScheduledAt(data.id, scheduledIso);
           void routerNavigate(`/writer-dash/edit/${data.id}`, { replace: true });
           const newArticle: Article = {
             id: data.id,

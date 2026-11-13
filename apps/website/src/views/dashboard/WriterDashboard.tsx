@@ -8,24 +8,13 @@ import { ARTICLE_LIST_FIELDS, WRITER_ARTICLE_LIST_FIELDS } from "../../context/D
 import { sanitizeHtml } from "../../utils/sanitize";
 import {
   formatScheduledDateTime,
-  getEffectiveArticleStatus,
-  getLocalScheduledAt,
+  enrichArticleWithSchedule,
+  setLocalScheduledAt,
 } from "../../utils/scheduledArticles";
 import { ChevronLeft, Plus, Edit3, Loader2, Eye, X, Clock, RotateCcw } from "lucide-react";
 import { updateMetaTags } from "../../utils/seo";
 import { profileHasRole } from "../../utils/roles";
 import { useFocusTrap } from "../../hooks/useFocusTrap";
-
-function enrichWriterArticle(article: Article): Article {
-  const localSched = getLocalScheduledAt(article.id);
-  const scheduledAt = article.scheduledAt ?? localSched ?? null;
-  const effectiveStatus = getEffectiveArticleStatus({ ...article, scheduledAt });
-  return {
-    ...article,
-    scheduledAt,
-    status: effectiveStatus,
-  };
-}
 
 export const WriterDashboard = () => {
   const {
@@ -84,12 +73,12 @@ export const WriterDashboard = () => {
       }
 
       if (!error && data) {
-        setWriterArticles(data.map((row) => enrichWriterArticle(mapDbArticleToArticle(row))));
+        setWriterArticles(data.map((row) => enrichArticleWithSchedule(mapDbArticleToArticle(row))));
       } else {
         setWriterArticles(
           articles
             .filter((a) => a.writerId === profile.id || a.collaboratorIds?.includes(profile.id))
-            .map(enrichWriterArticle),
+            .map(enrichArticleWithSchedule),
         );
       }
     } catch (e) {
@@ -97,7 +86,7 @@ export const WriterDashboard = () => {
       setWriterArticles(
         articles
           .filter((a) => a.writerId === profile.id || a.collaboratorIds?.includes(profile.id))
-          .map(enrichWriterArticle),
+          .map(enrichArticleWithSchedule),
       );
     } finally {
       setLoading(false);
@@ -117,7 +106,7 @@ export const WriterDashboard = () => {
           .filter(
             (a) => a.writerId === profile?.id || a.collaboratorIds?.includes(profile?.id ?? ""),
           )
-          .map(enrichWriterArticle);
+          .map(enrichArticleWithSchedule);
 
   const openCreate = () => {
     navigate("writerNew");
@@ -144,7 +133,7 @@ export const WriterDashboard = () => {
               const row = data as Record<string, unknown>;
               setPreviewArticle((prev) =>
                 prev
-                  ? enrichWriterArticle({
+                  ? enrichArticleWithSchedule({
                       ...prev,
                       content: typeof row.content === "string" ? row.content : prev.content,
                       summary: typeof row.summary === "string" ? row.summary : prev.summary,
@@ -181,43 +170,44 @@ export const WriterDashboard = () => {
     }
   };
 
-  const handleWithdrawPending = async (article: Article) => {
-    const { error } = await supabase
+  const revertToDraft = async (article: Article, successMessage: string) => {
+    let { error } = await supabase
       .from("articles")
-      .update({ status: "draft" })
+      .update({ status: "draft", scheduled_at: null })
       .eq("id", article.id);
+    if (error) {
+      const retry = await supabase
+        .from("articles")
+        .update({ status: "draft" })
+        .eq("id", article.id);
+      error = retry.error;
+    }
     if (!error) {
+      setLocalScheduledAt(article.id, null);
       setWriterArticles((prev) =>
-        prev.map((a) => (a.id === article.id ? { ...a, status: "draft" } : a)),
+        prev.map((a) => (a.id === article.id ? { ...a, status: "draft", scheduledAt: null } : a)),
       );
-      setArticles(articles.map((a) => (a.id === article.id ? { ...a, status: "draft" } : a)));
+      setArticles(
+        articles.map((a) =>
+          a.id === article.id ? { ...a, status: "draft", scheduledAt: null } : a,
+        ),
+      );
       setPreviewArticle((prev) =>
-        prev && prev.id === article.id ? { ...prev, status: "draft" } : prev,
+        prev && prev.id === article.id ? { ...prev, status: "draft", scheduledAt: null } : prev,
       );
-      showToast("投稿申請を取り消し、下書きに戻しました");
+      showToast(successMessage);
     } else {
       showToast("エラーが発生しました。もう一度お試しください。");
     }
   };
 
+  const handleWithdrawPending = async (article: Article) => {
+    await revertToDraft(article, "投稿申請を取り消し、下書きに戻しました");
+  };
+
   const handleUnpublish = async (article: Article) => {
     if (!window.confirm(`「${article.title}」を非公開（下書き）に戻しますか？`)) return;
-    const { error } = await supabase
-      .from("articles")
-      .update({ status: "draft" })
-      .eq("id", article.id);
-    if (!error) {
-      setWriterArticles((prev) =>
-        prev.map((a) => (a.id === article.id ? { ...a, status: "draft" } : a)),
-      );
-      setArticles(articles.map((a) => (a.id === article.id ? { ...a, status: "draft" } : a)));
-      setPreviewArticle((prev) =>
-        prev && prev.id === article.id ? { ...prev, status: "draft" } : prev,
-      );
-      showToast("記事を非公開（下書き）に戻しました");
-    } else {
-      showToast("エラーが発生しました。もう一度お試しください。");
-    }
+    await revertToDraft(article, "記事を非公開（下書き）に戻しました");
   };
 
   const handleDelete = async (article: Article) => {

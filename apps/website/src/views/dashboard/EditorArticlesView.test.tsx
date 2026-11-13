@@ -77,7 +77,7 @@ describe("EditorArticlesView", () => {
       unpublishBtn!.click();
     });
 
-    expect(mockUpdate).toHaveBeenCalledWith({ status: "draft" });
+    expect(mockUpdate).toHaveBeenCalledWith({ status: "draft", scheduled_at: null });
     expect(mockShowToast).toHaveBeenCalledWith("記事を非公開（下書き）にしました");
   });
 

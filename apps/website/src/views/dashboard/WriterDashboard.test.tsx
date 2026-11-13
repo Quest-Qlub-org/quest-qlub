@@ -234,7 +234,7 @@ describe("WriterDashboard", () => {
       unpublishBtn!.click();
     });
 
-    expect(mockUpdate).toHaveBeenCalledWith({ status: "draft" });
+    expect(mockUpdate).toHaveBeenCalledWith({ status: "draft", scheduled_at: null });
     expect(mockShowToast).toHaveBeenCalledWith("記事を非公開（下書き）に戻しました");
   });
 
@@ -323,7 +323,7 @@ describe("WriterDashboard", () => {
       withdrawBtn.click();
     });
 
-    expect(mockUpdate).toHaveBeenCalledWith({ status: "draft" });
+    expect(mockUpdate).toHaveBeenCalledWith({ status: "draft", scheduled_at: null });
     expect(mockShowToast).toHaveBeenCalledWith("投稿申請を取り消し、下書きに戻しました");
   });
 

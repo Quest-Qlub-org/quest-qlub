@@ -120,7 +120,7 @@ describe("EditorDashboard", () => {
       approveBtn.click();
     });
 
-    expect(mockUpdate).toHaveBeenCalledWith({ status: "published" });
+    expect(mockUpdate).toHaveBeenCalledWith({ status: "published", scheduled_at: null });
     expect(mockShowToast).toHaveBeenCalledWith("記事を公開しました");
     expect(container.querySelector('[data-testid="editor-inline-preview-modal"]')).toBeNull();
 

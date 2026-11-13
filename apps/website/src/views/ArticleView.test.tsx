@@ -454,7 +454,7 @@ describe("ArticleView", () => {
       await Promise.resolve();
     });
 
-    expect(updateMock).toHaveBeenCalledWith({ status: "draft" });
+    expect(updateMock).toHaveBeenCalledWith({ status: "draft", scheduled_at: null });
   });
 
   it("blocks non-author non-editor viewer from accessing unpublished draft article", async () => {
