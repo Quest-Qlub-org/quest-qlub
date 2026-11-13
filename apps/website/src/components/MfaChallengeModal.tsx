@@ -171,7 +171,11 @@ export const MfaChallengeModal = ({
         </p>
 
         {error && (
-          <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl text-xs text-red-600 dark:text-red-400 flex items-start gap-2 mb-4 text-left">
+          <div
+            id="mfa-challenge-error"
+            role="alert"
+            className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl text-xs text-red-600 dark:text-red-400 flex items-start gap-2 mb-4 text-left"
+          >
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
             <span>{error}</span>
           </div>
@@ -180,11 +184,18 @@ export const MfaChallengeModal = ({
         {mode === "backup" ? (
           <form onSubmit={(e) => void handleVerifyBackupCode(e)} className="space-y-4">
             <div>
+              <label htmlFor="mfa-challenge-backup-input" className="sr-only">
+                バックアップコード
+              </label>
               <input
+                id="mfa-challenge-backup-input"
                 type="text"
                 autoComplete="off"
                 placeholder="例: abcd-1234"
                 autoFocus
+                required
+                aria-invalid={Boolean(error)}
+                aria-describedby={error ? "mfa-challenge-error" : undefined}
                 value={backupCode}
                 onChange={(e) => setBackupCode(e.target.value)}
                 className="w-full text-center font-mono text-lg tracking-wider uppercase border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -229,13 +240,20 @@ export const MfaChallengeModal = ({
         ) : (
           <form onSubmit={(e) => void handleVerify(e)} className="space-y-4">
             <div>
+              <label htmlFor="mfa-challenge-totp-input" className="sr-only">
+                6桁の認証コード
+              </label>
               <input
+                id="mfa-challenge-totp-input"
                 type="text"
                 inputMode="numeric"
                 autoComplete="one-time-code"
                 maxLength={6}
                 placeholder="123456"
                 autoFocus
+                required
+                aria-invalid={Boolean(error)}
+                aria-describedby={error ? "mfa-challenge-error" : undefined}
                 value={verifyCode}
                 onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, ""))}
                 className="w-full text-center tracking-[0.4em] font-mono text-2xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"

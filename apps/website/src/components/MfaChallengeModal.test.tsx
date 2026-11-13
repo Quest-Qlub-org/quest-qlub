@@ -91,4 +91,41 @@ describe("MfaChallengeModal", () => {
     expect(backupSwitchBtn?.className).toContain("text-gray-500");
     expect(backupSwitchBtn?.className).toContain("dark:text-gray-400");
   });
+
+  it("exposes accessible labels, role='alert' error region, aria-invalid, and aria-describedby", async () => {
+    vi.spyOn(supabase.auth.mfa, "listFactors").mockResolvedValue({
+      data: { all: [], totp: [] },
+      error: { message: "failed" },
+    } as any);
+
+    await act(async () => {
+      root!.render(<MfaChallengeModal onSuccess={vi.fn()} />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const alert = container.querySelector('[role="alert"]');
+    expect(alert?.id).toBe("mfa-challenge-error");
+
+    const totpInput = container.querySelector(
+      "#mfa-challenge-totp-input",
+    ) as HTMLInputElement | null;
+    expect(totpInput).not.toBeNull();
+    expect(totpInput?.getAttribute("aria-invalid")).toBe("true");
+    expect(totpInput?.getAttribute("aria-describedby")).toBe("mfa-challenge-error");
+    expect(container.querySelector('label[for="mfa-challenge-totp-input"]')).not.toBeNull();
+
+    const backupModeBtn = Array.from(container.querySelectorAll("button")).find((btn) =>
+      btn.textContent?.includes("バックアップコード"),
+    );
+    act(() => {
+      backupModeBtn!.click();
+    });
+
+    const backupInput = container.querySelector(
+      "#mfa-challenge-backup-input",
+    ) as HTMLInputElement | null;
+    expect(backupInput).not.toBeNull();
+    expect(container.querySelector('label[for="mfa-challenge-backup-input"]')).not.toBeNull();
+  });
 });

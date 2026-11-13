@@ -90,5 +90,42 @@ describe("SudoConfirmModal", () => {
     expect(totpInput.className).toContain("dark:placeholder-gray-400");
     expect(totpInput.className).not.toMatch(/(?:^|\s)placeholder-gray-400(?:\s|$)/);
     expect(totpInput.className).not.toContain("dark:placeholder-gray-500");
+    expect(totpInput.id).toBe("sudo-confirm-totp-input");
+    expect(container.querySelector('label[for="sudo-confirm-totp-input"]')).not.toBeNull();
+  });
+
+  it("exposes accessible password label, autoComplete, role='alert', aria-invalid, and aria-describedby on error", async () => {
+    vi.spyOn(supabase.auth, "signInWithPassword").mockResolvedValue({
+      data: { user: null, session: null },
+      error: { message: "Invalid login credentials" },
+    } as any);
+
+    act(() => {
+      root!.render(
+        <SudoConfirmModal userEmail="editor@example.com" onSuccess={vi.fn()} onCancel={vi.fn()} />,
+      );
+    });
+
+    const passwordInput = container.querySelector(
+      "#sudo-confirm-password-input",
+    ) as HTMLInputElement;
+    expect(passwordInput.getAttribute("autocomplete")).toBe("current-password");
+    expect(passwordInput.getAttribute("aria-invalid")).toBe("false");
+    expect(container.querySelector('label[for="sudo-confirm-password-input"]')).not.toBeNull();
+
+    act(() => {
+      setNativeValue(passwordInput, "wrong-pass");
+    });
+
+    const form = container.querySelector("form")!;
+    await act(async () => {
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      await Promise.resolve();
+    });
+
+    const alert = container.querySelector('[role="alert"]');
+    expect(alert?.id).toBe("sudo-confirm-error");
+    expect(passwordInput.getAttribute("aria-invalid")).toBe("true");
+    expect(passwordInput.getAttribute("aria-describedby")).toBe("sudo-confirm-error");
   });
 });

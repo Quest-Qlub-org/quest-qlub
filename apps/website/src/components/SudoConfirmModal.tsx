@@ -222,7 +222,11 @@ export const SudoConfirmModal: React.FC<SudoConfirmModalProps> = ({
         </p>
 
         {error && (
-          <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl text-xs text-red-600 dark:text-red-400 flex items-start gap-2 mb-4 text-left">
+          <div
+            id="sudo-confirm-error"
+            role="alert"
+            className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl text-xs text-red-600 dark:text-red-400 flex items-start gap-2 mb-4 text-left"
+          >
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
             <span>{error}</span>
           </div>
@@ -231,13 +235,20 @@ export const SudoConfirmModal: React.FC<SudoConfirmModalProps> = ({
         {step === "mfa_totp" ? (
           <form onSubmit={(e) => void handleVerifyTotp(e)} className="space-y-4">
             <div>
+              <label htmlFor="sudo-confirm-totp-input" className="sr-only">
+                6桁の認証コード
+              </label>
               <input
+                id="sudo-confirm-totp-input"
                 type="text"
                 inputMode="numeric"
                 autoComplete="one-time-code"
                 maxLength={6}
                 placeholder="123456"
                 autoFocus
+                required
+                aria-invalid={Boolean(error)}
+                aria-describedby={error ? "sudo-confirm-error" : undefined}
                 value={verifyCode}
                 onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, ""))}
                 className="w-full text-center tracking-[0.4em] font-mono text-2xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -256,10 +267,18 @@ export const SudoConfirmModal: React.FC<SudoConfirmModalProps> = ({
           <>
             <form onSubmit={handlePasswordSubmit} className="space-y-4">
               <div>
+                <label htmlFor="sudo-confirm-password-input" className="sr-only">
+                  現在のパスワード
+                </label>
                 <input
+                  id="sudo-confirm-password-input"
                   type="password"
+                  autoComplete="current-password"
                   placeholder="現在のパスワード"
                   autoFocus
+                  required
+                  aria-invalid={Boolean(error)}
+                  aria-describedby={error ? "sudo-confirm-error" : undefined}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
