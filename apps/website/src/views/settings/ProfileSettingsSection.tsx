@@ -158,12 +158,12 @@ function FollowManageSection({ profile }: { profile: Profile | null }) {
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-700">
               <div className="flex items-center gap-2">
                 <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                <h4
+                <h2
                   id="follow-manage-modal-title"
                   className="font-bold text-gray-900 dark:text-gray-100 text-base"
                 >
                   フォロー・フォロワー一覧
-                </h4>
+                </h2>
               </div>
               <button
                 type="button"
@@ -313,7 +313,11 @@ function AvatarUpload({
       <div className="flex items-center gap-4">
         <div className="w-16 h-16 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 flex items-center justify-center flex-shrink-0">
           {profile?.avatar_url ? (
-            <img src={profile.avatar_url} alt="avatar" className="w-full h-full object-cover" />
+            <img
+              src={profile.avatar_url}
+              alt={profile.display_name ? `${profile.display_name}のアバター` : "現在のアバター"}
+              className="w-full h-full object-cover"
+            />
           ) : (
             <span className="text-2xl text-gray-500 dark:text-gray-400">👤</span>
           )}

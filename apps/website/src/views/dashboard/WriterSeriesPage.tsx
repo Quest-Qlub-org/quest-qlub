@@ -592,11 +592,14 @@ export const WriterSeriesPage = () => {
                         </p>
                       )}
                       <button
+                        type="button"
+                        aria-expanded={expanded}
+                        aria-controls={`series-articles-panel-${s.id}`}
                         onClick={() => setExpandedSeriesId(expanded ? null : s.id)}
                         className="text-xs text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 mt-1 flex items-center gap-1"
                       >
                         {seriesArticles.length}件の記事
-                        <span>{expanded ? "▲" : "▼"}</span>
+                        <span aria-hidden="true">{expanded ? "▲" : "▼"}</span>
                       </button>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
@@ -617,7 +620,10 @@ export const WriterSeriesPage = () => {
                     </div>
                   </div>
                   {expanded && (
-                    <div className="border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-850 px-4 py-3 space-y-2.5">
+                    <div
+                      id={`series-articles-panel-${s.id}`}
+                      className="border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-850 px-4 py-3 space-y-2.5"
+                    >
                       {seriesArticles.length === 0 ? (
                         <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-2">
                           この連載にはまだ記事がありません

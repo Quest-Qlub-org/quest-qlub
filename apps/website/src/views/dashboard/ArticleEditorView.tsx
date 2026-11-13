@@ -736,6 +736,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-auto">
           <button
             type="button"
+            aria-pressed={showPreview}
             onClick={() => setShowPreview(!showPreview)}
             className={`inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl border transition-all ${
               showPreview
@@ -801,7 +802,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
               <div className="w-full bg-gray-50 dark:bg-gray-900" style={{ aspectRatio: "16/9" }}>
                 <img
                   src={thumbnailUrl}
-                  alt={formTitle || "thumbnail"}
+                  alt={formTitle || "サムネイルプレビュー"}
                   className="w-full h-full object-contain"
                 />
               </div>
@@ -925,6 +926,8 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                 <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
                   <button
                     type="button"
+                    aria-expanded={settingsExpanded}
+                    aria-controls="article-extra-settings-panel"
                     onClick={() => setSettingsExpanded((v) => !v)}
                     className="w-full px-5 py-3.5 bg-gray-50/70 dark:bg-gray-800/70 hover:bg-gray-100/70 dark:hover:bg-gray-750 flex items-center justify-between transition-colors text-left"
                   >
@@ -945,7 +948,10 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                   </button>
 
                   {settingsExpanded && (
-                    <div className="p-5 md:p-6 border-t border-gray-100 dark:border-gray-700 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div
+                      id="article-extra-settings-panel"
+                      className="p-5 md:p-6 border-t border-gray-100 dark:border-gray-700 grid grid-cols-1 md:grid-cols-2 gap-6"
+                    >
                       {/* 左カラム: サムネイル設定 */}
                       <div className="space-y-4">
                         <div>
@@ -963,7 +969,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                             >
                               <img
                                 src={thumbnailUrl}
-                                alt="thumbnail"
+                                alt={formTitle || "サムネイルプレビュー"}
                                 className="w-full h-full object-contain"
                               />
                             </div>

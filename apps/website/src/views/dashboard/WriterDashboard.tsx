@@ -252,15 +252,15 @@ export const WriterDashboard = () => {
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
-        <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100">記事を作成</h2>
+        <h1 className="text-lg font-bold text-gray-800 dark:text-gray-100">記事を作成</h1>
       </div>
 
       {/* 記事一覧 */}
       <section>
         <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-          <h3 className="font-bold text-gray-800 dark:text-gray-100">
+          <h2 className="font-bold text-gray-800 dark:text-gray-100">
             自分の記事 ({myArticles.length}件)
-          </h3>
+          </h2>
           <div className="flex items-center gap-2">
             <button
               onClick={openSeriesManager}
@@ -308,9 +308,9 @@ export const WriterDashboard = () => {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-start gap-2 mb-1">
-                    <h4 className="font-bold text-gray-800 dark:text-gray-100 text-sm truncate">
+                    <h3 className="font-bold text-gray-800 dark:text-gray-100 text-sm truncate">
                       {article.title}
-                    </h4>
+                    </h3>
                     <div className="flex items-center gap-1 shrink-0">
                       {article.collaboratorIds?.includes(profile?.id ?? "") &&
                         article.writerId !== profile?.id && (

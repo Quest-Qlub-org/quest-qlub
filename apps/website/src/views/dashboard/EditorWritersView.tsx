@@ -255,9 +255,9 @@ export function EditorWritersView() {
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
-        <h2 className="text-lg font-bold text-purple-800 dark:text-purple-300">
+        <h1 className="text-lg font-bold text-purple-800 dark:text-purple-300">
           ライター・ロール管理
-        </h2>
+        </h1>
         <span className="ml-auto text-xs text-gray-500 dark:text-gray-400">
           {allProfiles.length} アカウント
         </span>
@@ -389,6 +389,7 @@ export function EditorWritersView() {
                         <button
                           key={r}
                           type="button"
+                          aria-pressed={active}
                           onClick={() => void toggleRole(w.id, r)}
                           className={`text-xs px-2.5 py-1 rounded-lg border font-bold transition-all cursor-pointer ${
                             active

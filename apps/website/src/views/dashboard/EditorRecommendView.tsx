@@ -82,9 +82,9 @@ export function EditorRecommendView() {
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
-        <h2 className="text-lg font-bold text-purple-800 dark:text-purple-300">
+        <h1 className="text-lg font-bold text-purple-800 dark:text-purple-300">
           おすすめ・人気設定
-        </h2>
+        </h1>
       </div>
       {loading ? (
         <p className="text-center text-gray-500 dark:text-gray-400 py-8">読み込み中...</p>
@@ -108,12 +108,16 @@ export function EditorRecommendView() {
               </p>
               <div className="flex gap-2">
                 <button
+                  type="button"
+                  aria-pressed={a.isRecommended}
                   onClick={() => toggle(a.id, "is_recommended", a.isRecommended)}
                   className={`flex-1 py-2 text-xs font-bold rounded-lg border-2 transition-all ${a.isRecommended ? "bg-blue-500 text-white border-blue-500" : "bg-white dark:bg-gray-700 text-gray-500 dark:text-gray-300 border-gray-200 dark:border-gray-600"}`}
                 >
                   おすすめ {a.isRecommended ? "✓" : ""}
                 </button>
                 <button
+                  type="button"
+                  aria-pressed={a.isPopular}
                   onClick={() => toggle(a.id, "is_popular", a.isPopular)}
                   className={`flex-1 py-2 text-xs font-bold rounded-lg border-2 transition-all ${a.isPopular ? "bg-orange-500 text-white border-orange-500" : "bg-white dark:bg-gray-700 text-gray-500 dark:text-gray-300 border-gray-200 dark:border-gray-600"}`}
                 >

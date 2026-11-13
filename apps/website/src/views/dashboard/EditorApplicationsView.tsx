@@ -111,15 +111,18 @@ export function EditorApplicationsView() {
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
-        <h2 className="text-lg font-bold text-purple-800 dark:text-purple-300 flex items-center gap-2">
+        <h1 className="text-lg font-bold text-purple-800 dark:text-purple-300 flex items-center gap-2">
           <Mail className="w-5 h-5" /> ライター応募・お問い合わせ一覧
-        </h2>
+        </h1>
       </div>
 
       {/* フィルタータブ & 検索バー */}
       <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
-        <div className="flex gap-2">
+        <div className="flex gap-2" role="tablist" aria-label="メッセージ種別フィルター">
           <button
+            type="button"
+            role="tab"
+            aria-selected={filterMode === "applications"}
             onClick={() => setFilterMode("applications")}
             className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${
               filterMode === "applications"
@@ -130,6 +133,9 @@ export function EditorApplicationsView() {
             ライター応募 ({applicationCount})
           </button>
           <button
+            type="button"
+            role="tab"
+            aria-selected={filterMode === "all"}
             onClick={() => setFilterMode("all")}
             className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${
               filterMode === "all"
@@ -185,9 +191,9 @@ export function EditorApplicationsView() {
                 <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 dark:border-gray-700 pb-3">
                   <div>
                     <div className="flex items-center gap-2">
-                      <h3 className="font-bold text-gray-900 dark:text-gray-100 text-base">
+                      <h2 className="font-bold text-gray-900 dark:text-gray-100 text-base">
                         {msg.name}
-                      </h3>
+                      </h2>
                       {isWriterApp && (
                         <span className="bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-xs px-2.5 py-0.5 rounded-full font-bold">
                           応募者
@@ -216,9 +222,9 @@ export function EditorApplicationsView() {
                 </div>
 
                 <div>
-                  <h4 className="text-sm font-bold text-gray-700 dark:text-gray-200 mb-1">
+                  <h3 className="text-sm font-bold text-gray-700 dark:text-gray-200 mb-1">
                     {msg.subject}
-                  </h4>
+                  </h3>
                   <div className="bg-gray-50 dark:bg-gray-900/60 rounded-xl p-3 text-xs sm:text-sm text-gray-700 dark:text-gray-300 font-mono whitespace-pre-wrap leading-relaxed border border-gray-100 dark:border-gray-700">
                     {msg.body}
                   </div>

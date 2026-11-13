@@ -537,9 +537,9 @@ export function ArticleComments({
         <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-full flex items-center justify-center mx-auto mb-3">
           <EyeOff className="w-5 h-5" />
         </div>
-        <h3 className="text-sm font-bold text-gray-700 dark:text-gray-200">
+        <h2 className="text-sm font-bold text-gray-700 dark:text-gray-200">
           コメント欄は非表示になっています
-        </h3>
+        </h2>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
           この記事のコメント機能はオフに設定されているため、コメントの閲覧および投稿はできません。
         </p>
@@ -552,9 +552,9 @@ export function ArticleComments({
       <div className="flex flex-wrap items-center justify-between gap-2 mb-6 border-b border-gray-100 dark:border-gray-800 pb-4">
         <div className="flex items-center gap-2">
           <MessageSquare className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-          <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100">
             感想・コメント ({comments.length})
-          </h3>
+          </h2>
         </div>
 
         {/* ライター本人または編集長によるコメント機能オン/オフ切り替えスイッチ */}
@@ -794,9 +794,9 @@ export function ArticleComments({
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="flex items-center justify-between">
-                <h4 className="text-sm font-bold text-gray-700 dark:text-gray-200">
+                <h3 className="text-sm font-bold text-gray-700 dark:text-gray-200">
                   コメントを投稿する
-                </h4>
+                </h3>
                 <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
                   投稿者: {profile?.display_name || `@${profile?.username || "user"}`}
                 </span>
@@ -864,12 +864,12 @@ export function ArticleComments({
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-700">
               <div className="flex items-center gap-2">
                 <History className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                <h4
+                <h2
                   id="comment-history-modal-title"
                   className="font-bold text-gray-900 dark:text-gray-100 text-base"
                 >
                   コメントの編集履歴
-                </h4>
+                </h2>
               </div>
               <button
                 type="button"

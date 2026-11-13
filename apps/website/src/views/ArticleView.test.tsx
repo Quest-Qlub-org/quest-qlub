@@ -1254,16 +1254,20 @@ describe("ArticleView", () => {
     expect(container.querySelector('button[aria-label="記事のリンクをコピー"]')).not.toBeNull();
 
     const mainCard = container.querySelector('[data-testid="author-card-writer-a11y"]');
-    expect(mainCard?.tagName).toBe("A");
-    expect(mainCard?.getAttribute("href")).toBe("/writers/main_a11y");
+    const mainLink = mainCard?.querySelector("a");
+    expect(mainLink).not.toBeNull();
+    expect(mainLink?.getAttribute("href")).toBe("/writers/main_a11y");
 
     const collabCard = container.querySelector('[data-testid="author-card-collab-a11y"]');
-    expect(collabCard?.tagName).toBe("A");
-    expect(collabCard?.getAttribute("href")).toBe("/writers/collab_a11y");
+    const collabLink = collabCard?.querySelector("a");
+    expect(collabLink).not.toBeNull();
+    expect(collabLink?.getAttribute("href")).toBe("/writers/collab_a11y");
 
-    // 著者カード内のフォローボタンを押してもリンク遷移しないこと
+    // 著者カード内のフォローボタンは <Link> 内にネストせず aria-pressed を持ち、押下しても遷移しないこと
     const followBtnInsideCard = mainCard?.querySelector("button");
     expect(followBtnInsideCard).not.toBeNull();
+    expect(followBtnInsideCard?.closest("a")).toBeNull();
+    expect(followBtnInsideCard?.getAttribute("aria-pressed")).toBe("false");
     await act(async () => {
       followBtnInsideCard?.click();
       await Promise.resolve();

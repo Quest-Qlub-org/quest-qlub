@@ -63,7 +63,7 @@ export const HomeView = () => {
       {/* おすすめ記事セクション */}
       <section>
         <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-3 flex items-center gap-2">
-          <img src={imgRecommend} className="w-5 h-5 object-contain" alt="おすすめ" />
+          <img src={imgRecommend} className="w-5 h-5 object-contain" alt="" aria-hidden="true" />
           <span>おすすめの記事</span>
         </h2>
         {articlesLoading ? (
@@ -93,7 +93,7 @@ export const HomeView = () => {
       {/* 人気記事セクション */}
       <section>
         <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-3 flex items-center gap-2">
-          <img src={imgPopular} className="w-5 h-5 object-contain" alt="人気" />
+          <img src={imgPopular} className="w-5 h-5 object-contain" alt="" aria-hidden="true" />
           <span>人気の記事</span>
         </h2>
         {articlesLoading ? (

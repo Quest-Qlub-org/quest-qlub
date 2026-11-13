@@ -736,95 +736,96 @@ export const ArticleView = () => {
                   const isMe = currentUserId === authorProfile.id;
 
                   return (
-                    <Link
+                    <div
                       key={authorProfile.id}
-                      to={`/writers/${authorProfile.username || authorProfile.id}`}
                       data-testid={`author-card-${authorProfile.id}`}
-                      className="flex items-center justify-between p-3.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xs cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors"
+                      className="flex items-center justify-between gap-2 p-3.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xs hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors"
                     >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="bg-gray-100 dark:bg-gray-700 p-2 rounded-full border border-gray-200 dark:border-gray-600 shrink-0">
-                          {authorProfile.avatar_url ? (
-                            <img
-                              src={authorProfile.avatar_url}
-                              className="w-8 h-8 rounded-full object-cover"
-                              alt={`${displayName}のアバター`}
-                              loading="lazy"
-                              decoding="async"
-                            />
-                          ) : (
-                            <CustomUserIcon className="w-8 h-8" />
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5 mb-0.5">
-                            <span
-                              className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded ${
-                                isPrimary
-                                  ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
-                                  : "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300"
-                              }`}
-                            >
-                              {roleLabel}
-                            </span>
-                          </div>
-                          <p className="font-bold text-gray-800 dark:text-gray-100 text-sm truncate">
-                            {displayName}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0 ml-2">
-                        {!isMe && (
-                          <button
-                            type="button"
-                            onClick={async (e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              if (!isAuthenticated) {
-                                showToast("フォローするにはログインが必要です");
-                                void navigate("/login");
-                                return;
-                              }
-                              if (currentUserId === authorProfile.id) {
-                                showToast("自分自身をフォローすることはできません");
-                                return;
-                              }
-                              const wasFollowing = isFollowing(authorProfile.id);
-                              const ok = await toggleFollow(authorProfile.id);
-                              if (!ok) {
-                                showToast("フォロー処理に失敗しました");
-                                return;
-                              }
-                              showToast(
-                                wasFollowing
-                                  ? "フォローを解除しました"
-                                  : "ライターをフォローしました",
-                              );
-                            }}
-                            className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-xs cursor-pointer ${
-                              isFollowing(authorProfile.id)
-                                ? "bg-blue-600 text-white hover:bg-blue-700"
-                                : "bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
-                            }`}
-                          >
-                            {isFollowing(authorProfile.id) ? (
-                              <>
-                                <UserCheck className="w-3.5 h-3.5" />
-                                <span>フォロー中</span>
-                              </>
+                      <Link
+                        to={`/writers/${authorProfile.username || authorProfile.id}`}
+                        className="flex items-center justify-between gap-3 flex-1 min-w-0 cursor-pointer"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="bg-gray-100 dark:bg-gray-700 p-2 rounded-full border border-gray-200 dark:border-gray-600 shrink-0">
+                            {authorProfile.avatar_url ? (
+                              <img
+                                src={authorProfile.avatar_url}
+                                className="w-8 h-8 rounded-full object-cover"
+                                alt={`${displayName}のアバター`}
+                                loading="lazy"
+                                decoding="async"
+                              />
                             ) : (
-                              <>
-                                <UserPlus className="w-3.5 h-3.5" />
-                                <span>フォロー</span>
-                              </>
+                              <CustomUserIcon className="w-8 h-8" />
                             )}
-                          </button>
-                        )}
-                        <span className="text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 px-2.5 py-1 rounded-full hidden sm:inline-block">
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 mb-0.5">
+                              <span
+                                className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded ${
+                                  isPrimary
+                                    ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+                                    : "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300"
+                                }`}
+                              >
+                                {roleLabel}
+                              </span>
+                            </div>
+                            <p className="font-bold text-gray-800 dark:text-gray-100 text-sm truncate">
+                              {displayName}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 px-2.5 py-1 rounded-full hidden sm:inline-block shrink-0">
                           詳細
                         </span>
-                      </div>
-                    </Link>
+                      </Link>
+                      {!isMe && (
+                        <button
+                          type="button"
+                          aria-pressed={isFollowing(authorProfile.id)}
+                          onClick={async () => {
+                            if (!isAuthenticated) {
+                              showToast("フォローするにはログインが必要です");
+                              void navigate("/login");
+                              return;
+                            }
+                            if (currentUserId === authorProfile.id) {
+                              showToast("自分自身をフォローすることはできません");
+                              return;
+                            }
+                            const wasFollowing = isFollowing(authorProfile.id);
+                            const ok = await toggleFollow(authorProfile.id);
+                            if (!ok) {
+                              showToast("フォロー処理に失敗しました");
+                              return;
+                            }
+                            showToast(
+                              wasFollowing
+                                ? "フォローを解除しました"
+                                : "ライターをフォローしました",
+                            );
+                          }}
+                          className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0 ${
+                            isFollowing(authorProfile.id)
+                              ? "bg-blue-600 text-white hover:bg-blue-700"
+                              : "bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
+                          }`}
+                        >
+                          {isFollowing(authorProfile.id) ? (
+                            <>
+                              <UserCheck className="w-3.5 h-3.5" />
+                              <span>フォロー中</span>
+                            </>
+                          ) : (
+                            <>
+                              <UserPlus className="w-3.5 h-3.5" />
+                              <span>フォロー</span>
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
                   );
                 })}
               </div>

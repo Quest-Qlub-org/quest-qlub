@@ -258,9 +258,9 @@ export const EditorDashboard = () => {
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
-        <h2 className="text-lg font-bold text-purple-800 dark:text-purple-300">
+        <h1 className="text-lg font-bold text-purple-800 dark:text-purple-300">
           編集長ダッシュボード
-        </h2>
+        </h1>
       </div>
       {(profileHasRole(profile, "editor") || profileHasRole(profile, "writer")) && (
         <button
@@ -304,10 +304,10 @@ export const EditorDashboard = () => {
 
       {/* 投稿承認待ちセクション */}
       <section>
-        <h3 className="font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2 border-b border-gray-200 dark:border-gray-700 pb-2 mb-3">
+        <h2 className="font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2 border-b border-gray-200 dark:border-gray-700 pb-2 mb-3">
           <AlertCircle className="w-5 h-5 text-orange-500" /> 投稿承認待ち ({pendingArticles.length}
           件)
-        </h3>
+        </h2>
         <div className="space-y-3 md:grid md:grid-cols-2 md:gap-4 md:space-y-0">
           {pendingArticles.map((article) => {
             const writerName =
@@ -375,10 +375,10 @@ export const EditorDashboard = () => {
       {/* 公開予約中セクション */}
       {scheduledArticles.length > 0 && (
         <section>
-          <h3 className="font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2 border-b border-gray-200 dark:border-gray-700 pb-2 mb-3">
+          <h2 className="font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2 border-b border-gray-200 dark:border-gray-700 pb-2 mb-3">
             <Clock className="w-5 h-5 text-purple-600 dark:text-purple-400" /> 公開予約中 (
             {scheduledArticles.length}件)
-          </h3>
+          </h2>
           <div className="space-y-3 md:grid md:grid-cols-2 md:gap-4 md:space-y-0">
             {scheduledArticles.map((article) => {
               const writerName =

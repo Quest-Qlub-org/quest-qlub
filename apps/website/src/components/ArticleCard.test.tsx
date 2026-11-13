@@ -116,7 +116,7 @@ describe("ArticleCard", () => {
     const img = container.querySelector("img");
     expect(img).not.toBeNull();
     expect(img?.getAttribute("src")).toBe("https://example.com/thumb.jpg");
-    expect(img?.getAttribute("alt")).toBe(mockArticle.title);
+    expect(img?.getAttribute("alt")).toBe("");
     expect(img?.getAttribute("loading")).toBe("lazy");
     expect(img?.getAttribute("decoding")).toBe("async");
   });

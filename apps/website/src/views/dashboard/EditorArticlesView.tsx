@@ -258,9 +258,9 @@ export function EditorArticlesView() {
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
-        <h2 className="text-lg font-bold text-purple-800 dark:text-purple-300">
+        <h1 className="text-lg font-bold text-purple-800 dark:text-purple-300">
           全記事の編集・削除
-        </h2>
+        </h1>
       </div>
       {loading ? (
         <p className="text-center text-gray-500 dark:text-gray-400 py-8">読み込み中...</p>

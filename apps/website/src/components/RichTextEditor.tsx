@@ -172,19 +172,19 @@ const FONT_FAMILIES = [
   { label: "明朝体", value: "serif" },
   { label: "等幅", value: "monospace" },
 ];
-const COLORS = [
-  "#000000",
-  "#374151",
-  "#6B7280",
-  "#bf783a",
-  "#EF4444",
-  "#F97316",
-  "#EAB308",
-  "#22C55E",
-  "#0EA5E9",
-  "#3B82F6",
-  "#8B5CF6",
-  "#EC4899",
+const COLORS: { hex: string; label: string }[] = [
+  { hex: "#000000", label: "黒" },
+  { hex: "#374151", label: "チャコールグレー" },
+  { hex: "#6B7280", label: "グレー" },
+  { hex: "#bf783a", label: "アンバーブラウン" },
+  { hex: "#EF4444", label: "赤" },
+  { hex: "#F97316", label: "オレンジ" },
+  { hex: "#EAB308", label: "イエロー" },
+  { hex: "#22C55E", label: "グリーン" },
+  { hex: "#0EA5E9", label: "スカイブルー" },
+  { hex: "#3B82F6", label: "ブルー" },
+  { hex: "#8B5CF6", label: "パープル" },
+  { hex: "#EC4899", label: "ピンク" },
 ];
 
 export default function RichTextEditor({ content, onChange, placeholder, onUploadImage }: Props) {
@@ -229,6 +229,7 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
     editorProps: {
       attributes: {
+        "aria-label": "記事本文エディタ",
         class:
           "article-content min-h-[480px] p-4 md:p-6 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900",
       },
@@ -253,8 +254,17 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
       if (colorRef.current && !colorRef.current.contains(e.target as Node))
         setShowColorPicker(false);
     };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setShowColorPicker(false);
+      }
+    };
     document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, []);
 
   const openLinkModal = useCallback(() => {
@@ -415,6 +425,7 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
       onClick={onClick}
       title={title}
       aria-label={title}
+      aria-pressed={typeof active === "boolean" ? active : undefined}
       className={`flex items-center justify-center w-8 h-8 rounded-lg text-sm transition-colors ${
         active
           ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-bold shadow-xs"
@@ -509,7 +520,7 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
         {/* 文字サイズ */}
         <select
           aria-label="文字サイズ"
-          className="text-xs font-medium border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-700 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          className="text-xs font-medium border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400"
           value={activeFontSize}
           onChange={(e) => {
             const v = e.target.value;
@@ -563,19 +574,25 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
             type="button"
             title="文字色"
             aria-label="文字色"
+            aria-haspopup="true"
             aria-expanded={showColorPicker}
             onClick={() => setShowColorPicker((v) => !v)}
-            className="flex flex-col items-center justify-center w-8 h-8 rounded-lg hover:bg-gray-200/70 transition-colors"
+            className="flex flex-col items-center justify-center w-8 h-8 rounded-lg hover:bg-gray-200/70 dark:hover:bg-gray-700 transition-colors"
           >
-            <span className="text-xs font-extrabold text-gray-700 leading-none">A</span>
+            <span className="text-xs font-extrabold text-gray-700 dark:text-gray-200 leading-none">
+              A
+            </span>
             <span
-              className="h-1 w-4 rounded-full mt-0.5 border border-black/10"
+              className="h-1 w-4 rounded-full mt-0.5 border border-black/10 dark:border-white/20"
               style={{ backgroundColor: activeColor }}
             />
           </button>
           {showColorPicker && (
-            <div className="absolute top-10 left-0 z-50 bg-white border border-gray-200 rounded-xl shadow-xl p-3 w-48">
-              <p id="rte-color-picker-label" className="text-[11px] font-bold text-gray-500 mb-2">
+            <div className="absolute top-10 left-0 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl p-3 w-48">
+              <p
+                id="rte-color-picker-label"
+                className="text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-2"
+              >
                 文字色を選択
               </p>
               <div
@@ -584,23 +601,25 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
                 className="grid grid-cols-6 gap-1.5"
               >
                 {COLORS.map((c) => {
-                  const isColorSelected = activeColor.toLowerCase() === c.toLowerCase();
+                  const isColorSelected = activeColor.toLowerCase() === c.hex.toLowerCase();
                   return (
                     <button
-                      key={c}
+                      key={c.hex}
                       type="button"
                       role="radio"
                       aria-checked={isColorSelected}
-                      aria-label={`文字色 ${c} を選択`}
+                      aria-label={`文字色: ${c.label} (${c.hex}) を選択`}
                       onClick={() => {
-                        editor.chain().focus().setColor(c).run();
+                        editor.chain().focus().setColor(c.hex).run();
                         setShowColorPicker(false);
                       }}
                       className={`w-6 h-6 rounded-md border transition-transform hover:scale-110 ${
-                        isColorSelected ? "border-gray-900 ring-2 ring-blue-400" : "border-gray-200"
+                        isColorSelected
+                          ? "border-gray-900 dark:border-white ring-2 ring-blue-400"
+                          : "border-gray-200 dark:border-gray-600"
                       }`}
-                      style={{ backgroundColor: c }}
-                      title={c}
+                      style={{ backgroundColor: c.hex }}
+                      title={`${c.label} (${c.hex})`}
                     />
                   );
                 })}
@@ -611,7 +630,7 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
                   editor.chain().focus().unsetColor().run();
                   setShowColorPicker(false);
                 }}
-                className="mt-2.5 py-1 text-xs font-bold text-gray-600 hover:text-gray-900 bg-gray-50 hover:bg-gray-100 rounded-lg w-full text-center transition-colors"
+                className="mt-2.5 py-1 text-xs font-bold text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg w-full text-center transition-colors"
               >
                 標準色に戻す
               </button>
@@ -622,7 +641,6 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
         {/* 書式クリア */}
         <TB
           onClick={() => editor.chain().focus().unsetAllMarks().clearNodes().run()}
-          active={false}
           title="書式をクリア"
         >
           <Eraser className="w-4 h-4" />
@@ -684,11 +702,7 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
         >
           <Code2 className="w-4 h-4" />
         </TB>
-        <TB
-          onClick={() => editor.chain().focus().setHorizontalRule().run()}
-          active={false}
-          title="区切り線"
-        >
+        <TB onClick={() => editor.chain().focus().setHorizontalRule().run()} title="区切り線">
           <Minus className="w-4 h-4" />
         </TB>
 
@@ -698,16 +712,16 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
         <TB onClick={openLinkModal} active={editor.isActive("link")} title="リンクを挿入・編集">
           <Link2 className="w-4 h-4" />
         </TB>
-        <TB onClick={() => setShowImageInput((v) => !v)} active={false} title="画像を挿入">
+        <TB onClick={() => setShowImageInput((v) => !v)} title="画像を挿入">
           <ImagePlus className="w-4 h-4" />
         </TB>
 
         {/* 元に戻す・やり直し */}
         <div className="ml-auto flex items-center gap-0.5">
-          <TB onClick={() => editor.chain().focus().undo().run()} active={false} title="元に戻す">
+          <TB onClick={() => editor.chain().focus().undo().run()} title="元に戻す">
             <Undo2 className="w-4 h-4" />
           </TB>
-          <TB onClick={() => editor.chain().focus().redo().run()} active={false} title="やり直し">
+          <TB onClick={() => editor.chain().focus().redo().run()} title="やり直し">
             <Redo2 className="w-4 h-4" />
           </TB>
         </div>
@@ -724,23 +738,30 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
             role="dialog"
             aria-modal="true"
             aria-labelledby="rte-link-modal-title"
-            className="bg-white border border-gray-200 rounded-2xl shadow-xl p-5 w-full max-w-sm"
+            className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-xl p-5 w-full max-w-sm"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-3">
-              <p id="rte-link-modal-title" className="text-sm font-bold text-gray-800">
+              <p
+                id="rte-link-modal-title"
+                className="text-sm font-bold text-gray-800 dark:text-gray-100"
+              >
                 リンクURLを設定
               </p>
               <button
                 type="button"
                 aria-label="閉じる"
                 onClick={closeLinkModal}
-                className="p-1 text-gray-500 hover:text-gray-700 rounded-lg"
+                className="p-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 rounded-lg"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
+            <label htmlFor="rte-link-url-input" className="sr-only">
+              リンクURL
+            </label>
             <input
+              id="rte-link-url-input"
               type="url"
               value={linkUrl}
               onChange={(e) => {
@@ -748,7 +769,9 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
                 setLinkError("");
               }}
               placeholder="https://example.com"
-              className="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400 mb-2"
+              aria-invalid={Boolean(linkError)}
+              aria-describedby={linkError ? "rte-link-error" : undefined}
+              className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400 mb-2"
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
@@ -759,7 +782,15 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
               }}
               autoFocus
             />
-            {linkError && <p className="text-xs text-red-500 mb-3 font-medium">{linkError}</p>}
+            {linkError && (
+              <p
+                id="rte-link-error"
+                role="alert"
+                className="text-xs text-red-500 dark:text-red-400 mb-3 font-medium"
+              >
+                {linkError}
+              </p>
+            )}
             <div className="flex gap-2">
               <button
                 type="button"
@@ -775,7 +806,7 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
                     editor.chain().focus().unsetLink().run();
                     setShowLinkInput(false);
                   }}
-                  className="px-4 border border-red-200 text-red-600 text-sm font-bold rounded-xl py-2.5 hover:bg-red-50 transition-colors"
+                  className="px-4 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm font-bold rounded-xl py-2.5 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
                 >
                   リンク解除
                 </button>
@@ -796,18 +827,21 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
             role="dialog"
             aria-modal="true"
             aria-labelledby="rte-image-modal-title"
-            className="bg-white border border-gray-200 rounded-2xl shadow-xl p-5 w-full max-w-sm space-y-4"
+            className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-xl p-5 w-full max-w-sm space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
-              <p id="rte-image-modal-title" className="text-sm font-bold text-gray-800">
+              <p
+                id="rte-image-modal-title"
+                className="text-sm font-bold text-gray-800 dark:text-gray-100"
+              >
                 本文に画像を挿入
               </p>
               <button
                 type="button"
                 aria-label="閉じる"
                 onClick={closeImageModal}
-                className="p-1 text-gray-500 hover:text-gray-700 rounded-lg"
+                className="p-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 rounded-lg"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -816,7 +850,7 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
             <div>
               <label
                 htmlFor="rte-image-alt-input"
-                className="block text-xs font-medium text-gray-700 mb-1"
+                className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1"
               >
                 代替テキスト（alt・任意）
               </label>
@@ -826,13 +860,13 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
                 value={imageAlt}
                 onChange={(e) => setImageAlt(e.target.value)}
                 placeholder="画像の説明（スクリーンリーダー用）"
-                className="w-full border border-gray-300 rounded-xl px-3.5 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-400"
+                className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 rounded-xl px-3.5 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-400"
               />
             </div>
 
             {onUploadImage && (
               <div>
-                <label className="w-full py-3 px-4 border-2 border-dashed border-blue-300 bg-blue-50/50 hover:bg-blue-50 text-blue-700 rounded-xl font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-colors">
+                <label className="w-full py-3 px-4 border-2 border-dashed border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-950/30 hover:bg-blue-50 dark:hover:bg-blue-950/50 text-blue-700 dark:text-blue-300 rounded-xl font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-colors">
                   {imageUploading ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -853,11 +887,11 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
                   />
                 </label>
                 <div className="relative flex py-2 items-center">
-                  <div className="flex-grow border-t border-gray-200" />
-                  <span className="flex-shrink mx-3 text-[11px] text-gray-500">
+                  <div className="flex-grow border-t border-gray-200 dark:border-gray-700" />
+                  <span className="flex-shrink mx-3 text-[11px] text-gray-500 dark:text-gray-400">
                     またはURLを指定
                   </span>
-                  <div className="flex-grow border-t border-gray-200" />
+                  <div className="flex-grow border-t border-gray-200 dark:border-gray-700" />
                 </div>
               </div>
             )}
@@ -877,7 +911,7 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
                 placeholder="https://example.com/image.png"
                 aria-invalid={Boolean(imageError)}
                 aria-describedby={imageError ? "rte-image-error" : undefined}
-                className="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400 mb-2"
+                className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400 mb-2"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
