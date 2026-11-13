@@ -2,12 +2,12 @@ import { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { CustomUserIcon, CustomSearchIcon } from "../components/icons/NavIcons";
-import { MOCK_TAGS, mapDbArticleToArticle } from "../types";
+import { MOCK_TAGS } from "../types";
 import type { Article } from "../types";
 import { ArticleCard } from "../components/ArticleCard";
 import { X } from "lucide-react";
 import { parseSearchKeywords, matchKeywords } from "../utils/normalizeJapanese";
-import { getLocalScheduledAt, isArticlePubliclyVisible } from "../utils/scheduledArticles";
+import { mapDbArticleWithSchedule, isArticlePubliclyVisible } from "../utils/scheduledArticles";
 import { profileHasRole } from "../utils/roles";
 import { updateMetaTags } from "../utils/seo";
 import { supabase } from "../supabase";
@@ -17,14 +17,6 @@ import { ARTICLE_LIST_FIELDS } from "../context/DataContext";
 
 const SEARCH_ARTICLE_FIELDS =
   "id, title, content, summary, thumbnail, thumbnail_url, thumbnail_color, writer_id, views, likes, tags, is_recommended, is_popular, status, series_id, episode_number, created_at";
-
-function enrichMappedArticleSchedule(article: Article): Article {
-  const localSched = getLocalScheduledAt(article.id);
-  if (!article.scheduledAt && localSched) {
-    return { ...article, scheduledAt: localSched };
-  }
-  return article;
-}
 
 export const SearchView = () => {
   const { articles, writers } = useApp();
@@ -147,8 +139,10 @@ export const SearchView = () => {
         if (!isMounted) return;
 
         if (!error && Array.isArray(data)) {
-          let mapped: Article[] = (data as unknown as Parameters<typeof mapDbArticleToArticle>[0][])
-            .map((item) => enrichMappedArticleSchedule(mapDbArticleToArticle(item)))
+          let mapped: Article[] = (
+            data as unknown as Parameters<typeof mapDbArticleWithSchedule>[0][]
+          )
+            .map((item) => mapDbArticleWithSchedule(item))
             .filter((a: Article) => isArticlePubliclyVisible(a));
 
           if (queryKeywords.length > 0) {

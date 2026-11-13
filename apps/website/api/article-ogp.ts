@@ -1,68 +1,16 @@
-export interface VercelRequest {
-  query: Record<string, string | string[] | undefined>;
-  headers: Record<string, string | string[] | undefined>;
-}
+import {
+  BOT_USER_AGENTS,
+  buildPublishedOrDueFilter,
+  escapeHtml,
+  getSiteUrl,
+  getSupabaseConfig,
+  isBotUserAgent,
+  isSafeImageUrl,
+  type VercelRequest,
+  type VercelResponse,
+} from "./_shared";
 
-export interface VercelResponse {
-  status(code: number): VercelResponse;
-  send(body: string): VercelResponse;
-  setHeader(name: string, value: string): VercelResponse;
-  redirect(status: number, url: string): VercelResponse;
-}
-
-declare const process: {
-  env: Record<string, string | undefined>;
-};
-
-function getSiteUrl(): string {
-  const raw = process.env.SITE_URL || "https://quest-qlub.vercel.app";
-  return raw.replace(/\/+$/, "");
-}
-
-export const BOT_USER_AGENTS = [
-  "twitterbot",
-  "facebookexternalhit",
-  "facebot",
-  "slackbot",
-  "linkedinbot",
-  "discordbot",
-  "whatsapp",
-  "telegrambot",
-  "pinterest",
-  "line",
-  "linespider",
-  "line-poker",
-  "bluesky",
-  "cardyb",
-  "mastodon",
-  "threads",
-  "applebot",
-];
-
-function getSupabaseConfig() {
-  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
-  const key = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || "";
-  return { url, key };
-}
-
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
-
-function isSafeImageUrl(url?: string | null): boolean {
-  if (!url || typeof url !== "string") return false;
-  const trimmed = url.trim();
-  // http, https, または絶対パス（/から始まる）のみ許可し、javascript: や data: などのスキームを排除
-  return /^https?:\/\/[^\s"'<>]+$/i.test(trimmed) || /^\/[^\s"'<>]+$/.test(trimmed);
-}
-
-// 記事IDはURLのパスに埋め込むため、安全な文字のみ許可する
-const ARTICLE_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+export { BOT_USER_AGENTS };
 
 interface DbArticleOgpRow {
   title?: string | null;
@@ -72,29 +20,25 @@ interface DbArticleOgpRow {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const rawId = req.query.id;
+  const articleId = Array.isArray(rawId) ? rawId[0] : rawId;
   const siteUrl = getSiteUrl();
-  const nowMs = Date.now();
-  const { id } = req.query;
-  const articleId = Array.isArray(id) ? id[0] : id;
 
-  if (!articleId || !ARTICLE_ID_PATTERN.test(articleId)) {
+  // パストラバーサル・改行・不正ID文字の検証（英数字・ハイフン・アンダースコアのみ許可）
+  if (!articleId || !/^[a-zA-Z0-9_-]+$/.test(articleId)) {
     return res.redirect(302, siteUrl);
   }
 
-  const articleUrl = `${siteUrl}/articles/${encodeURIComponent(articleId)}`;
+  const directParam = Array.isArray(req.query.direct) ? req.query.direct[0] : req.query.direct;
+  const uaHeader = req.headers["user-agent"];
+  const userAgent = Array.isArray(uaHeader) ? uaHeader[0] : uaHeader || "";
+
+  const encodedArticleId = encodeURIComponent(articleId);
+  const articleUrl = `${siteUrl}/articles/${encodedArticleId}`;
   const directArticleUrl = `${articleUrl}?direct=1`;
 
-  // direct パラメータ付きアクセスの場合は SPA クライアントルートへ即座にリダイレクト
-  if (req.query.direct) {
-    return res.redirect(302, directArticleUrl);
-  }
-
-  const rawUa = req.headers["user-agent"];
-  const userAgent = (Array.isArray(rawUa) ? rawUa.join(" ") : rawUa || "").toLowerCase();
-  const isBot = BOT_USER_AGENTS.some((bot) => userAgent.includes(bot));
-
-  // 人間のブラウザからのアクセスの場合は、SPAのクライアントルートへリダイレクト
-  if (!isBot && !req.query.force_ogp) {
+  // 通常ブラウザや direct=1 クエリ付きアクセスは、即座に SPA 本体へ誘導
+  if (directParam || !isBotUserAgent(userAgent)) {
     return res.redirect(302, directArticleUrl);
   }
 
@@ -103,13 +47,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let imageUrl = `${siteUrl}/ogp.png`;
   let articleFound = false;
 
+  const nowMs = Date.now();
+  const nowIso = new Date(nowMs).toISOString();
   const { url: supabaseUrl, key: supabaseAnonKey } = getSupabaseConfig();
 
   if (supabaseUrl && supabaseAnonKey) {
     try {
-      // 1. 公開記事を取得 (scheduled_at カラムが存在する場合)
+      // 1. 公開記事または公開予約時刻到来済み記事を取得 (scheduled_at カラムが存在する場合)
+      const publishedOrDueFilter = buildPublishedOrDueFilter(nowIso);
       let response = await fetch(
-        `${supabaseUrl}/rest/v1/articles?id=eq.${encodeURIComponent(articleId)}&status=eq.published&select=title,summary,thumbnail_url,scheduled_at`,
+        `${supabaseUrl}/rest/v1/articles?id=eq.${encodedArticleId}&${publishedOrDueFilter}&select=title,summary,thumbnail_url,scheduled_at`,
         {
           headers: {
             apikey: supabaseAnonKey,
@@ -121,7 +68,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // スキーマドリフト耐性: scheduled_at カラム未適用環境 (400 Bad Request / 42703) の自動フォールバック
       if (!response.ok) {
         response = await fetch(
-          `${supabaseUrl}/rest/v1/articles?id=eq.${encodeURIComponent(articleId)}&status=eq.published&select=title,summary,thumbnail_url`,
+          `${supabaseUrl}/rest/v1/articles?id=eq.${encodedArticleId}&status=eq.published&select=title,summary,thumbnail_url`,
           {
             headers: {
               apikey: supabaseAnonKey,

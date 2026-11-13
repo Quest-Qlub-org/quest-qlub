@@ -2,11 +2,10 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { supabase, isTest } from "../supabase";
 import type { Profile } from "../supabase";
 import type { Article, Series } from "../types";
-import { mapDbArticleToArticle } from "../types";
 import { getProfileRoles, isStaffRole } from "../utils/roles";
 import { fetchProfilesListWithFallback } from "../utils/profileQueries";
 import { applySeriesOverrides } from "../utils/seriesOverrides";
-import { getLocalScheduledAt, isArticlePubliclyVisible } from "../utils/scheduledArticles";
+import { mapDbArticleWithSchedule, isArticlePubliclyVisible } from "../utils/scheduledArticles";
 import { useAuth } from "./AuthContext";
 import { useUI } from "./UIContext";
 
@@ -19,14 +18,6 @@ export const ARTICLE_LIST_FIELDS =
 
 // 共同執筆者を含むオプショナル記事一覧取得フィールド（ダッシュボード等での利用向け。未適用環境では ARTICLE_LIST_FIELDS へのフォールバック必須）
 export const WRITER_ARTICLE_LIST_FIELDS = `${ARTICLE_LIST_FIELDS}, collaborator_ids`;
-
-function enrichMappedArticleSchedule(article: Article): Article {
-  const localSched = getLocalScheduledAt(article.id);
-  if (!article.scheduledAt && localSched) {
-    return { ...article, scheduledAt: localSched };
-  }
-  return article;
-}
 
 export interface DataContextType {
   // Articles
@@ -133,7 +124,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
       if (!res.error && res.data) {
         const mapped = res.data
-          .map((item) => enrichMappedArticleSchedule(mapDbArticleToArticle(item)))
+          .map((item) => mapDbArticleWithSchedule(item))
           .filter((article) => isArticlePubliclyVisible(article));
         setArticles(mapped);
         setHasMoreArticles(res.data.length === ARTICLE_PAGE_SIZE);
@@ -161,7 +152,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       if (!error && data) {
         if (data.length > 0) {
           const newArticles = data
-            .map((item) => enrichMappedArticleSchedule(mapDbArticleToArticle(item)))
+            .map((item) => mapDbArticleWithSchedule(item))
             .filter((article) => isArticlePubliclyVisible(article));
           setArticles((prev) => [...prev, ...newArticles]);
         }

@@ -1,4 +1,5 @@
 import type { Article, ArticleStatus } from "../types";
+import { mapDbArticleToArticle } from "../types";
 
 const SCHEDULED_STORAGE_KEY = "quest_qlub_scheduled_articles_v1";
 
@@ -162,4 +163,18 @@ export function enrichArticleWithSchedule(article: Article): Article {
     scheduledAt,
     status: getEffectiveArticleStatus({ ...article, scheduledAt }),
   };
+}
+
+/**
+ * DB 記事行を Article 型にマッピングし、ローカル退避済みの予約日時を補完する
+ */
+export function mapDbArticleWithSchedule(
+  row: Parameters<typeof mapDbArticleToArticle>[0],
+): Article {
+  const mapped = mapDbArticleToArticle(row);
+  const localSched = getLocalScheduledAt(mapped.id);
+  if (!mapped.scheduledAt && localSched) {
+    return { ...mapped, scheduledAt: localSched };
+  }
+  return mapped;
 }

@@ -20,6 +20,7 @@ import { mapDbArticleToArticle } from "../types";
 import { ARTICLE_LIST_FIELDS } from "../context/DataContext";
 import { getProfileRoles, getRoleLabel } from "../utils/roles";
 import { fetchSingleProfileWithFallback } from "../utils/profileQueries";
+import { normalizeHandle, normalizeXAccount } from "../utils/validation";
 
 export const ProfileView = () => {
   const { username } = useParams<{ username: string }>();
@@ -160,8 +161,8 @@ export const ProfileView = () => {
     };
   }, [targetIdentifier, cleanTarget, cachedWriter, loadCounts]);
 
-  const cleanUsername = (writer?.username || "").replace(/^@/, "");
-  const xAccount = (writer?.x_account || "").replace(/^@/, "");
+  const cleanUsername = normalizeHandle(writer?.username);
+  const xAccount = normalizeXAccount(writer?.x_account);
   const following = writer ? isFollowing(writer.id) : false;
   const isOwnProfile = Boolean(writer && currentUserId && writer.id === currentUserId);
 

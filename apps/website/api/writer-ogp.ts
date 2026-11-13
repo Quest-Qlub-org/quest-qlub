@@ -1,69 +1,15 @@
-export interface VercelRequest {
-  query: Record<string, string | string[] | undefined>;
-  headers: Record<string, string | string[] | undefined>;
-}
+import {
+  BOT_USER_AGENTS,
+  escapeHtml,
+  getSiteUrl,
+  getSupabaseConfig,
+  isBotUserAgent,
+  isSafeImageUrl,
+  type VercelRequest,
+  type VercelResponse,
+} from "./_shared";
 
-export interface VercelResponse {
-  status(code: number): VercelResponse;
-  send(body: string): VercelResponse;
-  setHeader(name: string, value: string): VercelResponse;
-  redirect(status: number, url: string): VercelResponse;
-}
-
-declare const process: {
-  env: Record<string, string | undefined>;
-};
-
-function getSiteUrl(): string {
-  const raw = process.env.SITE_URL || "https://quest-qlub.vercel.app";
-  return raw.replace(/\/+$/, "");
-}
-
-export const BOT_USER_AGENTS = [
-  "twitterbot",
-  "facebookexternalhit",
-  "facebot",
-  "slackbot",
-  "linkedinbot",
-  "discordbot",
-  "whatsapp",
-  "telegrambot",
-  "pinterest",
-  "line",
-  "linespider",
-  "line-poker",
-  "bluesky",
-  "cardyb",
-  "mastodon",
-  "threads",
-  "applebot",
-];
-
-function getSupabaseConfig() {
-  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
-  const key = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || "";
-  return { url, key };
-}
-
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
-
-function isSafeImageUrl(url?: string | null): boolean {
-  if (!url || typeof url !== "string") return false;
-  const trimmed = url.trim();
-  // http, https, または絶対パス（/から始まる）のみ許可し、javascript: や data: などのスキームを排除
-  return /^https?:\/\/[^\s"'<>]+$/i.test(trimmed) || /^\/[^\s"'<>]+$/.test(trimmed);
-}
-
-// ユーザー名 / UUID パラメータは安全な文字のみ許可する
-const WRITER_TARGET_PATTERN = /^[A-Za-z0-9_.-]{1,64}$/;
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export { BOT_USER_AGENTS };
 
 interface DbWriterOgpRow {
   display_name?: string | null;
@@ -72,30 +18,28 @@ interface DbWriterOgpRow {
   avatar_url?: string | null;
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const siteUrl = getSiteUrl();
-  const rawParam = req.query.username;
-  const rawTarget = Array.isArray(rawParam) ? rawParam[0] : rawParam;
-  const cleanTarget = rawTarget ? rawTarget.replace(/^@/, "").trim() : "";
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const USERNAME_PATTERN = /^[a-zA-Z0-9_.-]{1,64}$/;
 
-  if (!cleanTarget || !WRITER_TARGET_PATTERN.test(cleanTarget)) {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const rawUsername = req.query.username;
+  const target = Array.isArray(rawUsername) ? rawUsername[0] : rawUsername;
+  const siteUrl = getSiteUrl();
+
+  const cleanTarget = (target || "").replace(/^@/, "").trim();
+  if (!cleanTarget || (!UUID_PATTERN.test(cleanTarget) && !USERNAME_PATTERN.test(cleanTarget))) {
     return res.redirect(302, siteUrl);
   }
 
-  const writerUrl = `${siteUrl}/writers/${encodeURIComponent(cleanTarget)}`;
+  const directParam = Array.isArray(req.query.direct) ? req.query.direct[0] : req.query.direct;
+  const uaHeader = req.headers["user-agent"];
+  const userAgent = Array.isArray(uaHeader) ? uaHeader[0] : uaHeader || "";
+
+  const encodedTarget = encodeURIComponent(cleanTarget);
+  const writerUrl = `${siteUrl}/writers/${encodedTarget}`;
   const directWriterUrl = `${writerUrl}?direct=1`;
 
-  // direct パラメータ付きアクセスの場合は SPA クライアントルートへ即座にリダイレクト
-  if (req.query.direct) {
-    return res.redirect(302, directWriterUrl);
-  }
-
-  const rawUa = req.headers["user-agent"];
-  const userAgent = (Array.isArray(rawUa) ? rawUa.join(" ") : rawUa || "").toLowerCase();
-  const isBot = BOT_USER_AGENTS.some((bot) => userAgent.includes(bot));
-
-  // 人間のブラウザからのアクセスの場合は、SPAのクライアントルートへリダイレクト
-  if (!isBot && !req.query.force_ogp) {
+  if (directParam || !isBotUserAgent(userAgent)) {
     return res.redirect(302, directWriterUrl);
   }
 
@@ -109,7 +53,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (supabaseUrl && supabaseAnonKey) {
     try {
-      const encodedTarget = encodeURIComponent(cleanTarget);
       const encodedAtTarget = encodeURIComponent(`@${cleanTarget}`);
       const filter = UUID_PATTERN.test(cleanTarget)
         ? `id=eq.${encodedTarget}`

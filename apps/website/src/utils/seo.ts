@@ -1,6 +1,7 @@
 /**
  * SEO & OGP メタタグ管理ユーティリティ
  */
+import { normalizeXAccount } from "./validation";
 
 export interface MetaTagsOptions {
   title?: string;
@@ -147,7 +148,7 @@ export function updateMetaTags(options: MetaTagsOptions): void {
   // Twitter Cards
   setOrCreateMeta("name", "twitter:card", twitterCard);
   setOrCreateMeta("name", "twitter:site", "@QuestQlub");
-  const cleanCreator = options.twitterCreator?.replace(/^@/, "").trim();
+  const cleanCreator = normalizeXAccount(options.twitterCreator);
   if (cleanCreator) {
     setOrCreateMeta("name", "twitter:creator", `@${cleanCreator}`);
   } else {
@@ -313,7 +314,7 @@ export function generateProfileJsonLd({
   xAccount?: string | null;
 }) {
   const canonicalUrl = toCanonicalUrl(url);
-  const cleanX = xAccount ? xAccount.replace(/^@/, "").trim() : "";
+  const cleanX = normalizeXAccount(xAccount);
 
   return {
     "@context": "https://schema.org",

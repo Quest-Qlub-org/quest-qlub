@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vite-plus/test";
-import { validateContactForm, validatePassword } from "./validation";
+import {
+  validateContactForm,
+  validatePassword,
+  normalizeHandle,
+  normalizeXAccount,
+} from "./validation";
 
 describe("validateContactForm", () => {
   const validInput = {
@@ -67,5 +72,15 @@ describe("validatePassword", () => {
     const result = validatePassword("");
     expect(result.isValid).toBe(false);
     expect(result.error).toBe("パスワードを入力してください");
+  });
+});
+
+describe("normalizeHandle / normalizeXAccount", () => {
+  it("strips leading @, whitespace, URL prefixes, and query/fragment parts", () => {
+    expect(normalizeHandle("  @quest_qlub  ")).toBe("quest_qlub");
+    expect(normalizeXAccount("https://x.com/quest_qlub?s=20")).toBe("quest_qlub");
+    expect(normalizeXAccount("https://twitter.com/@quest_qlub/status/123")).toBe("quest_qlub");
+    expect(normalizeHandle(null)).toBe("");
+    expect(normalizeHandle(undefined)).toBe("");
   });
 });

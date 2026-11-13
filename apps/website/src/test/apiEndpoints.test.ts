@@ -57,8 +57,8 @@ describe("api/article-ogp", () => {
     process.env = originalEnv;
   });
 
-  it("includes line, bluesky, mastodon, threads, applebot crawlers and excludes googlebot and bingbot in BOT_USER_AGENTS", () => {
-    expect(BOT_USER_AGENTS).toContain("line");
+  it("includes linespider/line-poker, bluesky, mastodon, threads, applebot crawlers and excludes generic line, googlebot, bingbot in BOT_USER_AGENTS (#126)", () => {
+    expect(BOT_USER_AGENTS).not.toContain("line");
     expect(BOT_USER_AGENTS).toContain("linespider");
     expect(BOT_USER_AGENTS).toContain("line-poker");
     expect(BOT_USER_AGENTS).toContain("bluesky");
@@ -69,6 +69,24 @@ describe("api/article-ogp", () => {
     expect(BOT_USER_AGENTS).not.toContain("googlebot");
     expect(BOT_USER_AGENTS).not.toContain("bingbot");
     expect(WRITER_BOT_USER_AGENTS).toEqual(BOT_USER_AGENTS);
+  });
+
+  it("redirects LINE in-app browser users to SPA instead of serving OGP HTML (#126)", async () => {
+    const req: any = {
+      query: { id: "article-line-webview" },
+      headers: {
+        "user-agent":
+          "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Safari Line/14.1.0",
+      },
+    };
+    const res = createMockRes();
+
+    await articleOgpHandler(req, res);
+
+    expect(res.statusCode).toBe(302);
+    expect(res.redirectUrl).toBe(
+      "https://quest-qlub.vercel.app/articles/article-line-webview?direct=1",
+    );
   });
 
   it("redirects normal browser user agents to SPA article route with direct parameter", async () => {
@@ -391,7 +409,7 @@ describe("api/sitemap", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockImplementation((url: string) => {
-        if (url.includes("articles?status=eq.published")) {
+        if (url.includes("/rest/v1/articles?")) {
           return Promise.resolve({
             ok: true,
             json: async () => mockArticles,
@@ -456,7 +474,7 @@ describe("api/sitemap", () => {
           });
         }
         // Second query without scheduled_at succeeds
-        if (url.includes("articles?status=eq.published&select=id,created_at")) {
+        if (url.includes("/rest/v1/articles?") && url.includes("select=id,created_at,updated_at")) {
           return Promise.resolve({
             ok: true,
             json: async () => fallbackArticles,
@@ -500,7 +518,7 @@ describe("api/sitemap", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockImplementation((url: string) => {
-        if (url.includes("articles?status=eq.published")) {
+        if (url.includes("/rest/v1/articles?")) {
           return Promise.resolve({
             ok: true,
             json: async () => mockArticles,
@@ -561,7 +579,7 @@ describe("api/sitemap", () => {
     ];
 
     const fetchMock = vi.fn().mockImplementation((url: string) => {
-      if (url.includes("articles?status=eq.published")) {
+      if (url.includes("/rest/v1/articles?")) {
         return Promise.resolve({ ok: true, json: async () => [] });
       }
       if (url.includes("/rest/v1/profiles?") && url.includes("roles.cs.")) {
@@ -596,7 +614,7 @@ describe("api/sitemap", () => {
     ];
 
     const fetchMock = vi.fn().mockImplementation((url: string) => {
-      if (url.includes("articles?status=eq.published")) {
+      if (url.includes("/rest/v1/articles?")) {
         return Promise.resolve({ ok: true, json: async () => [] });
       }
       if (url.includes("/rest/v1/profiles?") && url.includes("roles")) {
@@ -651,7 +669,7 @@ describe("api/sitemap", () => {
     ];
 
     const fetchMock = vi.fn().mockImplementation((url: string) => {
-      if (url.includes("articles?status=eq.published") && url.includes("updated_at")) {
+      if (url.includes("/rest/v1/articles?") && url.includes("updated_at")) {
         return Promise.resolve({ ok: true, json: async () => mockArticles });
       }
       if (url.includes("/rest/v1/profiles?")) {
@@ -680,7 +698,7 @@ describe("api/sitemap", () => {
     const res = createMockRes();
 
     const fetchMock = vi.fn().mockImplementation((url: string) => {
-      if (url.includes("articles?status=eq.published") && url.includes("scheduled_at")) {
+      if (url.includes("/rest/v1/articles?") && url.includes("scheduled_at")) {
         return Promise.resolve({
           ok: false,
           status: 400,
@@ -690,7 +708,7 @@ describe("api/sitemap", () => {
           }),
         });
       }
-      if (url.includes("articles?status=eq.published") && url.includes("updated_at")) {
+      if (url.includes("/rest/v1/articles?") && url.includes("updated_at")) {
         return Promise.resolve({
           ok: true,
           json: async () => [
@@ -715,6 +733,39 @@ describe("api/sitemap", () => {
     expect(res.body).toContain(
       "<loc>https://quest-qlub.vercel.app/articles/art-prod-updated</loc>\n    <lastmod>2026-10-28</lastmod>",
     );
+  });
+
+  it("queries due scheduled articles (status=scheduled & scheduled_at <= now) in sitemap (#126)", async () => {
+    const req: any = { query: {}, headers: {} };
+    const res = createMockRes();
+
+    let capturedArticleUrl = "";
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.includes("/rest/v1/articles?")) {
+        capturedArticleUrl = url;
+        return Promise.resolve({
+          ok: true,
+          json: async () => [
+            {
+              id: "art-due-sched",
+              created_at: "2026-10-10T10:00:00Z",
+              scheduled_at: "2026-10-12T10:00:00Z",
+            },
+          ],
+        });
+      }
+      if (url.includes("/rest/v1/profiles?")) {
+        return Promise.resolve({ ok: true, json: async () => [] });
+      }
+      return Promise.resolve({ ok: false, json: async () => [] });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await sitemapHandler(req, res);
+
+    expect(capturedArticleUrl).toContain("status.eq.scheduled");
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain("<loc>https://quest-qlub.vercel.app/articles/art-due-sched</loc>");
   });
 });
 
@@ -890,6 +941,9 @@ describe("vercel.json routing config", () => {
 
     for (const rewrite of [articleRewrite, writerRewrite]) {
       const uaRule = rewrite?.has?.find((h: any) => h.key === "user-agent");
+      expect(uaRule?.value).toContain("linespider");
+      expect(uaRule?.value).toContain("line-poker");
+      expect(uaRule?.value).not.toContain("|line|");
       expect(uaRule?.value).toContain("bluesky");
       expect(uaRule?.value).toContain("mastodon");
       expect(uaRule?.value).toContain("threads");

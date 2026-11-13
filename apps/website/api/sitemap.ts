@@ -1,67 +1,11 @@
-export interface VercelRequest {
-  query: Record<string, string | string[] | undefined>;
-  headers: Record<string, string | string[] | undefined>;
-}
-
-export interface VercelResponse {
-  status(code: number): VercelResponse;
-  send(body: string): VercelResponse;
-  setHeader(name: string, value: string): VercelResponse;
-  redirect(status: number, url: string): VercelResponse;
-}
-
-declare const process: {
-  env: Record<string, string | undefined>;
-};
-
-function getSiteUrl(): string {
-  const raw = process.env.SITE_URL || "https://quest-qlub.vercel.app";
-  return raw.replace(/\/+$/, "");
-}
-
-function getSupabaseConfig() {
-  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
-  const key = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || "";
-  return { url, key };
-}
-
-function escapeXml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
-
-function formatDate(dateStr?: string | null): string {
-  if (!dateStr) return new Date().toISOString().split("T")[0];
-  try {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return new Date().toISOString().split("T")[0];
-    return d.toISOString().split("T")[0];
-  } catch {
-    return new Date().toISOString().split("T")[0];
-  }
-}
-
-interface StaticPage {
-  loc: string;
-  changefreq: string;
-  priority: string;
-}
-
-function getStaticPages(siteUrl: string): StaticPage[] {
-  return [
-    { loc: `${siteUrl}/`, changefreq: "daily", priority: "1.0" },
-    { loc: `${siteUrl}/writers`, changefreq: "weekly", priority: "0.8" },
-    { loc: `${siteUrl}/about`, changefreq: "monthly", priority: "0.5" },
-    { loc: `${siteUrl}/contact`, changefreq: "monthly", priority: "0.5" },
-    { loc: `${siteUrl}/writer-apply`, changefreq: "monthly", priority: "0.5" },
-    { loc: `${siteUrl}/terms`, changefreq: "yearly", priority: "0.3" },
-    { loc: `${siteUrl}/privacy`, changefreq: "yearly", priority: "0.3" },
-  ];
-}
+import {
+  buildPublishedOrDueFilter,
+  escapeXml,
+  getSiteUrl,
+  getSupabaseConfig,
+  type VercelRequest,
+  type VercelResponse,
+} from "./_shared";
 
 interface DbArticle {
   id: string;
@@ -94,9 +38,40 @@ function isSitemapWriterProfile(profile: DbProfile | null | undefined): boolean 
   return profile.role === undefined && profile.roles === undefined;
 }
 
+interface StaticPage {
+  loc: string;
+  changefreq: string;
+  priority: string;
+}
+
+function getStaticPages(siteUrl: string): StaticPage[] {
+  return [
+    { loc: `${siteUrl}/`, changefreq: "daily", priority: "1.0" },
+    { loc: `${siteUrl}/writers`, changefreq: "weekly", priority: "0.8" },
+    { loc: `${siteUrl}/about`, changefreq: "monthly", priority: "0.5" },
+    { loc: `${siteUrl}/contact`, changefreq: "monthly", priority: "0.5" },
+    { loc: `${siteUrl}/writer-apply`, changefreq: "monthly", priority: "0.5" },
+    { loc: `${siteUrl}/terms`, changefreq: "yearly", priority: "0.3" },
+    { loc: `${siteUrl}/privacy`, changefreq: "yearly", priority: "0.3" },
+  ];
+}
+
+function formatDate(dateStr?: string | null): string {
+  if (!dateStr) return new Date().toISOString().split("T")[0];
+  try {
+    const d = new Date(dateStr);
+    if (Number.isNaN(d.getTime())) return new Date().toISOString().split("T")[0];
+    return d.toISOString().split("T")[0];
+  } catch {
+    return new Date().toISOString().split("T")[0];
+  }
+}
+
 export default async function handler(_req: VercelRequest, res: VercelResponse) {
   const siteUrl = getSiteUrl();
   const nowMs = Date.now();
+  const nowIso = new Date(nowMs).toISOString();
+
   let articles: DbArticle[] = [];
   let writers: DbProfile[] = [];
 
@@ -104,13 +79,14 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
 
   if (supabaseUrl && supabaseAnonKey) {
     try {
-      // 1. 公開記事を取得 (scheduled_at / updated_at カラムが存在する場合)
+      // 1. 公開記事および公開時刻到来済み予約記事を取得 (scheduled_at / updated_at カラムが存在する場合)
       const articleHeaders = {
         apikey: supabaseAnonKey,
         Authorization: `Bearer ${supabaseAnonKey}`,
       };
+      const publishedOrDueFilter = buildPublishedOrDueFilter(nowIso);
       let articlesRes = await fetch(
-        `${supabaseUrl}/rest/v1/articles?status=eq.published&select=id,created_at,scheduled_at,updated_at&order=created_at.desc&limit=5000`,
+        `${supabaseUrl}/rest/v1/articles?${publishedOrDueFilter}&select=id,created_at,scheduled_at,updated_at&order=created_at.desc&limit=5000`,
         { headers: articleHeaders },
       );
 

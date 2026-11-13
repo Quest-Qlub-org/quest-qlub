@@ -35,6 +35,20 @@ export function validateContactForm(input: ContactFormInput): {
   return { isValid: true };
 }
 
+export function normalizeHandle(raw: string | null | undefined): string {
+  if (!raw) return "";
+  return raw
+    .trim()
+    .replace(/^https?:\/\/(www\.)?(x|twitter)\.com\//i, "")
+    .split(/[/?#]/)[0]
+    .replace(/^@+/, "")
+    .trim();
+}
+
+export function normalizeXAccount(raw: string | null | undefined): string {
+  return normalizeHandle(raw);
+}
+
 export const MIN_PASSWORD_LENGTH = 8;
 
 export function validatePassword(password: string): {

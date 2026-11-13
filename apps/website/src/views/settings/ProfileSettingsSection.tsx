@@ -6,6 +6,7 @@ import type { Profile } from "../../supabase";
 import { fetchFollowCounts, fetchFollowDetails } from "../../hooks/useFollows";
 import { useFocusTrap } from "../../hooks/useFocusTrap";
 import { CustomUserIcon } from "../../components/icons/NavIcons";
+import { normalizeHandle, normalizeXAccount } from "../../utils/validation";
 
 function notifyProfileUpdated() {
   if (typeof window !== "undefined") {
@@ -432,15 +433,6 @@ function DisplayNameEdit({
   );
 }
 
-function normalizeHandle(raw: string): string {
-  return raw
-    .trim()
-    .replace(/^https?:\/\/(www\.)?(x|twitter)\.com\//i, "")
-    .split(/[/?#]/)[0]
-    .replace(/^@/, "")
-    .trim();
-}
-
 function UsernameEdit({
   profile,
   setProfile,
@@ -531,11 +523,11 @@ function UsernameEdit({
       ) : (
         <div className="flex items-center justify-between">
           <p className="font-bold text-gray-800 dark:text-gray-200">
-            {profile?.username ? `@${profile.username.replace(/^@/, "")}` : "（未設定）"}
+            {profile?.username ? `@${normalizeHandle(profile.username)}` : "（未設定）"}
           </p>
           <button
             onClick={() => {
-              setUname((profile?.username ?? "").replace(/^@/, ""));
+              setUname(normalizeHandle(profile?.username));
               setEditing(true);
             }}
             className="text-xs text-blue-500 dark:text-blue-400 font-bold underline"
@@ -650,7 +642,7 @@ function XAccountEdit({
   setWriters?: React.Dispatch<React.SetStateAction<Profile[]>>;
   showToast: (msg: string) => void;
 }) {
-  const currentXHandle = (profile?.x_account ?? "").replace(/^@/, "");
+  const currentXHandle = normalizeXAccount(profile?.x_account);
   const [editing, setEditing] = useState(false);
   const [handle, setHandle] = useState(currentXHandle);
   const [saving, setSaving] = useState(false);
@@ -658,7 +650,7 @@ function XAccountEdit({
 
   const handleSave = async () => {
     if (!profile) return;
-    const cleanHandle = normalizeHandle(handle);
+    const cleanHandle = normalizeXAccount(handle);
     if (cleanHandle && !/^[a-zA-Z0-9_]{1,15}$/.test(cleanHandle)) {
       setErr("半角英数字・アンダースコアのみ。1〜15文字で入力してください");
       return;

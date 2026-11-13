@@ -82,7 +82,7 @@
         {
           "type": "header",
           "key": "user-agent",
-          "value": "(?i).*(twitterbot|facebookexternalhit|facebot|slackbot|linkedinbot|discordbot|whatsapp|telegrambot|pinterest|line|linespider|line-poker|bluesky|cardyb|mastodon|threads|applebot).*"
+          "value": "(?i).*(twitterbot|facebookexternalhit|facebot|slackbot|linkedinbot|discordbot|whatsapp|telegrambot|pinterest|linespider|line-poker|bluesky|cardyb|mastodon|threads|applebot).*"
         }
       ],
       "missing": [
@@ -99,7 +99,7 @@
         {
           "type": "header",
           "key": "user-agent",
-          "value": "(?i).*(twitterbot|facebookexternalhit|facebot|slackbot|linkedinbot|discordbot|whatsapp|telegrambot|pinterest|line|linespider|line-poker|bluesky|cardyb|mastodon|threads|applebot).*"
+          "value": "(?i).*(twitterbot|facebookexternalhit|facebot|slackbot|linkedinbot|discordbot|whatsapp|telegrambot|pinterest|linespider|line-poker|bluesky|cardyb|mastodon|threads|applebot).*"
         }
       ],
       "missing": [
