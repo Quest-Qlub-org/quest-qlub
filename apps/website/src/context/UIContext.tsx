@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
 
 export type ThemeMode = "light" | "dark" | "system";
 
@@ -37,17 +37,33 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
     return "system";
   });
   const [systemDark, setSystemDark] = useState<boolean>(getSystemPrefersDark);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showToast = useCallback((message: string) => {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
     setToastMessage(message);
-    const timer = setTimeout(() => {
+    toastTimerRef.current = setTimeout(() => {
       setToastMessage("");
+      toastTimerRef.current = null;
     }, 4000);
-    return () => clearTimeout(timer);
   }, []);
 
   const hideToast = useCallback(() => {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = null;
+    }
     setToastMessage("");
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+      }
+    };
   }, []);
 
   useEffect(() => {

@@ -5,9 +5,10 @@ import { ArticleCard } from "../components/ArticleCard";
 import { ArticleCardSkeleton } from "../components/Skeleton";
 import { supabase } from "../supabase";
 import type { Article } from "../types";
-import { mapDbArticleToArticle } from "../types";
+import { ARTICLE_LIST_FIELDS } from "../context/DataContext";
 import { updateMetaTags } from "../utils/seo";
-import { isArticlePubliclyVisible } from "../utils/scheduledArticles";
+import { isArticlePubliclyVisible, mapDbArticleWithSchedule } from "../utils/scheduledArticles";
+import { isArticleOptionalColumnSchemaError } from "../utils/supabaseErrors";
 
 export const FavoritesView = () => {
   const { articles, articlesLoading, favorites, navigate, userRole, authLoading } = useApp();
@@ -35,16 +36,28 @@ export const FavoritesView = () => {
     const fetchMissingFavorites = async () => {
       setFetchingExtra(true);
       try {
-        const { data, error } = await supabase
+        let { data, error } = await supabase
           .from("articles")
-          .select(
-            "id, title, thumbnail, thumbnail_url, thumbnail_color, writer_id, views, likes, tags, is_recommended, is_popular, status, summary, series_id, episode_number, created_at",
-          )
+          .select(`${ARTICLE_LIST_FIELDS}, scheduled_at`)
           .in("id", missingIds)
-          .eq("status", "published");
+          .in("status", ["published", "scheduled"]);
+
+        if (error && isArticleOptionalColumnSchemaError(error)) {
+          const fallbackRes = await supabase
+            .from("articles")
+            .select(ARTICLE_LIST_FIELDS)
+            .in("id", missingIds)
+            .eq("status", "published");
+          data = fallbackRes.data;
+          error = fallbackRes.error;
+        }
 
         if (isMounted && data && !error) {
-          setExtraFavArticles(data.map(mapDbArticleToArticle));
+          setExtraFavArticles(
+            (data as Parameters<typeof mapDbArticleWithSchedule>[0][])
+              .map(mapDbArticleWithSchedule)
+              .filter((a) => isArticlePubliclyVisible(a)),
+          );
         }
       } catch (e) {
         console.error("Failed to fetch missing favorite articles", e);

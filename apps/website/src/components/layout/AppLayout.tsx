@@ -112,7 +112,7 @@ export function AppLayout() {
           tabIndex={-1}
           className="max-w-6xl mx-auto flex-1 w-full min-w-0 focus:outline-none"
         >
-          <ErrorBoundary>
+          <ErrorBoundary resetKey={location.pathname}>
             <Suspense
               fallback={
                 <div className="flex items-center justify-center min-h-[50vh]">

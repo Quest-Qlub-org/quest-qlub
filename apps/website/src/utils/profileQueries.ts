@@ -36,8 +36,14 @@ export async function fetchProfilesListWithFallback(
 ): Promise<Profile[] | null> {
   const buildQuery = (selectFields: string) => {
     let query: any = supabase.from("profiles").select(selectFields);
-    if (options.inRole && options.inRole.length > 0 && typeof query.in === "function") {
-      query = query.in("role", options.inRole);
+    if (options.inRole && options.inRole.length > 0) {
+      if (selectFields === PROFILE_SELECT_FIELDS_WITH_ROLES && typeof query.or === "function") {
+        const roleList = options.inRole.join(",");
+        const rolesConditions = options.inRole.map((r) => `roles.cs.{${r}}`).join(",");
+        query = query.or(`role.in.(${roleList}),${rolesConditions}`);
+      } else if (typeof query.in === "function") {
+        query = query.in("role", options.inRole);
+      }
     }
     if (options.inIds && options.inIds.length > 0 && typeof query.in === "function") {
       query = query.in("id", options.inIds);

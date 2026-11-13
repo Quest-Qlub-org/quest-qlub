@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { CustomUserIcon, CustomSearchIcon } from "../components/icons/NavIcons";
@@ -14,6 +14,7 @@ import { supabase } from "../supabase";
 import type { Profile } from "../supabase";
 import { fetchProfilesListWithFallback } from "../utils/profileQueries";
 import { ARTICLE_LIST_FIELDS } from "../context/DataContext";
+import { isArticleOptionalColumnSchemaError } from "../utils/supabaseErrors";
 
 const SEARCH_ARTICLE_FIELDS =
   "id, title, content, summary, thumbnail, thumbnail_url, thumbnail_color, writer_id, views, likes, tags, is_recommended, is_popular, status, series_id, episode_number, created_at";
@@ -34,6 +35,7 @@ export const SearchView = () => {
   const [serverResults, setServerResults] = useState<Article[] | null>(null);
   const [isLoadingServerResults, setIsLoadingServerResults] = useState(false);
   const [visibleCount, setVisibleCount] = useState(12);
+  const skipUrlTagResetRef = useRef(false);
 
   useEffect(() => {
     updateMetaTags({
@@ -44,15 +46,15 @@ export const SearchView = () => {
   }, []);
 
   useEffect(() => {
-    if (urlTag) {
-      setSelectedTags([urlTag]);
+    if (skipUrlTagResetRef.current) {
+      skipUrlTagResetRef.current = false;
+      return;
     }
+    setSelectedTags(urlTag ? [urlTag] : []);
   }, [urlTag]);
 
   useEffect(() => {
-    if (urlQ) {
-      setKeyword(urlQ);
-    }
+    setKeyword(urlQ ?? "");
   }, [urlQ]);
 
   useEffect(() => {
@@ -121,21 +123,43 @@ export const SearchView = () => {
 
     const timer = setTimeout(async () => {
       try {
-        const selectFields = queryKeywords.length > 0 ? SEARCH_ARTICLE_FIELDS : ARTICLE_LIST_FIELDS;
+        const baseSelectFields =
+          queryKeywords.length > 0 ? SEARCH_ARTICLE_FIELDS : ARTICLE_LIST_FIELDS;
         const articlesTable: any = supabase.from("articles");
-        let query = articlesTable
-          .select(selectFields)
-          .eq("status", "published")
-          .order("created_at", { ascending: false });
 
-        if (selectedWriterIds.length > 0) {
-          query = query.in("writer_id", selectedWriterIds);
-        }
-        if (selectedTags.length > 0) {
-          query = query.overlaps("tags", selectedTags);
-        }
+        const runQuery = (fields: string, useCollabOr: boolean) => {
+          let query = articlesTable
+            .select(fields)
+            .eq("status", "published")
+            .order("created_at", { ascending: false });
 
-        const { data, error } = await query;
+          if (selectedWriterIds.length > 0) {
+            if (useCollabOr && typeof query.or === "function") {
+              const writerIn = `writer_id.in.(${selectedWriterIds.join(",")})`;
+              const collabConditions = selectedWriterIds
+                .map((id) => `collaborator_ids.cs.{"${id}"}`)
+                .join(",");
+              query = query.or(`${writerIn},${collabConditions}`);
+            } else if (typeof query.in === "function") {
+              query = query.in("writer_id", selectedWriterIds);
+            }
+          }
+          if (selectedTags.length > 0 && typeof query.overlaps === "function") {
+            query = query.overlaps("tags", selectedTags);
+          }
+          return query;
+        };
+
+        const canAttemptCollab = selectedWriterIds.length > 0;
+        let { data, error } = await runQuery(
+          canAttemptCollab ? `${baseSelectFields}, collaborator_ids` : baseSelectFields,
+          canAttemptCollab,
+        );
+        if (error && canAttemptCollab && isArticleOptionalColumnSchemaError(error)) {
+          const fallbackRes = await runQuery(baseSelectFields, false);
+          data = fallbackRes.data;
+          error = fallbackRes.error;
+        }
         if (!isMounted) return;
 
         if (!error && Array.isArray(data)) {
@@ -201,7 +225,12 @@ export const SearchView = () => {
 
       if (selectedTags.length > 0 && !selectedTags.some((t) => (a.tags ?? []).includes(t)))
         return false;
-      if (selectedWriterIds.length > 0 && !selectedWriterIds.includes(a.writerId)) return false;
+      if (
+        selectedWriterIds.length > 0 &&
+        !selectedWriterIds.includes(a.writerId) &&
+        !(a.collaboratorIds ?? []).some((id) => selectedWriterIds.includes(id))
+      )
+        return false;
       return true;
     });
   }, [articles, effectiveWriters, queryKeywords, selectedTags, selectedWriterIds, serverResults]);
@@ -214,6 +243,7 @@ export const SearchView = () => {
     setSelectedTags((prev) => {
       const next = prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag];
       if (searchParams.get("tag") === tag && !next.includes(tag)) {
+        skipUrlTagResetRef.current = true;
         const nextParams = new URLSearchParams(searchParams);
         nextParams.delete("tag");
         setSearchParams(nextParams, { replace: true });
