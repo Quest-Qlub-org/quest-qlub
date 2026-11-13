@@ -1,6 +1,6 @@
 # スキーマ・マイグレーションの現状記録
 
-最終更新: 2026-11-12
+最終更新: 2026-11-13
 
 このドキュメントは、Supabase の実DB（本番プロジェクト `uksgnlfnxytqljrctiqg`）と
 `supabase/migrations/` の間の差分、および未適用のマイグレーションを記録する。
@@ -135,13 +135,21 @@ DB の `supabase_migrations.schema_migrations` に記録済みのバージョン
     - `profiles.roles` 配列導入後、下書き閲覧（`articles_select_own_drafts`）や更新（`articles_update_own_articles`）の RLS ポリシーは roles 配列を考慮するよう更新されていたが、記事の作成（`articles_insert_writer_or_editor`）および削除（`articles_delete_own_articles`）ポリシーが旧来の `profiles.role IN ('writer', 'editor')` のまま残存していた。
     - 主ロールが `engineer` や `viewer` であり、`roles` 配列に `writer` または `editor` を保持しているアカウントが記事作成（INSERT）や自記事削除（DELETE）を行った際に RLS 違反（42501 `permission denied`）で拒否される不具合を根本解消。
     - `articles_insert_writer_or_editor` および `articles_delete_own_articles` の認可条件に `'writer' = ANY(COALESCE(profiles.roles, '{}'::text[])) OR 'editor' = ANY(COALESCE(profiles.roles, '{}'::text[]))` を追加。本番実DB（`uksgnlfnxytqljrctiqg`）へ適用・検証完了。
-- `20261111205500_harden_collaborator_permissions_and_comments.sql`（未適用・次回デプロイ / Issue #71）
+- `20261111205500_harden_collaborator_permissions_and_comments.sql`（未適用だった差分は `20261113120000` へ統合同期）
   - **共同編集者の collaborator_ids 改ざん防止 & コメント削除権限付与**:
     - トリガー関数 `enforce_article_update_rules()` および `enforce_series_update_rules()` を更新し、主作成者（`writer_id`）以外の共同編集者が更新した際に `NEW.collaborator_ids := OLD.collaborator_ids;` を強制。主作成者または編集長のみが共同編集者を変更できるようにガードを追加。
     - `article_comments_delete` RLS ポリシーに共同編集者（`(auth.uid())::text = ANY(COALESCE(articles.collaborator_ids, '{}'::text[]))`）を追加し、共同執筆記事に対するコメント削除（モデレーション）を共同編集者にも許可。
     - `article_comments_select_staff` RLS ポリシーにも同様に共同編集者を追加し、コメント機能オフ時の整合性を担保。
 
-## 次回マイグレーション計画（起票済み Issue #78, #79, #80, #85）
+- `20261113120000_comprehensive_security_performance_and_schema_sync.sql`（本番DB `uksgnlfnxytqljrctiqg` 部分適用済み / Issue #122, #135）
+  - **外部キーインデックス追加 & パフォーマンス最適化（Issue #135）**:
+    - 欠落していた外部キーインデックスを追加: `articles_series_id_idx` (`articles(series_id)`), `favorites_article_id_idx` (`favorites(article_id)`), `series_writer_id_idx` (`series(writer_id)`)。
+    - 全 RLS ポリシー内の `auth.uid()` / `auth.role()` 呼び出しを `(select auth.uid())` 形式へ最適化し、`get_advisors` 上で `unindexed_foreign_keys` 0 件・`auth_rls_initplan` 0 件を確認済み。
+  - **スキーマ同期 & セキュリティ強化（Issue #122）**:
+    - `profiles.roles` 配列、`articles.scheduled_at` / `collaborator_ids`、`series.collaborator_ids`、`user_follows` 権限・RLS、`contact_messages` / `comment_edit_history` / `mfa_backup_codes` / `storage.objects` のハードニングを統合。
+    - **手動実行が残るステートメント**: MCP SQL クライアントの仕様により `DELETE` / `DROP` を含む一部ステートメント（不要関数/ポリシーの `DROP FUNCTION` / `DROP POLICY`、および `mfa_backup_codes` / `auth.mfa_factors` 関連の `DELETE` を含む関数再定義など）は自動キャンセルされたため、同マイグレーションファイル内の該当 SQL を Supabase Dashboard SQL Editor（または `supabase db push`）から手動適用する必要がある（詳細は Issue #122 コメントを参照）。
+
+## 過去の計画メモ（`20261113120000` へ統合された Issue #78, #79, #80, #85）
 
 - **Issue #78: `comment_edit_history` の直接 INSERT 権限剥奪および閲覧制限ポリシー改修**:
   - **背景・課題**: `comment_edit_history` テーブルには DB トリガー `trg_enforce_comment_update_rules`（SECURITY DEFINER）による自動挿入が行われるが、`comment_edit_history_insert` ポリシーおよび INSERT 権限がクライアント（`authenticated`）に残存しているため、PostgREST 経由で直接 INSERT を実行して過去の編集履歴やタイムスタンプを捏造できる脆弱性が存在する。また、SELECT ポリシーが `USING (true)` となっており、記事の `comments_enabled = false` 設定時にも履歴が漏洩する。
@@ -167,12 +175,8 @@ DB の `supabase_migrations.schema_migrations` に記録済みのバージョン
 
 ## セキュリティ強化（コード・Edge Function）
 
-- **S4**: `send-contact-email` の CORS 許可リストを厳格化。任意の `*.vercel.app`
-  のうち `share-quest` を含むものを許可する条件を廃止し、明示的な許可オリジン
-  （`share-quest.vercel.app` / `quest-qlub.vercel.app` / localhost）＋このプロジェクト
-  自身の Vercel プレビュー（`quest-qlub*` に一致）のみ許可。`Vary: Origin` を付与。
-  Edge Function へデプロイ済み（version 7）。
-- **S6**: OGP エンドポイントの入力検証・フォールバック修正（デプロイ済み）。
+- **S4**: `send-contact-email` の CORS 許可リストを厳格化し、メールヘッダインジェクション対策（CR/LF 除去）やプロキシヘッダに基づくクライアント IP のレート制限・入力検証を強化。Supabase Edge Function へデプロイ済み（version 8 / `ACTIVE`, `verify_jwt: true` / Issue #123）。
+- **S6**: OGP / sitemap エンドポイント（`apps/website/api/_shared.ts`, `article-ogp.ts`, `writer-ogp.ts`, `sitemap.ts`）の共有化、予約投稿記事の公開判定（`buildPublishedOrDueFilter` + 42703 フォールバック）、Bot UA 誤マッチ修正を実施。
 
 ## 依存関係のバージョン状況（Dependabot & ツールチェーン）
 

@@ -145,13 +145,23 @@ apps/website/src/
 │   ├── profileQueries.ts      # スキーマ耐障害性対応プロフィール取得
 │   ├── roles.ts               # 複数ロール判定・優先順位・ラベル定義
 │   ├── sanitize.ts            # DOMPurify 記事本文サニタイズ
-│   ├── scheduledArticles.ts   # 予約投稿ローカル退避 & 日時判定
+│   ├── scheduledArticles.ts   # 予約投稿ローカル退避 & 日時判定 & DB記事マッピング
 │   ├── seo.ts                 # OGP・メタタグ動的更新
 │   ├── seriesOverrides.ts     # 連載ローカル退避ユーティリティ
 │   ├── supabaseErrors.ts      # PostgREST スキーマエラー判定
-│   └── validation.ts          # 入力バリデーション関数
+│   └── validation.ts          # 入力バリデーション & ハンドル正規化関数
 ├── types/                     # 共通型定義（Article, Profile, Series 等）
 └── test/                      # テスト共通基盤（test-utils.tsx, apiEndpoints 等）
+```
+
+Vercel Serverless Functions（`apps/website/api/`）：
+
+```text
+apps/website/api/
+├── _shared.ts                 # 共通環境変数・CORS/エスケープ・公開記事フィルタヘルパー
+├── article-ogp.ts             # 記事 OGP HTML 生成
+├── writer-ogp.ts              # ライター OGP HTML 生成
+└── sitemap.ts                 # 動的サイトマップ XML 生成
 ```
 
 バックエンド・データベース構成：
@@ -231,11 +241,8 @@ docs/
 - **Sudo Mode（ステップアップ再認証 + MFA一気通貫）**:
   - ライターおよび編集長専用ダッシュボード（`/writer-dash/*`, `/editor-dash/*`）へのアクセスには、端末放置やセッション乗っ取りを防止するための Sudo Mode が必須です。
   - **メモリ内プライベート認可 (`inMemorySudoAuthorized`)**: ブラウザの DevTools やストレージ改ざんによる権限バイパスを遮断するため、Sudo 認可フラグはメモリ内変数としてのみ保持されます。
-  - **Leave-to-Lock 原則**: 管理エリアから一般画面等へアンマウント離脱した際、Sudo 認可は即座に自動失効します。ただし、Sudo 再認証に伴う一時的な 2FA チャレンジ（`mfaChallengeRequired` または MFA ハンドシェイク猶予 `SUDO_MFA_HANDSHAKE_GRACE_MS`）によるアンマウント時は失効させず維持されます。
-  - **注意（管理画面内サブページ遷移時の失効リスクと Layout Route 推奨）**:
-    - 現在の実装では `App.tsx` の各管理ルートに個別の `<RoleRoute>` がマウントされているため、同一管理エリア内のサブページ間移動（例: `/writer-dash` から `/writer-dash/series` 等）でも以前の `RoleRoute` のアンマウントにより Leave-to-Lock クリーンアップが発火し、Sudo 認可が意図せず失効してしまう UX 課題が存在します（Issue #84）。
-    - そのため、管理エリアのルーティングは将来的に共通の Layout Route（`<RoleRoute><Outlet /></RoleRoute>`）として階層化し、管理エリア内でのサブページ移動ではアンマウントが発生しない構造へリファクタリングすることが強く推奨されます。
-  - Sudo タイムアウトは 15 分（`SUDO_TIMEOUT_MS = 15 * 60 * 1000`）です。
+  - **Leave-to-Lock 原則と共通 Layout Route (`SudoAreaLayout`)**: 管理エリアから一般画面等へアンマウント離脱した際、Sudo 認可は即座に自動失効します。`App.tsx` では `/writer-dash/*` と `/editor-dash/*` を `<SudoAreaLayout />`（`<RoleRoute allowedRoles={["writer", "editor"]}><Outlet /></RoleRoute>`）で階層化しているため、管理エリア内のサブページ移動で Sudo 認可が意図せず失効することはありません。また、Sudo 再認証に伴う一時的な 2FA チャレンジ（`mfaChallengeRequired` または MFA ハンドシェイク猶予 `SUDO_MFA_HANDSHAKE_GRACE_MS`）によるアンマウント時も失効させず維持されます。
+  - Sudo タイムアウトは 15 分（`SUDO_TIMEOUT_MS = 15 * 60 * 1000`）であり、タイムアウト到達時には自動ロックタイマーによって認可が失効します。
 - **XSS の防止**:
   - 記事本文など動的な HTML をブラウザにレンダリングする際は、**必ず `utils/sanitize.ts` の `sanitizeHtml`（DOMPurify 許可リスト）を通してください**。サニタイズを経由しない `dangerouslySetInnerHTML` は禁止です。
 - **ロール権限の改ざん防止**:
