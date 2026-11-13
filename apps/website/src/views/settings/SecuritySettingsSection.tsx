@@ -298,6 +298,7 @@ export function SecuritySettingsSection({ showToast }: { showToast: (msg: string
                 <input
                   id="security-new-password-input"
                   type="password"
+                  autoComplete="new-password"
                   required
                   aria-required="true"
                   aria-invalid={Boolean(passwordError)}
@@ -323,6 +324,7 @@ export function SecuritySettingsSection({ showToast }: { showToast: (msg: string
                 <input
                   id="security-confirm-password-input"
                   type="password"
+                  autoComplete="new-password"
                   required
                   aria-required="true"
                   aria-invalid={Boolean(passwordError)}
@@ -510,9 +512,11 @@ export function SecuritySettingsSection({ showToast }: { showToast: (msg: string
                     </div>
                   </div>
                   <button
+                    type="button"
                     onClick={() => void handleDeletePasskey(pk.id)}
                     disabled={deletingPasskeyId === pk.id}
                     title="パスキーを削除"
+                    aria-label={`パスキー「${pk.friendly_name || "パスキー"}」を削除`}
                     className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-red-500 rounded-md hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors disabled:opacity-50 flex-shrink-0"
                   >
                     {deletingPasskeyId === pk.id ? (

@@ -150,6 +150,7 @@ export const ForgotPasswordView = () => {
             <input
               id="forgot-password-email"
               type="email"
+              autoComplete="email"
               required
               aria-required="true"
               aria-invalid={Boolean(error)}

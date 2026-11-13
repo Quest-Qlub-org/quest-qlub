@@ -250,6 +250,7 @@ export function EditorWritersView() {
         <button
           type="button"
           onClick={() => nav(-1)}
+          aria-label="戻る"
           className="p-2 bg-white dark:bg-gray-700 rounded-full shadow-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200"
         >
           <ChevronLeft className="w-5 h-5" />
@@ -263,10 +264,17 @@ export function EditorWritersView() {
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm space-y-3">
-        <p className="font-bold text-gray-800 dark:text-gray-100 text-sm">メアドでライターに昇格</p>
+        <label
+          htmlFor="promote-writer-email"
+          className="block font-bold text-gray-800 dark:text-gray-100 text-sm"
+        >
+          メアドでライターに昇格
+        </label>
         <div className="flex flex-col sm:flex-row gap-2">
           <input
+            id="promote-writer-email"
             type="email"
+            autoComplete="email"
             placeholder="メールアドレス"
             value={newEmail}
             onChange={(e) => setNewEmail(e.target.value)}
@@ -288,7 +296,11 @@ export function EditorWritersView() {
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm space-y-2">
         <p className="font-bold text-gray-800 dark:text-gray-100 text-sm">絞り込み</p>
         <div className="flex flex-col sm:flex-row gap-2">
+          <label htmlFor="writers-search-input" className="sr-only">
+            名前・ID・メールアドレスで検索
+          </label>
           <input
+            id="writers-search-input"
             type="text"
             placeholder="名前・ID・メアドで検索"
             value={searchEmail}
@@ -296,7 +308,11 @@ export function EditorWritersView() {
             className="flex-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 min-w-0"
           />
           <div className="flex gap-2">
+            <label htmlFor="writers-role-filter" className="sr-only">
+              ロールで絞り込み
+            </label>
             <select
+              id="writers-role-filter"
               value={searchRole}
               onChange={(e) => setSearchRole(e.target.value)}
               className="flex-1 sm:flex-initial border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
@@ -403,6 +419,7 @@ export function EditorWritersView() {
                       <div className="inline-flex items-center gap-1">
                         <input
                           type="text"
+                          aria-label={`${w.display_name || w.username || "ユーザー"}のカスタムロール名`}
                           data-testid={`custom-role-input-${w.id}`}
                           placeholder="例: designer / 広報"
                           value={customRoleInputs[w.id] || ""}
@@ -428,6 +445,7 @@ export function EditorWritersView() {
                         <button
                           type="button"
                           onClick={() => setOpenCustomInputId(null)}
+                          aria-label="カスタムロール追加を閉じる"
                           className="text-xs px-1.5 py-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 cursor-pointer"
                         >
                           <X className="w-3.5 h-3.5" />
@@ -448,6 +466,7 @@ export function EditorWritersView() {
 
                 <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
                   <select
+                    aria-label={`${w.display_name || w.username || "ユーザー"}の基本ロール`}
                     data-testid={`role-select-${w.id}`}
                     value={w.role}
                     onChange={(e) =>

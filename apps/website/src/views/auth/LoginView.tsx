@@ -438,6 +438,7 @@ export const LoginView = () => {
             <input
               id="login-email"
               type="email"
+              autoComplete="email"
               required
               aria-required="true"
               aria-invalid={Boolean(error)}
@@ -455,6 +456,7 @@ export const LoginView = () => {
             <input
               id="login-password"
               type="password"
+              autoComplete="current-password"
               required
               aria-required="true"
               aria-invalid={Boolean(error)}

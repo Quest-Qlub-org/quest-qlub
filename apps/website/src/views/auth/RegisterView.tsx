@@ -147,6 +147,7 @@ export const RegisterView = () => {
             <input
               id="register-display-name"
               type="text"
+              autoComplete="name"
               required
               aria-required="true"
               aria-invalid={Boolean(error)}
@@ -164,6 +165,7 @@ export const RegisterView = () => {
             <input
               id="register-username"
               type="text"
+              autoComplete="username"
               aria-invalid={Boolean(error)}
               aria-describedby={error ? "register-error" : undefined}
               placeholder="ユーザー名（英数字・アンダースコアのみ）"
@@ -179,6 +181,7 @@ export const RegisterView = () => {
             <input
               id="register-email"
               type="email"
+              autoComplete="email"
               required
               aria-required="true"
               aria-invalid={Boolean(error)}
@@ -196,6 +199,7 @@ export const RegisterView = () => {
             <input
               id="register-password"
               type="password"
+              autoComplete="new-password"
               required
               aria-required="true"
               aria-invalid={Boolean(error)}

@@ -410,7 +410,9 @@ export const WriterSeriesPage = () => {
     <div className="max-w-5xl mx-auto p-4 md:p-8 animate-in slide-in-from-right-8 duration-300">
       <div className="-mx-4 md:mx-0 -mt-4 md:mt-0 px-4 md:px-6 md:rounded-xl bg-white dark:bg-gray-800 border-b md:border border-gray-200 dark:border-gray-700 py-3 flex items-center gap-3 sticky top-0 z-10 shadow-sm mb-6">
         <button
+          type="button"
           onClick={() => window.history.back()}
+          aria-label="戻る"
           className="p-2 bg-white dark:bg-gray-700 rounded-full shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200"
         >
           <ChevronLeft className="w-5 h-5" />
@@ -673,6 +675,7 @@ export const WriterSeriesPage = () => {
                                 data-testid={`remove-from-series-${a.id}`}
                                 onClick={() => void handleRemoveArticleFromSeries(a.id)}
                                 title="この連載から外す"
+                                aria-label={`${a.title}をこの連載から外す`}
                                 className="text-xs text-gray-500 dark:text-gray-400 hover:text-red-500 p-1"
                               >
                                 <X className="w-3.5 h-3.5" />

@@ -242,6 +242,7 @@ export function ContactView() {
                 <input
                   id="contact-name"
                   type="text"
+                  autoComplete="name"
                   required
                   aria-required="true"
                   aria-invalid={Boolean(err)}
@@ -262,6 +263,7 @@ export function ContactView() {
                 <input
                   id="contact-email"
                   type="email"
+                  autoComplete="email"
                   required
                   aria-required="true"
                   aria-invalid={Boolean(err)}

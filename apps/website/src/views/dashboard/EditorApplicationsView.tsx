@@ -104,7 +104,9 @@ export function EditorApplicationsView() {
     <div className="max-w-5xl mx-auto p-4 md:p-6 space-y-4 animate-in slide-in-from-right-8 duration-300">
       <div className="-mx-4 md:mx-0 -mt-4 md:mt-0 px-4 md:rounded-xl bg-white dark:bg-gray-800 border-b md:border border-gray-200 dark:border-gray-700 py-3 flex items-center gap-3 sticky top-0 z-10 shadow-sm mb-4">
         <button
+          type="button"
           onClick={() => nav(-1)}
+          aria-label="戻る"
           className="p-2 bg-white dark:bg-gray-700 rounded-full shadow-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600"
         >
           <ChevronLeft className="w-5 h-5" />
@@ -140,8 +142,15 @@ export function EditorApplicationsView() {
         </div>
 
         <div className="relative">
-          <Search className="w-4 h-4 absolute left-3 top-3 text-gray-500 dark:text-gray-400" />
+          <label htmlFor="applications-search-input" className="sr-only">
+            名前・メール・内容で検索
+          </label>
+          <Search
+            className="w-4 h-4 absolute left-3 top-3 text-gray-500 dark:text-gray-400"
+            aria-hidden="true"
+          />
           <input
+            id="applications-search-input"
             type="text"
             placeholder="名前・メール・内容で検索"
             value={keyword}

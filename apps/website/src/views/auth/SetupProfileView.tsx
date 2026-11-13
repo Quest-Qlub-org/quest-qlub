@@ -127,6 +127,7 @@ export const SetupProfileView = () => {
             <input
               id="setup-display-name"
               type="text"
+              autoComplete="name"
               required
               aria-required="true"
               aria-invalid={Boolean(error)}
@@ -147,6 +148,7 @@ export const SetupProfileView = () => {
             <input
               id="setup-username"
               type="text"
+              autoComplete="username"
               required
               aria-required="true"
               aria-invalid={Boolean(error)}

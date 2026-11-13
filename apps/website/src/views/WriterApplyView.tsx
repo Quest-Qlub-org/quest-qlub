@@ -337,6 +337,7 @@ export const WriterApplyView = () => {
                 <input
                   id="writer-apply-name"
                   type="text"
+                  autoComplete="name"
                   required
                   aria-required="true"
                   aria-invalid={Boolean(error)}
@@ -361,6 +362,7 @@ export const WriterApplyView = () => {
                 <input
                   id="writer-apply-email"
                   type="email"
+                  autoComplete="email"
                   required
                   aria-required="true"
                   aria-invalid={Boolean(error)}
@@ -419,6 +421,7 @@ export const WriterApplyView = () => {
               <input
                 id="writer-apply-portfolio"
                 type="url"
+                autoComplete="url"
                 placeholder="https://github.com/..., https://zenn.dev/..."
                 value={portfolio}
                 onChange={(e) => setPortfolio(e.target.value)}

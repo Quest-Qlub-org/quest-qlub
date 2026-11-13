@@ -394,7 +394,12 @@ function DisplayNameEdit({
       <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 font-bold">表示名</p>
       {editing ? (
         <div className="flex gap-2">
+          <label htmlFor="profile-display-name-input" className="sr-only">
+            表示名
+          </label>
           <input
+            id="profile-display-name-input"
+            autoComplete="name"
             className="flex-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -487,8 +492,15 @@ function UsernameEdit({
         <div className="space-y-2">
           <div className="flex gap-2">
             <div className="flex-1 flex items-center border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg px-3 py-1.5 focus-within:ring-2 focus-within:ring-blue-400">
-              <span className="text-gray-500 dark:text-gray-400 text-sm mr-1">@</span>
+              <label htmlFor="profile-username-input" className="sr-only">
+                ユーザー名
+              </label>
+              <span className="text-gray-500 dark:text-gray-400 text-sm mr-1" aria-hidden="true">
+                @
+              </span>
               <input
+                id="profile-username-input"
+                autoComplete="username"
                 className="flex-1 text-sm bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none"
                 value={uname}
                 onChange={(e) => {
@@ -577,7 +589,11 @@ function BioEdit({
       <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 font-bold">自己紹介</p>
       {editing ? (
         <div className="space-y-2">
+          <label htmlFor="profile-bio-input" className="sr-only">
+            自己紹介
+          </label>
           <textarea
+            id="profile-bio-input"
             className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
             rows={4}
             value={bio}
@@ -684,8 +700,14 @@ function XAccountEdit({
         <div className="space-y-2">
           <div className="flex gap-2">
             <div className="flex-1 flex items-center border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-lg px-3 py-1.5 focus-within:ring-2 focus-within:ring-blue-400">
-              <span className="text-gray-500 dark:text-gray-400 text-sm mr-1">@</span>
+              <label htmlFor="profile-x-account-input" className="sr-only">
+                Xアカウント名
+              </label>
+              <span className="text-gray-500 dark:text-gray-400 text-sm mr-1" aria-hidden="true">
+                @
+              </span>
               <input
+                id="profile-x-account-input"
                 className="flex-1 text-sm bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none"
                 value={handle}
                 onChange={(e) => {

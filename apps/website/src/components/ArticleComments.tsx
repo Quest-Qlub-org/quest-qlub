@@ -732,6 +732,7 @@ export function ArticleComments({
                 {editingCommentId === comment.id ? (
                   <div className="pl-9 space-y-2 mt-2">
                     <textarea
+                      aria-label="コメントを編集"
                       data-testid={`edit-textarea-${comment.id}`}
                       value={editingContent}
                       onChange={(e) => setEditingContent(e.target.value)}
@@ -801,7 +802,11 @@ export function ArticleComments({
                 </span>
               </div>
               <div>
+                <label htmlFor="comment-content-input" className="sr-only">
+                  コメント内容
+                </label>
                 <textarea
+                  id="comment-content-input"
                   placeholder="記事の感想や応援メッセージをご記入ください（最大500文字）"
                   value={content}
                   onChange={(e) => setContent(e.target.value)}

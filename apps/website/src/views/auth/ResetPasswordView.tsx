@@ -105,6 +105,7 @@ export const ResetPasswordView = () => {
             <input
               id="reset-password"
               type="password"
+              autoComplete="new-password"
               required
               aria-required="true"
               aria-invalid={Boolean(error)}
@@ -122,6 +123,7 @@ export const ResetPasswordView = () => {
             <input
               id="reset-password-confirm"
               type="password"
+              autoComplete="new-password"
               required
               aria-required="true"
               aria-invalid={Boolean(error)}
