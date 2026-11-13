@@ -146,6 +146,11 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
   const editingArticle = editingId ? (articles.find((a) => a.id === editingId) ?? null) : null;
   const [loadedArticle, setLoadedArticle] = useState<typeof editingArticle>(null);
   const effectiveEditingArticle = editingArticle || loadedArticle;
+  const canManageCollaborators =
+    !effectiveEditingArticle ||
+    isEditor ||
+    !currentUserId ||
+    effectiveEditingArticle.writerId === currentUserId;
 
   useEffect(() => {
     updateMetaTags({
@@ -204,6 +209,16 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
 
         if (isMounted && data && !error) {
           const mapped = mapDbArticleToArticle(data);
+          const hasEditAccess =
+            isEditor ||
+            !currentUserId ||
+            mapped.writerId === currentUserId ||
+            (mapped.collaboratorIds ?? []).includes(currentUserId);
+          if (!hasEditAccess) {
+            showToast("この記事を編集する権限がありません");
+            navigate("writerDash");
+            return;
+          }
           setLoadedArticle(mapped);
           setFormTitle(mapped.title ?? "");
           setFormContent(mapped.content ?? "");
@@ -346,12 +361,17 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
 
     if (targetId) {
       const nextStatus: ArticleStatus | undefined = submitForReview
-        ? isEditor && isFutureSchedule
-          ? "scheduled"
+        ? isEditor
+          ? isFutureSchedule
+            ? "scheduled"
+            : "published"
           : "pending"
         : undefined;
 
       const updatePayload = buildBaseArticlePayload(currentValues);
+      if (!canManageCollaborators) {
+        delete updatePayload.collaborator_ids;
+      }
       if (nextStatus) {
         updatePayload.status = nextStatus;
       }
@@ -417,9 +437,11 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
 
         if (submitForReview) {
           showToast(
-            scheduledIso
-              ? `公開予約（${formatScheduledDateTime(scheduledIso)}）で申請しました`
-              : "投稿申請しました",
+            nextStatus === "published"
+              ? "記事を公開しました"
+              : scheduledIso
+                ? `公開予約（${formatScheduledDateTime(scheduledIso)}）で申請しました`
+                : "投稿申請しました",
           );
           navigate(destination);
         } else {
@@ -572,7 +594,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
   }, [isDirty]);
 
   useEffect(() => {
-    if (!isDirty || !formTitle.trim()) return;
+    if (!isDirty || !formTitle.trim() || !currentUserId) return;
     const timer = setTimeout(async () => {
       const scheduledIso = toSafeIsoString(formScheduledAt);
       const currentValues = {
@@ -650,6 +672,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
     formEpisodeNumber,
     formCommentsEnabled,
     formScheduledAt,
+    collaboratorIds,
     isDirty,
     currentUserId,
     setArticles,
@@ -752,7 +775,19 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
               className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 bg-purple-600 text-white text-xs md:text-sm font-bold rounded-xl hover:bg-purple-700 disabled:opacity-50 shadow-xs transition-colors"
             >
               {formScheduledAt ? <Clock className="w-4 h-4" /> : <Send className="w-4 h-4" />}
-              <span>{formScheduledAt ? "予約投稿申請" : "投稿申請"}</span>
+              <span>{formScheduledAt ? "予約投稿申請" : isEditor ? "記事を公開" : "投稿申請"}</span>
+            </button>
+          )}
+          {isEditor && effectiveEditingArticle?.status === "pending" && (
+            <button
+              type="button"
+              data-testid="editor-direct-publish-btn"
+              onClick={() => void handleSave(true)}
+              disabled={saving}
+              className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 bg-green-600 text-white text-xs md:text-sm font-bold rounded-xl hover:bg-green-700 disabled:opacity-50 shadow-xs transition-colors"
+            >
+              {formScheduledAt ? <Clock className="w-4 h-4" /> : <Send className="w-4 h-4" />}
+              <span>{formScheduledAt ? "公開予約で承認" : "今すぐ公開"}</span>
             </button>
           )}
         </div>
@@ -1011,23 +1046,29 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                         )}
 
                         <div className="pt-2 border-t border-gray-100 dark:border-gray-700/60">
-                          <CollaboratorSelect
-                            value={collaboratorIds}
-                            onChange={(ids) => {
-                              setCollaboratorIds(ids);
-                              setIsDirty(true);
-                            }}
-                            excludeUserIds={Array.from(
-                              new Set([
-                                ...(effectiveEditingArticle?.writerId
-                                  ? [effectiveEditingArticle.writerId]
-                                  : []),
-                                ...(currentUserId ? [currentUserId] : []),
-                              ]),
-                            )}
-                            label="共同執筆者（共同編集者）"
-                            description="他のライターと共同執筆・編集できます"
-                          />
+                          {canManageCollaborators ? (
+                            <CollaboratorSelect
+                              value={collaboratorIds}
+                              onChange={(ids) => {
+                                setCollaboratorIds(ids);
+                                setIsDirty(true);
+                              }}
+                              excludeUserIds={Array.from(
+                                new Set([
+                                  ...(effectiveEditingArticle?.writerId
+                                    ? [effectiveEditingArticle.writerId]
+                                    : []),
+                                  ...(currentUserId ? [currentUserId] : []),
+                                ]),
+                              )}
+                              label="共同執筆者（共同編集者）"
+                              description="他のライターと共同執筆・編集できます"
+                            />
+                          ) : (
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              共同執筆者の設定は主作成者または編集長のみ変更できます。
+                            </p>
+                          )}
                         </div>
                       </div>
 

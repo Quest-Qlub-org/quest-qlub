@@ -57,10 +57,14 @@ export const SetupProfileView = () => {
       // role は意図的に送信しない。初回作成時は DB トリガー
       // (enforce_profile_initial_role) が viewer を強制し、既存行の
       // ロール変更は authenticated からの列更新権限を持たないため。
+      if (!profile?.id) {
+        setError("ユーザー情報が読み込まれていません。再度ログインしてください。");
+        setLoading(false);
+        return;
+      }
       const { error: saveError } = await supabase.from("profiles").upsert(
         {
-          id: profile?.id,
-          email: profile?.email,
+          id: profile.id,
           display_name: displayName.trim(),
           username: username.trim(),
           avatar_url: profile?.avatar_url,

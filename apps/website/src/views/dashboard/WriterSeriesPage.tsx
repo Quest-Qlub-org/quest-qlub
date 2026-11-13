@@ -5,11 +5,7 @@ import { ChevronLeft, Plus, X, Loader2 } from "lucide-react";
 import { ARTICLE_STATUS_CONFIG, mapDbArticleToArticle } from "../../types";
 import type { Article, ArticleStatus, Series } from "../../types";
 import { ARTICLE_LIST_FIELDS, WRITER_ARTICLE_LIST_FIELDS } from "../../context/DataContext";
-import {
-  applySeriesOverrides,
-  removeLocalSeriesOverride,
-  setLocalSeriesOverride,
-} from "../../utils/seriesOverrides";
+import { applySeriesOverrides, removeLocalSeriesOverride } from "../../utils/seriesOverrides";
 import { updateMetaTags } from "../../utils/seo";
 import { CollaboratorSelect } from "../../components/CollaboratorSelect";
 import { isArticleOptionalColumnSchemaError } from "../../utils/supabaseErrors";
@@ -160,6 +156,10 @@ export const WriterSeriesPage = () => {
   }, [articles, writerArticles, profile?.id, mySeries]);
 
   const handleCreate = async () => {
+    if (!profile?.id) {
+      showToast("ログイン情報が見つかりません");
+      return;
+    }
     if (!newTitle.trim()) {
       showToast("連載名を入力してください");
       return;
@@ -190,10 +190,7 @@ export const WriterSeriesPage = () => {
         writerId: data.writer_id,
         collaboratorIds: data.collaborator_ids ?? newCollaboratorIds,
       };
-      setLocalSeriesOverride(createdItem.id, {
-        title: createdItem.title,
-        description: createdItem.description,
-      });
+      removeLocalSeriesOverride(createdItem.id);
       setLocalSeries((prev) => [...prev, createdItem]);
       setSeriesList((prev) => [...prev, createdItem]);
       setNewTitle("");
@@ -230,13 +227,18 @@ export const WriterSeriesPage = () => {
     const nextTitle = editTitle.trim();
     const nextDesc = editDesc.trim() || null;
     const currentSeries = mySeries.find((s) => s.id === id);
+    const isEditorUser =
+      userRole === "editor" || profile?.role === "editor" || profileHasRole(profile, "editor");
+    const canManageSeriesCollaborators =
+      !currentSeries || currentSeries.writerId === profile?.id || isEditorUser;
     const updatePayload: Record<string, unknown> = {
       title: nextTitle,
       description: nextDesc,
     };
     if (
-      editCollaboratorIds.length > 0 ||
-      (currentSeries?.collaboratorIds && currentSeries.collaboratorIds.length > 0)
+      canManageSeriesCollaborators &&
+      (editCollaboratorIds.length > 0 ||
+        (currentSeries?.collaboratorIds && currentSeries.collaboratorIds.length > 0))
     ) {
       updatePayload.collaborator_ids = editCollaboratorIds;
     }
@@ -250,7 +252,7 @@ export const WriterSeriesPage = () => {
       }
 
       if (!error) {
-        setLocalSeriesOverride(id, { title: nextTitle, description: nextDesc });
+        removeLocalSeriesOverride(id);
         setLocalSeries((prev) =>
           prev.map((s) =>
             s.id === id
@@ -513,17 +515,26 @@ export const WriterSeriesPage = () => {
                         onChange={(e) => setEditDesc(e.target.value)}
                       />
                     </div>
-                    <CollaboratorSelect
-                      value={editCollaboratorIds}
-                      onChange={setEditCollaboratorIds}
-                      excludeUserIds={Array.from(
-                        new Set([
-                          ...(s.writerId ? [s.writerId] : []),
-                          ...(profile?.id ? [profile.id] : []),
-                        ]),
-                      )}
-                      label="共同編集者"
-                    />
+                    {s.writerId === profile?.id ||
+                    userRole === "editor" ||
+                    profile?.role === "editor" ||
+                    profileHasRole(profile, "editor") ? (
+                      <CollaboratorSelect
+                        value={editCollaboratorIds}
+                        onChange={setEditCollaboratorIds}
+                        excludeUserIds={Array.from(
+                          new Set([
+                            ...(s.writerId ? [s.writerId] : []),
+                            ...(profile?.id ? [profile.id] : []),
+                          ]),
+                        )}
+                        label="共同編集者"
+                      />
+                    ) : (
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        共同編集者の設定は主作成者または編集長のみ変更できます。
+                      </p>
+                    )}
                     <div className="flex gap-2 justify-end">
                       <button
                         onClick={handleCancelEdit}
@@ -623,12 +634,9 @@ export const WriterSeriesPage = () => {
                                 aria-label={`${a.title}の話数`}
                                 data-testid={`episode-input-${a.id}`}
                                 defaultValue={a.episodeNumber ?? ""}
-                                onChange={(e) => {
-                                  const nextVal = e.target.value;
-                                  const currentVal =
-                                    a.episodeNumber != null ? String(a.episodeNumber) : "";
-                                  if (nextVal !== currentVal && nextVal.trim() !== "") {
-                                    void handleUpdateEpisodeNumber(a.id, nextVal);
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    (e.currentTarget as HTMLInputElement).blur();
                                   }
                                 }}
                                 onBlur={(e) => {

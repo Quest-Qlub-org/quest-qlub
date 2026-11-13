@@ -2,8 +2,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vite-plus/test";
 import { act } from "react";
 import { SetupProfileView } from "./SetupProfileView";
-import { renderWithRouter } from "../../test/test-utils";
+import { renderWithRouter, setNativeValue } from "../../test/test-utils";
 import * as AppContextModule from "../../context/AppContext";
+import { supabase } from "../../supabase";
 
 describe("SetupProfileView", () => {
   beforeEach(() => {
@@ -48,6 +49,48 @@ describe("SetupProfileView", () => {
     expect(usernameInput.getAttribute("aria-describedby")).toBe(
       "setup-profile-error setup-username-hint",
     );
+
+    unmount();
+  });
+
+  it("upserts profile without overwriting email column (#128)", async () => {
+    const upsertMock = vi.fn().mockResolvedValue({ error: null });
+    vi.spyOn(supabase, "from").mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+        }),
+      }),
+      upsert: upsertMock,
+    } as any);
+
+    const { container, unmount } = renderWithRouter(<SetupProfileView />, {
+      route: "/setup-profile",
+    });
+
+    const displayInput = container.querySelector("#setup-display-name") as HTMLInputElement;
+    const usernameInput = container.querySelector("#setup-username") as HTMLInputElement;
+
+    act(() => {
+      setNativeValue(displayInput, "テストユーザー");
+      setNativeValue(usernameInput, "test_user_1");
+    });
+
+    await act(async () => {
+      container
+        .querySelector("form")!
+        .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+
+    expect(upsertMock).toHaveBeenCalledTimes(1);
+    const payload = upsertMock.mock.calls[0][0];
+    expect(payload).toEqual({
+      id: "u1",
+      display_name: "テストユーザー",
+      username: "test_user_1",
+      avatar_url: undefined,
+    });
+    expect("email" in payload).toBe(false);
 
     unmount();
   });

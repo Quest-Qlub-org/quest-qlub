@@ -843,4 +843,88 @@ describe("ArticleEditorView schema resilience", () => {
     expect("collaborator_ids" in insertedPayloads[1]).toBe(false);
     expect(mockShowToast).toHaveBeenCalledWith("下書きを保存しました");
   });
+
+  it("allows editor to directly publish a pending article and restricts CollaboratorSelect for non-owner collaborators (#129)", async () => {
+    const updatedPayloads: any[] = [];
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") {
+        return {
+          update: vi.fn((payload: any) => {
+            updatedPayloads.push(payload);
+            return { eq: vi.fn().mockResolvedValue({ error: null }) };
+          }),
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: {
+                  id: "art-pending-1",
+                  title: "審査待ち記事",
+                  content: "<p>本文</p>",
+                  status: "pending",
+                  writer_id: "other-writer",
+                  collaborator_ids: ["collab-1"],
+                },
+                error: null,
+              }),
+            }),
+          }),
+        } as any;
+      }
+      return {} as any;
+    });
+
+    const mockCoAuthor = createTestProfile({ id: "collab-1", role: "writer" });
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      profile: mockCoAuthor,
+      userRole: "writer",
+      articles: [],
+      setArticles: mockSetArticles,
+      seriesList: [],
+      showToast: mockShowToast,
+      navigate: mockNavigate,
+      getFontSizeClass: () => "text-base",
+      writers: [mockCoAuthor],
+    } as any);
+
+    await act(async () => {
+      root!.render(<ArticleEditorPage editingId="art-pending-1" />);
+    });
+
+    // 共同執筆者は CollaboratorSelect を変更できないこと
+    expect(container.querySelector("select[data-testid='collaborator-select-input']")).toBeNull();
+    expect(container.textContent).toContain(
+      "共同執筆者の設定は主作成者または編集長のみ変更できます",
+    );
+
+    // 編集長として再マウントすると直接公開ボタンが表示されること
+    const mockEditor = createTestProfile({ id: "ed-1", role: "editor" });
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      profile: mockEditor,
+      userRole: "editor",
+      articles: [],
+      setArticles: mockSetArticles,
+      seriesList: [],
+      showToast: mockShowToast,
+      navigate: mockNavigate,
+      getFontSizeClass: () => "text-base",
+      writers: [mockEditor],
+    } as any);
+
+    await act(async () => {
+      root!.render(<ArticleEditorPage editingId="art-pending-1" />);
+    });
+
+    const publishBtn = container.querySelector(
+      '[data-testid="editor-direct-publish-btn"]',
+    ) as HTMLButtonElement;
+    expect(publishBtn).not.toBeNull();
+
+    await act(async () => {
+      publishBtn.click();
+    });
+
+    expect(updatedPayloads.some((p) => p.status === "published" && p.scheduled_at === null)).toBe(
+      true,
+    );
+  });
 });

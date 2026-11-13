@@ -445,7 +445,7 @@ describe("WriterSeriesPage", () => {
       setNativeValue(epInput, "3");
     });
     await act(async () => {
-      epInput.dispatchEvent(new FocusEvent("blur", { bubbles: true }));
+      epInput.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
     });
 
     expect(mockArticleUpdate).toHaveBeenCalledWith({ episode_number: 3 });
