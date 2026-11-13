@@ -148,7 +148,13 @@ describe("roles utility", () => {
 
   describe("enrichFallbackProfileRoles", () => {
     it("uses exact match rather than substring for known engineer fallback", () => {
-      const partial = enrichFallbackProfileRoles({
+      const partial = enrichFallbackProfileRoles<{
+        id: string;
+        username: string;
+        display_name: string;
+        role: string;
+        roles?: string[] | null;
+      }>({
         id: "u1",
         username: "groot_fan",
         display_name: "Groot Fan",
@@ -156,7 +162,13 @@ describe("roles utility", () => {
       });
       expect(partial.roles).toEqual(["viewer"]);
 
-      const exact = enrichFallbackProfileRoles({
+      const exact = enrichFallbackProfileRoles<{
+        id: string;
+        username: string;
+        display_name: string;
+        role: string;
+        roles?: string[] | null;
+      }>({
         id: "u2",
         username: "noimzip",
         display_name: "Noimzip",

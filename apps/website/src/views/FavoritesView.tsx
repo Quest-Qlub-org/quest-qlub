@@ -36,11 +36,17 @@ export const FavoritesView = () => {
     const fetchMissingFavorites = async () => {
       setFetchingExtra(true);
       try {
-        let { data, error } = await supabase
+        type DbArticleRow = Parameters<typeof mapDbArticleWithSchedule>[0];
+        let data: DbArticleRow[] | null = null;
+        let error: unknown = null;
+
+        const primaryRes = await supabase
           .from("articles")
           .select(`${ARTICLE_LIST_FIELDS}, scheduled_at`)
           .in("id", missingIds)
           .in("status", ["published", "scheduled"]);
+        data = primaryRes.data as DbArticleRow[] | null;
+        error = primaryRes.error;
 
         if (error && isArticleOptionalColumnSchemaError(error)) {
           const fallbackRes = await supabase
@@ -48,15 +54,13 @@ export const FavoritesView = () => {
             .select(ARTICLE_LIST_FIELDS)
             .in("id", missingIds)
             .eq("status", "published");
-          data = fallbackRes.data;
+          data = fallbackRes.data as DbArticleRow[] | null;
           error = fallbackRes.error;
         }
 
         if (isMounted && data && !error) {
           setExtraFavArticles(
-            (data as Parameters<typeof mapDbArticleWithSchedule>[0][])
-              .map(mapDbArticleWithSchedule)
-              .filter((a) => isArticlePubliclyVisible(a)),
+            data.map(mapDbArticleWithSchedule).filter((a) => isArticlePubliclyVisible(a)),
           );
         }
       } catch (e) {
