@@ -158,4 +158,6 @@ quest-qlub/
 
 ## お問い合わせ
 
-ご質問・ご意見は [https://quest-qlub.vercel.app/contact](https://quest-qlub.vercel.app/contact) よりお願いいたします。
+ご質問・ご意見は以下のいずれかの手段よりお願いいたします。
+- [https://quest-qlub.vercel.app/contact](https://quest-qlub.vercel.app/contact)
+- [quest-qlub@astro-root.com](mailto:quest-qlub@astro-root.com)
