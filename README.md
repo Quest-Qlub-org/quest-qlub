@@ -2,7 +2,7 @@
 
 > 学びの「楽しい！」をつなげる記事サービス
 
-**本番URL**: [https://quest-qlub.vercel.app/](https://quest-qlub.vercel.app/)
+**本番URL**: [https://quest-qlub.vercel.app/](https://quest-qlub.vercel.app/) / [https://quest-qlub.astro-root.com/](https://quest-qlub.astro-root.com/)
 
 ## Quest Qlub とは
 
