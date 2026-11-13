@@ -49,11 +49,31 @@ const EMAIL_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z
 const rateLimitMap = new Map<string, number[]>();
 const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1分
 const MAX_REQUESTS_PER_WINDOW = 3; // 1分間に最大3回まで
+const MAX_RATE_LIMIT_ENTRIES = 5000;
+
+function cleanupRateLimitMap(now: number): void {
+  if (rateLimitMap.size < MAX_RATE_LIMIT_ENTRIES) return;
+  for (const [k, times] of rateLimitMap.entries()) {
+    const active = times.filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
+    if (active.length === 0) {
+      rateLimitMap.delete(k);
+    } else {
+      rateLimitMap.set(k, active);
+    }
+  }
+  while (rateLimitMap.size >= MAX_RATE_LIMIT_ENTRIES) {
+    const oldestKey = rateLimitMap.keys().next().value;
+    if (!oldestKey) break;
+    rateLimitMap.delete(oldestKey);
+  }
+}
 
 function isRateLimited(key: string): boolean {
   const now = Date.now();
+  cleanupRateLimitMap(now);
   const timestamps = (rateLimitMap.get(key) || []).filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
   if (timestamps.length >= MAX_REQUESTS_PER_WINDOW) {
+    rateLimitMap.set(key, timestamps);
     return true;
   }
   timestamps.push(now);
@@ -69,10 +89,11 @@ serve(async (req) => {
   }
 
   try {
-    // クライアントIPの取得
+    // クライアントIPの取得（プロキシ/Edge信頼ヘッダを優先、XFFは末尾の信頼済みホップを参照）
     const clientIp =
-      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-      req.headers.get("cf-connecting-ip") ||
+      req.headers.get("cf-connecting-ip")?.trim() ||
+      req.headers.get("x-real-ip")?.trim() ||
+      req.headers.get("x-forwarded-for")?.split(",").pop()?.trim() ||
       "unknown-ip";
 
     if (isRateLimited(`ip:${clientIp}`)) {
@@ -105,8 +126,9 @@ serve(async (req) => {
     const subject = typeof raw.subject === "string" ? raw.subject.trim() : "";
     const body = typeof raw.body === "string" ? raw.body.trim() : "";
 
-    // メールアドレス単位のレート制限
-    if (email && isRateLimited(`email:${email}`)) {
+    // メールアドレス単位のレート制限（大文字・小文字を正規化）
+    const normalizedEmail = email.toLowerCase();
+    if (normalizedEmail && isRateLimited(`email:${normalizedEmail}`)) {
       return new Response(
         JSON.stringify({
           error:
