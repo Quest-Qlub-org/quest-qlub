@@ -251,4 +251,44 @@ describe("AuthContext security & MFA", () => {
 
     expect(authState.mfaChallengeRequired).toBe(false);
   });
+
+  it("clears user-scoped localStorage and sessionStorage keys on SIGNED_OUT", async () => {
+    let authCallback: ((event: string, session: unknown) => void) | null = null;
+    vi.spyOn(supabase.auth, "getSession").mockResolvedValue({
+      data: { session: null },
+      error: null,
+    });
+    vi.spyOn(supabase.auth, "onAuthStateChange").mockImplementation((cb: any) => {
+      authCallback = cb;
+      return {
+        data: {
+          subscription: { unsubscribe: vi.fn(), id: "sub-out", callback: vi.fn() },
+        },
+      };
+    });
+
+    localStorage.setItem("quest_qlub_comments_art1", "[]");
+    localStorage.setItem("quest_qlub_follows_u1", "[]");
+    localStorage.setItem("quest_qlub_scheduled_articles_v1", "{}");
+    localStorage.setItem("preferred_theme", "dark");
+    sessionStorage.setItem("quest_qlub_sudo_at", "12345");
+
+    await act(async () => {
+      root!.render(
+        <AuthProvider>
+          <div>child</div>
+        </AuthProvider>,
+      );
+    });
+
+    act(() => {
+      authCallback?.("SIGNED_OUT", null);
+    });
+
+    expect(localStorage.getItem("quest_qlub_comments_art1")).toBeNull();
+    expect(localStorage.getItem("quest_qlub_follows_u1")).toBeNull();
+    expect(localStorage.getItem("quest_qlub_scheduled_articles_v1")).toBeNull();
+    expect(sessionStorage.getItem("quest_qlub_sudo_at")).toBeNull();
+    expect(localStorage.getItem("preferred_theme")).toBe("dark");
+  });
 });

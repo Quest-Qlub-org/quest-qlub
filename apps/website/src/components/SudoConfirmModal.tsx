@@ -132,17 +132,54 @@ export const SudoConfirmModal: React.FC<SudoConfirmModalProps> = ({
     setLoading(true);
     setError("");
     try {
+      setInMemorySudoAuthorized(true, true);
       const { data, error: passkeyErr } = await supabase.auth.signInWithPasskey();
       if (passkeyErr) {
+        setInMemorySudoAuthorized(false);
         if (passkeyErr.name !== "NotAllowedError") {
           setError("パスキーでの認証に失敗しました");
         }
-      } else if (data?.session) {
-        setInMemorySudoAuthorized(true);
+        return;
+      }
+
+      if (data?.session) {
+        const signedEmail = data.session.user?.email?.trim().toLowerCase();
+        const targetEmail = userEmail.trim().toLowerCase();
+        if (targetEmail && signedEmail && signedEmail !== targetEmail) {
+          setInMemorySudoAuthorized(false);
+          setError("現在のログインアカウントと異なるパスキーが使用されました");
+          return;
+        }
+
+        try {
+          const { data: mfaLevel } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+          if (mfaLevel && mfaLevel.currentLevel === "aal1" && mfaLevel.nextLevel === "aal2") {
+            const { data: factorsData, error: factorsErr } = await supabase.auth.mfa.listFactors();
+            if (!factorsErr && factorsData) {
+              const verifiedTotp =
+                factorsData.totp.find((f) => f.status === "verified") ?? factorsData.totp[0];
+              if (verifiedTotp) {
+                setFactorId(verifiedTotp.id);
+                setStep("mfa_totp");
+                return;
+              }
+            }
+            setInMemorySudoAuthorized(false);
+            setError("2段階認証の確認が必要です");
+            return;
+          }
+        } catch {
+          // ignore if MFA assurance level is unavailable
+        }
+
+        setInMemorySudoAuthorized(true, false);
         setMfaChallengeRequired(false);
         onSuccess();
+      } else {
+        setInMemorySudoAuthorized(false);
       }
     } catch {
+      setInMemorySudoAuthorized(false);
       setError("パスキー認証中にエラーが発生しました");
     } finally {
       setLoading(false);

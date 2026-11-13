@@ -149,6 +149,12 @@ export function SecuritySettingsSection({ showToast }: { showToast: (msg: string
     }
     setRegeneratingCodes(true);
     try {
+      const { data: mfaLevel } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (mfaLevel && mfaLevel.currentLevel !== "aal2") {
+        showToast("バックアップコードを再生成するには、2要素認証 (AAL2) の完了が必要です");
+        return;
+      }
+
       const { data, error } = await supabase.rpc("generate_mfa_backup_codes");
       if (error || !data) {
         showToast("バックアップコードの生成に失敗しました: " + (error?.message || ""));

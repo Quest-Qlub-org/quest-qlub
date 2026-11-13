@@ -110,4 +110,11 @@ describe("sanitizeHtml", () => {
     expect(output).toContain("color: red");
     expect(output).not.toContain("background-color");
   });
+
+  it("strips contenteditable attributes from article HTML", () => {
+    const input = '<div class="custom-frame-title" contenteditable="true">Editable</div>';
+    const output = sanitizeHtml(input);
+    expect(output).not.toContain("contenteditable");
+    expect(output).toContain("Editable");
+  });
 });

@@ -21,12 +21,45 @@ export interface AuthContextType {
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function clearSensitiveStorage(): void {
+  try {
+    sessionStorage.removeItem("quest_qlub_sudo_at");
+  } catch {
+    // ignore
+  }
+  try {
+    const prefixes = [
+      "quest_qlub_roles_override",
+      "quest_qlub_scheduled_articles",
+      "quest_qlub_series_overrides",
+      "quest_qlub_comments_",
+      "quest_qlub_follows_",
+      "article_draft_",
+    ];
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (key && prefixes.some((p) => key.startsWith(p))) {
+        keysToRemove.push(key);
+      }
+    }
+    for (const key of keysToRemove) {
+      localStorage.removeItem(key);
+    }
+  } catch {
+    // ignore
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [userRole, setUserRole] = useState<UserRole>("guest");
-  const [authLoading, setAuthLoading] = useState(true);
+  const [authBaseLoading, setAuthBaseLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(false);
   const [mfaChallengeRequired, setMfaChallengeRequired] = useState(false);
+  const lastLoadedUserKeyRef = React.useRef<string | null>(null);
+  const authLoading = authBaseLoading || profileLoading;
 
   const fetchProfileData = async (
     userId: string,
@@ -121,6 +154,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .then(({ data: { session } }) => {
         if (!isMounted) return;
         if (session?.user) {
+          setProfileLoading(true);
           setUser(session.user);
           void checkMfaAssurance();
         } else {
@@ -128,6 +162,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setProfile(null);
           setUserRole("guest");
           setMfaChallengeRequired(false);
+          setProfileLoading(false);
         }
       })
       .catch((e) => {
@@ -135,7 +170,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
       .finally(() => {
         if (isMounted) {
-          setAuthLoading(false);
+          setAuthBaseLoading(false);
         }
       });
 
@@ -146,16 +181,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!isMounted) return;
 
       if (event === "SIGNED_OUT" || !session?.user) {
+        if (event === "SIGNED_OUT") {
+          clearSensitiveStorage();
+        }
+        lastLoadedUserKeyRef.current = null;
         setUser(null);
         setProfile(null);
         setUserRole("guest");
         setMfaChallengeRequired(false);
-        setAuthLoading(false);
+        setProfileLoading(false);
+        setAuthBaseLoading(false);
         return;
       }
 
+      const nextUserKey = `${session.user.id}:${session.user.email ?? ""}`;
+      if (lastLoadedUserKeyRef.current !== nextUserKey) {
+        setProfileLoading(true);
+      }
       setUser(session.user);
-      setAuthLoading(false);
+      setAuthBaseLoading(false);
       void checkMfaAssurance();
     });
 
@@ -170,10 +214,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let isMounted = true;
 
     if (!user?.id) {
+      lastLoadedUserKeyRef.current = null;
       setProfile(null);
       setUserRole("guest");
+      setProfileLoading(false);
       return;
     }
+
+    lastLoadedUserKeyRef.current = `${user.id}:${user.email ?? ""}`;
+    setProfileLoading(true);
 
     // 初回フォールバック設定（画面のチラつきや未ログイン誤判定を防止）
     // ⚠️ セキュリティ対策: クライアントから改ざん可能な user_metadata.role は絶対に信用せず、
@@ -200,14 +249,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // DBから最新プロファイルと正式ロールを取得
     const loadProfile = async () => {
-      const { profile: latestProfile, role: latestRole } = await fetchProfileData(
-        user.id,
-        user.email,
-        user.user_metadata,
-      );
-      if (isMounted) {
-        setProfile(latestProfile);
-        setUserRole(latestRole);
+      try {
+        const { profile: latestProfile, role: latestRole } = await fetchProfileData(
+          user.id,
+          user.email,
+          user.user_metadata,
+        );
+        if (isMounted) {
+          setProfile(latestProfile);
+          setUserRole(latestRole);
+        }
+      } finally {
+        if (isMounted) {
+          setProfileLoading(false);
+        }
       }
     };
 

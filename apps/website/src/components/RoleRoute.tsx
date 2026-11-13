@@ -27,9 +27,27 @@ export function setInMemorySudoAuthorized(active: boolean, isMfaHandshake = fals
 interface RoleRouteProps {
   requiredRole: "writer" | "editor" | "authenticated";
   children?: React.ReactElement;
+  manageLeaveLock?: boolean;
 }
 
-export function RoleRoute({ requiredRole, children }: RoleRouteProps) {
+/**
+ * 管理エリア全体（/writer-dash/* と /editor-dash/*）を束ねて Sudo Mode の
+ * Leave-to-Lock ライフサイクルを単一スコープで管理するラッパーレイアウト。
+ */
+export function SudoAreaLayout() {
+  useEffect(() => {
+    return () => {
+      const isHandshakeActive = Date.now() < sudoMfaHandshakeUntil;
+      if (!isHandshakeActive) {
+        setInMemorySudoAuthorized(false);
+      }
+    };
+  }, []);
+
+  return <Outlet />;
+}
+
+export function RoleRoute({ requiredRole, children, manageLeaveLock = true }: RoleRouteProps) {
   const navigate = useNavigate();
   const { user, profile, userRole, authLoading, mfaChallengeRequired } = useAuth();
   const isEditor = userRole === "editor" || profileHasRole(profile, "editor");
@@ -42,21 +60,36 @@ export function RoleRoute({ requiredRole, children }: RoleRouteProps) {
   mfaPendingRef.current = mfaChallengeRequired;
 
   // Leave-to-Lock: 管理画面から一般画面等へ離脱（アンマウント）した際、即座にSudo権限を失効させる
-  // ただし、Sudo再認証に伴う一時的な2FAチャレンジ（mfaChallengeRequired または MFAハンドシェイク猶予中）によるアンマウント時は失効させない
+  // ただし、Sudo再認証に伴う一時的な2FAチャレンジ（mfaChallengeRequired または MFAハンドシェイク猶予中）や
+  // 外側の SudoAreaLayout に委譲されている場合（manageLeaveLock = false）は失効させない
   useEffect(() => {
     return () => {
+      if (!manageLeaveLock) return;
       const isHandshakeActive = Date.now() < sudoMfaHandshakeUntil;
       if (isSudoRequired && !mfaPendingRef.current && !isHandshakeActive) {
         setInMemorySudoAuthorized(false);
       }
     };
-  }, [isSudoRequired]);
+  }, [isSudoRequired, manageLeaveLock]);
 
   useEffect(() => {
     if (isSudoRequired) {
       setSudoPassed(checkIsSudoActive());
     }
   }, [isSudoRequired, mfaChallengeRequired]);
+
+  // 15分（SUDO_TIMEOUT_MS）経過による自動ロックタイマー
+  useEffect(() => {
+    if (!isSudoRequired || !sudoPassed) return;
+    const remainingMs = Math.max(0, lastSudoAuthorizedAt + SUDO_TIMEOUT_MS - Date.now());
+    const timer = window.setTimeout(() => {
+      setInMemorySudoAuthorized(false);
+      setSudoPassed(false);
+    }, remainingMs);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [isSudoRequired, sudoPassed]);
 
   if (authLoading) {
     return (

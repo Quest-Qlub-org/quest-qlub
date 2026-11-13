@@ -104,14 +104,11 @@ export function enrichFallbackProfileRoles<
   }
 
   const baseRoles = profile.role?.trim() ? [profile.role.trim()] : ["viewer"];
-  const uname = (profile.username ?? "").toLowerCase();
-  const dname = (profile.display_name ?? "").toLowerCase();
+  const uname = (profile.username ?? "").trim().toLowerCase();
+  const dname = (profile.display_name ?? "").trim().toLowerCase();
 
   const isKnownEngineer =
-    uname.includes("root") ||
-    dname.includes("るーと") ||
-    uname.includes("noimzip") ||
-    dname.includes("noimzip");
+    uname === "root" || dname === "るーと" || uname === "noimzip" || dname === "noimzip";
 
   if (isKnownEngineer && !baseRoles.includes("engineer")) {
     const merged = [...baseRoles.filter((r) => r !== "viewer"), "engineer"];

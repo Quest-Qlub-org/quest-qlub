@@ -195,6 +195,7 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
   const [showImageInput, setShowImageInput] = useState(false);
   const [imageUrl, setImageUrl] = useState("");
   const [imageAlt, setImageAlt] = useState("");
+  const [imageError, setImageError] = useState("");
   const [imageUploading, setImageUploading] = useState(false);
   const colorRef = useRef<HTMLDivElement>(null);
 
@@ -202,6 +203,7 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
   const closeImageModal = useCallback(() => {
     setShowImageInput(false);
     setImageAlt("");
+    setImageError("");
   }, []);
   const linkModalRef = useFocusTrap<HTMLDivElement>(showLinkInput, closeLinkModal);
   const imageModalRef = useFocusTrap<HTMLDivElement>(showImageInput, closeImageModal);
@@ -297,16 +299,24 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
   }, [editor, linkUrl]);
 
   const insertImage = useCallback(() => {
-    if (!editor || !imageUrl.trim()) return;
+    const trimmed = imageUrl.trim();
+    if (!editor || !trimmed) return;
+    if (!/^https?:\/\//i.test(trimmed) && !trimmed.startsWith("/")) {
+      setImageError(
+        "安全な画像URL（https://, http://, または / から始まるパス）を入力してください",
+      );
+      return;
+    }
     const alt = imageAlt.trim();
     editor
       .chain()
       .focus()
-      .setImage({ src: imageUrl.trim(), ...(alt ? { alt } : {}) })
+      .setImage({ src: trimmed, ...(alt ? { alt } : {}) })
       .run();
     setShowImageInput(false);
     setImageUrl("");
     setImageAlt("");
+    setImageError("");
   }, [editor, imageUrl, imageAlt]);
 
   const handleImageFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -860,18 +870,32 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
                 id="rte-image-url-input"
                 type="url"
                 value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
+                onChange={(e) => {
+                  setImageUrl(e.target.value);
+                  setImageError("");
+                }}
                 placeholder="https://example.com/image.png"
-                className="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400 mb-3"
+                aria-invalid={Boolean(imageError)}
+                aria-describedby={imageError ? "rte-image-error" : undefined}
+                className="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400 mb-2"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
                     insertImage();
                   } else if (e.key === "Escape") {
-                    setShowImageInput(false);
+                    closeImageModal();
                   }
                 }}
               />
+              {imageError && (
+                <p
+                  id="rte-image-error"
+                  role="alert"
+                  className="text-xs text-red-600 mb-3 font-medium"
+                >
+                  {imageError}
+                </p>
+              )}
               <button
                 type="button"
                 onClick={insertImage}

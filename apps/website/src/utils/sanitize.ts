@@ -32,7 +32,7 @@ const ALLOWED_ATTR = [
   "target",
   "rel",
   "data-type", // CustomFrameの種類属性
-  "contenteditable", // CustomFrameのタイトル編集制御
+  "contenteditable", // CustomFrameタイトルの読み取り専用制御（"false" のみ許可）
 ];
 
 const SAFE_CSS_PROPERTIES = new Set([
@@ -152,6 +152,12 @@ if (typeof DOMPurify?.addHook === "function") {
         node.setAttribute("rel", "ugc noopener noreferrer");
       } else if (node.getAttribute("target") === "_blank") {
         node.setAttribute("rel", "noopener noreferrer");
+      }
+    }
+
+    if (node.hasAttribute("contenteditable")) {
+      if (node.getAttribute("contenteditable")?.toLowerCase() !== "false") {
+        node.removeAttribute("contenteditable");
       }
     }
 

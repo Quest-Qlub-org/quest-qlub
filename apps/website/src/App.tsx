@@ -2,7 +2,7 @@ import { lazy, useEffect } from "react";
 import { Routes, Route, useParams, useNavigate } from "react-router-dom";
 import { AppProviders } from "./context/AppContext";
 import { AppLayout } from "./components/layout/AppLayout";
-import { RoleRoute } from "./components/RoleRoute";
+import { RoleRoute, SudoAreaLayout } from "./components/RoleRoute";
 import { updateMetaTags } from "./utils/seo";
 
 // Views: 初期表示速度のためトップビューは同期インポート
@@ -204,21 +204,22 @@ export default function App() {
           <Route path="/reset-password" element={<ResetPasswordView />} />
           <Route path="/setup-profile" element={<SetupProfileView />} />
 
-          {/* Protected Writer Views (Layout Route maintains single RoleRoute lifecycle across dashboard pages) */}
-          <Route element={<RoleRoute requiredRole="writer" />}>
-            <Route path="/writer-dash" element={<WriterDashboard />} />
-            <Route path="/writer-dash/new" element={<ArticleEditorPage editingId={null} />} />
-            <Route path="/writer-dash/edit/:id" element={<ArticleEditWrapper />} />
-            <Route path="/writer-dash/series" element={<WriterSeriesPage />} />
-          </Route>
+          {/* Protected Dashboard Views (Shared SudoAreaLayout preserves Sudo between writer and editor dashboards) */}
+          <Route element={<SudoAreaLayout />}>
+            <Route element={<RoleRoute requiredRole="writer" manageLeaveLock={false} />}>
+              <Route path="/writer-dash" element={<WriterDashboard />} />
+              <Route path="/writer-dash/new" element={<ArticleEditorPage editingId={null} />} />
+              <Route path="/writer-dash/edit/:id" element={<ArticleEditWrapper />} />
+              <Route path="/writer-dash/series" element={<WriterSeriesPage />} />
+            </Route>
 
-          {/* Protected Editor Views (Layout Route maintains single RoleRoute lifecycle across editor pages) */}
-          <Route element={<RoleRoute requiredRole="editor" />}>
-            <Route path="/editor-dash" element={<EditorDashboard />} />
-            <Route path="/editor-dash/articles" element={<EditorArticlesView />} />
-            <Route path="/editor-dash/recommend" element={<EditorRecommendView />} />
-            <Route path="/editor-dash/writers" element={<EditorWritersView />} />
-            <Route path="/editor-dash/applications" element={<EditorApplicationsView />} />
+            <Route element={<RoleRoute requiredRole="editor" manageLeaveLock={false} />}>
+              <Route path="/editor-dash" element={<EditorDashboard />} />
+              <Route path="/editor-dash/articles" element={<EditorArticlesView />} />
+              <Route path="/editor-dash/recommend" element={<EditorRecommendView />} />
+              <Route path="/editor-dash/writers" element={<EditorWritersView />} />
+              <Route path="/editor-dash/applications" element={<EditorApplicationsView />} />
+            </Route>
           </Route>
 
           {/* 404 Fallback */}

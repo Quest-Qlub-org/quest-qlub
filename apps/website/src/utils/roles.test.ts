@@ -8,6 +8,7 @@ import {
   getRoleOrder,
   isStaffRole,
   formatMemberName,
+  enrichFallbackProfileRoles,
 } from "./roles";
 
 describe("roles utility", () => {
@@ -142,6 +143,26 @@ describe("roles utility", () => {
       expect(formatMemberName({ display_name: null, username: null })).toBe("名称未設定");
       expect(formatMemberName(null)).toBe("名称未設定");
       expect(formatMemberName(undefined)).toBe("名称未設定");
+    });
+  });
+
+  describe("enrichFallbackProfileRoles", () => {
+    it("uses exact match rather than substring for known engineer fallback", () => {
+      const partial = enrichFallbackProfileRoles({
+        id: "u1",
+        username: "groot_fan",
+        display_name: "Groot Fan",
+        role: "viewer",
+      });
+      expect(partial.roles).toEqual(["viewer"]);
+
+      const exact = enrichFallbackProfileRoles({
+        id: "u2",
+        username: "noimzip",
+        display_name: "Noimzip",
+        role: "viewer",
+      });
+      expect(exact.roles).toContain("engineer");
     });
   });
 });

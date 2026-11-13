@@ -4,7 +4,13 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vite-plus/test"
 import { createRoot } from "react-dom/client";
 import { act } from "react";
 import { BrowserRouter } from "react-router-dom";
-import { RoleRoute, setInMemorySudoAuthorized, checkIsSudoActive } from "./RoleRoute";
+import {
+  RoleRoute,
+  SudoAreaLayout,
+  setInMemorySudoAuthorized,
+  checkIsSudoActive,
+  SUDO_TIMEOUT_MS,
+} from "./RoleRoute";
 import { UIProvider } from "../context/UIContext";
 import { DataProvider } from "../context/DataContext";
 import * as AuthContextModule from "../context/AuthContext";
@@ -670,6 +676,74 @@ describe("RoleRoute access control", () => {
 
       expect(container.textContent).toContain("連載ページ");
       expect(checkIsSudoActive()).toBe(true);
+    });
+
+    it("preserves Sudo authorization between writer-dash and editor-dash inside SudoAreaLayout and auto-locks on timeout", async () => {
+      vi.useFakeTimers();
+      try {
+        setInMemorySudoAuthorized(true);
+        vi.spyOn(AuthContextModule, "useAuth").mockReturnValue({
+          userRole: "editor" as any,
+          authLoading: false,
+          user: { id: "user-editor-1", email: "editor@example.com" } as any,
+          profile: {
+            id: "user-editor-1",
+            role: "editor",
+            roles: ["editor", "writer"],
+            email: "editor@example.com",
+            display_name: "編集長",
+          } as any,
+          setProfile: vi.fn(),
+          setUserRole: vi.fn(),
+          mfaChallengeRequired: false,
+          setMfaChallengeRequired: vi.fn(),
+          refreshProfile: vi.fn(),
+        });
+
+        const { MemoryRouter, Routes, Route, Link } = await import("react-router-dom");
+
+        act(() => {
+          root!.render(
+            <MemoryRouter initialEntries={["/writer-dash"]}>
+              <UIProvider>
+                <DataProvider>
+                  <Routes>
+                    <Route element={<SudoAreaLayout />}>
+                      <Route element={<RoleRoute requiredRole="writer" manageLeaveLock={false} />}>
+                        <Route
+                          path="/writer-dash"
+                          element={<Link to="/editor-dash">編集長管理へ</Link>}
+                        />
+                      </Route>
+                      <Route element={<RoleRoute requiredRole="editor" manageLeaveLock={false} />}>
+                        <Route path="/editor-dash" element={<span>編集長ダッシュボード</span>} />
+                      </Route>
+                    </Route>
+                    <Route path="/" element={<span>ホーム</span>} />
+                  </Routes>
+                </DataProvider>
+              </UIProvider>
+            </MemoryRouter>,
+          );
+        });
+
+        expect(checkIsSudoActive()).toBe(true);
+        const toEditorLink = container.querySelector("a")!;
+        act(() => {
+          toEditorLink.click();
+        });
+
+        expect(container.textContent).toContain("編集長ダッシュボード");
+        expect(checkIsSudoActive()).toBe(true);
+
+        // 15分経過時に自動失効し SudoConfirmModal に戻る
+        act(() => {
+          vi.advanceTimersByTime(SUDO_TIMEOUT_MS + 100);
+        });
+        expect(checkIsSudoActive()).toBe(false);
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 });
