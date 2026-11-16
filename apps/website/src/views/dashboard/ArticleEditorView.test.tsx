@@ -927,4 +927,458 @@ describe("ArticleEditorView schema resilience", () => {
       true,
     );
   });
+
+  it("omits collaborator_ids during auto-save when current user is a non-owner collaborator (#137)", async () => {
+    vi.useFakeTimers();
+    const updatedPayloads: any[] = [];
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") {
+        return {
+          update: vi.fn((payload: any) => {
+            updatedPayloads.push(payload);
+            return { eq: vi.fn().mockResolvedValue({ error: null }) };
+          }),
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: {
+                  id: "art-collab-autosave",
+                  title: "共同編集記事",
+                  content: "<p>本文</p>",
+                  status: "draft",
+                  writer_id: "owner-writer",
+                  collaborator_ids: ["collab-user"],
+                },
+                error: null,
+              }),
+            }),
+          }),
+        } as any;
+      }
+      return {} as any;
+    });
+
+    const mockCoAuthor = createTestProfile({ id: "collab-user", role: "writer" });
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      profile: mockCoAuthor,
+      userRole: "writer",
+      articles: [],
+      setArticles: mockSetArticles,
+      seriesList: [],
+      showToast: mockShowToast,
+      navigate: mockNavigate,
+      getFontSizeClass: () => "text-base",
+      writers: [mockCoAuthor],
+    } as any);
+
+    await act(async () => {
+      root!.render(<ArticleEditorPage editingId="art-collab-autosave" />);
+      await Promise.resolve();
+    });
+
+    const titleInput = container.querySelector(
+      'input[placeholder="読者の目を引くタイトルを入力..."]',
+    ) as HTMLInputElement;
+    act(() => {
+      setNativeValue(titleInput, "共同編集者がタイトルを更新");
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+
+    expect(updatedPayloads).toHaveLength(1);
+    expect("collaborator_ids" in updatedPayloads[0]).toBe(false);
+    vi.useRealTimers();
+  });
+
+  it("does not downgrade scheduled article to published on 42703 schema error (#137)", async () => {
+    const insertedPayloads: any[] = [];
+    const insertMock = vi.fn((payload: any) => {
+      insertedPayloads.push(payload);
+      return {
+        select: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({
+            data: null,
+            error: {
+              code: "42703",
+              message: "column articles.scheduled_at does not exist",
+            },
+          }),
+        }),
+      };
+    });
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") {
+        return {
+          insert: insertMock,
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+            }),
+          }),
+        } as any;
+      }
+      return {} as any;
+    });
+
+    const mockEditor = createTestProfile({ id: "ed-1", role: "editor" });
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      articles: [],
+      setArticles: mockSetArticles,
+      seriesList: [],
+      profile: mockEditor,
+      user: { id: "ed-1" } as any,
+      showToast: mockShowToast,
+      navigate: mockNavigate,
+      getFontSizeClass: () => "text-base",
+    } as any);
+
+    await act(async () => {
+      root!.render(<ArticleEditorPage editingId={null} />);
+    });
+
+    const titleInput = container.querySelector(
+      'input[placeholder="読者の目を引くタイトルを入力..."]',
+    ) as HTMLInputElement;
+    act(() => {
+      setNativeValue(titleInput, "予約公開エラーテスト");
+    });
+
+    const schedInput = container.querySelector(
+      '[data-testid="schedule-datetime-input"]',
+    ) as HTMLInputElement;
+    act(() => {
+      setNativeValue(schedInput, "2099-12-31T15:30");
+    });
+
+    const submitBtn = container.querySelector(
+      '[data-testid="editor-submit-btn"]',
+    ) as HTMLButtonElement;
+    await act(async () => {
+      submitBtn.click();
+    });
+
+    expect(insertedPayloads).toHaveLength(1);
+    expect(insertedPayloads[0].status).toBe("scheduled");
+    expect(insertedPayloads.some((p) => p.status === "published")).toBe(false);
+    expect(mockShowToast).toHaveBeenCalledWith("エラーが発生しました。もう一度お試しください。");
+  });
+
+  it("publishes immediately with status='published' when editor clicks '記事を公開' on a new article (#142)", async () => {
+    const insertedPayloads: any[] = [];
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") {
+        return {
+          insert: vi.fn((payload: any) => {
+            insertedPayloads.push(payload);
+            return {
+              select: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: {
+                    id: "art-ed-pub-1",
+                    title: payload.title,
+                    writer_id: payload.writer_id,
+                    status: payload.status,
+                  },
+                  error: null,
+                }),
+              }),
+            };
+          }),
+        } as any;
+      }
+      return {} as any;
+    });
+
+    const mockEditor = createTestProfile({ id: "ed-1", role: "editor" });
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      articles: [],
+      setArticles: mockSetArticles,
+      seriesList: [],
+      profile: mockEditor,
+      user: { id: "ed-1" } as any,
+      userRole: "editor",
+      showToast: mockShowToast,
+      navigate: mockNavigate,
+      getFontSizeClass: () => "text-base",
+    } as any);
+
+    await act(async () => {
+      root!.render(<ArticleEditorPage editingId={null} />);
+    });
+
+    const titleInput = container.querySelector(
+      'input[placeholder="読者の目を引くタイトルを入力..."]',
+    ) as HTMLInputElement;
+    act(() => {
+      setNativeValue(titleInput, "編集長の即時公開テスト");
+    });
+
+    const publishBtn = container.querySelector(
+      '[data-testid="editor-submit-btn"]',
+    ) as HTMLButtonElement;
+    expect(publishBtn.textContent).toContain("記事を公開");
+
+    await act(async () => {
+      publishBtn.click();
+    });
+
+    expect(insertedPayloads).toHaveLength(1);
+    expect(insertedPayloads[0].status).toBe("published");
+    expect(mockShowToast).toHaveBeenCalledWith("記事を公開しました");
+    expect(mockNavigate).toHaveBeenCalledWith("writerDash");
+  });
+
+  it("resets autoSaveIdRef and isDirty when navigating from /edit/:id to /new (#142)", async () => {
+    const updateMock = vi.fn().mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    });
+    const insertMock = vi.fn((payload: any) => ({
+      select: vi.fn().mockReturnValue({
+        single: vi.fn().mockResolvedValue({
+          data: { id: "art-fresh-new", title: payload.title, writer_id: "writer-1" },
+          error: null,
+        }),
+      }),
+    }));
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: {
+                  id: "art-old-1",
+                  title: "既存記事",
+                  content: "<p>既存本文</p>",
+                  status: "draft",
+                  writer_id: "writer-1",
+                },
+                error: null,
+              }),
+            }),
+          }),
+          update: updateMock,
+          insert: insertMock,
+        } as any;
+      }
+      return {} as any;
+    });
+
+    const mockWriter = createTestProfile({ id: "writer-1", role: "writer" });
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      articles: [],
+      setArticles: mockSetArticles,
+      seriesList: [],
+      profile: mockWriter,
+      user: { id: "writer-1" } as any,
+      userRole: "writer",
+      showToast: mockShowToast,
+      navigate: mockNavigate,
+      getFontSizeClass: () => "text-base",
+    } as any);
+
+    await act(async () => {
+      root!.render(<ArticleEditorPage editingId="art-old-1" />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector("h1")?.textContent).toContain("記事を編集");
+
+    // /writer-dash/new (editingId=null) へ遷移
+    await act(async () => {
+      root!.render(<ArticleEditorPage editingId={null} />);
+    });
+
+    expect(container.querySelector("h1")?.textContent).toContain("新規記事作成");
+    const titleInput = container.querySelector(
+      'input[placeholder="読者の目を引くタイトルを入力..."]',
+    ) as HTMLInputElement;
+    expect(titleInput.value).toBe("");
+
+    act(() => {
+      setNativeValue(titleInput, "全く新しい記事");
+    });
+
+    const saveBtn = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("下書き保存"),
+    );
+    await act(async () => {
+      saveBtn!.click();
+    });
+
+    // 前の記事 ID への update ではなく新規 insert が実行されること
+    expect(updateMock).not.toHaveBeenCalled();
+    expect(insertMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("serializes auto-save and manual save without duplicating inserts or overwriting concurrent edits (#142)", async () => {
+    vi.useFakeTimers();
+    let resolveInsert: ((val: any) => void) | null = null;
+    const insertMock = vi.fn(() => ({
+      select: vi.fn().mockReturnValue({
+        single: vi.fn(
+          () =>
+            new Promise((resolve) => {
+              resolveInsert = resolve;
+            }),
+        ),
+      }),
+    }));
+    const updateMock = vi.fn().mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    });
+    const maybeSingleMock = vi.fn().mockResolvedValue({
+      data: {
+        id: "art-auto-1",
+        title: "自動保存タイトル",
+        content: "<p>古い本文</p>",
+        status: "draft",
+        writer_id: "writer-1",
+      },
+      error: null,
+    });
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") {
+        return {
+          insert: insertMock,
+          update: updateMock,
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: maybeSingleMock,
+            }),
+          }),
+        } as any;
+      }
+      return {} as any;
+    });
+
+    const mockWriter = createTestProfile({ id: "writer-1", role: "writer" });
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      articles: [],
+      setArticles: mockSetArticles,
+      seriesList: [],
+      profile: mockWriter,
+      user: { id: "writer-1" } as any,
+      userRole: "writer",
+      showToast: mockShowToast,
+      navigate: mockNavigate,
+      getFontSizeClass: () => "text-base",
+    } as any);
+
+    await act(async () => {
+      root!.render(<ArticleEditorPage editingId={null} />);
+    });
+
+    const titleInput = container.querySelector(
+      'input[placeholder="読者の目を引くタイトルを入力..."]',
+    ) as HTMLInputElement;
+    act(() => {
+      setNativeValue(titleInput, "自動保存タイトル");
+    });
+
+    // 5秒経過で自動保存 insert が開始（未完了のまま保留）
+    await act(async () => {
+      vi.advanceTimersByTime(5000);
+    });
+    expect(insertMock).toHaveBeenCalledTimes(1);
+
+    // 自動保存の通信中に追加入力を行う
+    const contentInput = container.querySelector(
+      '[data-testid="editor-content-input"]',
+    ) as HTMLTextAreaElement;
+    act(() => {
+      setNativeValue(contentInput, "<p>通信中の追加入力</p>");
+    });
+
+    // 自動保存完了 & ルート置換により editingId が切り替わったケースを再現
+    await act(async () => {
+      resolveInsert!({
+        data: { id: "art-auto-1", title: "自動保存タイトル", writer_id: "writer-1" },
+        error: null,
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      root!.render(<ArticleEditorPage editingId="art-auto-1" />);
+      await Promise.resolve();
+    });
+
+    // 自動保存からのルート置換では fetchArticleForEdit によるフォーム上書きが起きず、追加入力が保持されること
+    expect(maybeSingleMock).not.toHaveBeenCalled();
+    expect(
+      (container.querySelector('[data-testid="editor-content-input"]') as HTMLTextAreaElement)
+        .value,
+    ).toBe("<p>通信中の追加入力</p>");
+    // 保存開始後に追加入力があったため未保存状態が維持されること
+    expect(container.textContent).toContain("未保存の変更あり");
+
+    vi.useRealTimers();
+  });
+
+  it("does not push duplicate popstate history entries across dirty cycles and renders not-found when editingId is missing (#142)", async () => {
+    const pushStateSpy = vi.spyOn(window.history, "pushState");
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+            }),
+          }),
+        } as any;
+      }
+      return {} as any;
+    });
+
+    const mockWriter = createTestProfile({ id: "writer-1", role: "writer" });
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      articles: [],
+      setArticles: mockSetArticles,
+      seriesList: [],
+      profile: mockWriter,
+      user: { id: "writer-1" } as any,
+      userRole: "writer",
+      showToast: mockShowToast,
+      navigate: mockNavigate,
+      getFontSizeClass: () => "text-base",
+    } as any);
+
+    // 存在しない editingId の場合は NotFound 表示になること
+    await act(async () => {
+      root!.render(<ArticleEditorPage editingId="non-existent-id" />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("記事が見つかりません");
+    expect(container.textContent).not.toContain("新規記事作成");
+
+    // 新規作成で複数回編集しても pushState が1回しか積まれないこと
+    await act(async () => {
+      root!.render(<ArticleEditorPage editingId={null} />);
+    });
+    pushStateSpy.mockClear();
+
+    const titleInput = container.querySelector(
+      'input[placeholder="読者の目を引くタイトルを入力..."]',
+    ) as HTMLInputElement;
+    act(() => {
+      setNativeValue(titleInput, "1回目の変更");
+    });
+    act(() => {
+      setNativeValue(titleInput, "2回目の変更");
+    });
+
+    expect(pushStateSpy).toHaveBeenCalledTimes(1);
+  });
 });

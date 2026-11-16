@@ -470,7 +470,8 @@ describe("WriterSeriesPage", () => {
 
     expect(mockArticleUpdate).toHaveBeenCalledWith({
       series_id: "series-manage-1",
-      episode_number: 2,
+      // 既存記事の話数が 3 に更新されているため maxEp + 1 = 4 が採番される (#145)
+      episode_number: 4,
     });
     expect(mockShowToast).toHaveBeenCalledWith("連載に記事を追加しました");
 
@@ -1076,5 +1077,142 @@ describe("WriterSeriesPage", () => {
     expect(queriedArticleFields).toContain(ARTICLE_LIST_FIELDS);
     expect(queriedArticleFields[queriedArticleFields.length - 1]).toBe(ARTICLE_LIST_FIELDS);
     expect(queriedArticleFields[queriedArticleFields.length - 1]).not.toContain("collaborator_ids");
+  });
+
+  it("assigns maxEpisode + 1 on gapped series and reverts controlled episode input on update failure (#145)", async () => {
+    const mockWriter = createTestProfile({ id: "writer-1", role: "writer" });
+    const mockSeries = createTestSeries({
+      id: "series-gap-1",
+      title: "欠番あり連載",
+      writerId: "writer-1",
+    });
+
+    const mockArticleUpdate = vi.fn((payload: any) => ({
+      eq: vi.fn().mockImplementation(() => {
+        if ("episode_number" in payload && !("series_id" in payload)) {
+          return Promise.resolve({ error: { message: "DB update failed" } });
+        }
+        return Promise.resolve({ error: null });
+      }),
+    }));
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "series") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({
+              data: [
+                {
+                  id: "series-gap-1",
+                  title: "欠番あり連載",
+                  writer_id: "writer-1",
+                },
+              ],
+              error: null,
+            }),
+          }),
+        } as any;
+      }
+      if (table === "articles") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              order: vi.fn().mockResolvedValue({
+                data: [
+                  {
+                    id: "art-ep-1",
+                    title: "第1話",
+                    series_id: "series-gap-1",
+                    episode_number: 1,
+                    writer_id: "writer-1",
+                    status: "published",
+                  },
+                  {
+                    id: "art-ep-4",
+                    title: "第4話",
+                    series_id: "series-gap-1",
+                    episode_number: 4,
+                    writer_id: "writer-1",
+                    status: "published",
+                  },
+                  {
+                    id: "art-unassigned-gap",
+                    title: "追加候補記事",
+                    series_id: null,
+                    episode_number: null,
+                    writer_id: "writer-1",
+                    status: "draft",
+                  },
+                ],
+                error: null,
+              }),
+            }),
+          }),
+          update: mockArticleUpdate,
+        } as any;
+      }
+      return {} as any;
+    });
+
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      profile: mockWriter,
+      seriesList: [mockSeries],
+      setSeriesList: mockSetSeriesList,
+      showToast: mockShowToast,
+      navigate: mockNavigate,
+      articles: [],
+      setArticles: mockSetArticles,
+    } as any);
+
+    await act(async () => {
+      root!.render(<WriterSeriesPage />);
+    });
+
+    const expandBtn = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("2件の記事"),
+    );
+    act(() => {
+      expandBtn!.click();
+    });
+
+    // 話数更新が失敗したとき、制御された入力欄が元の値 ("1") に戻ること
+    const epInput = container.querySelector(
+      '[data-testid="episode-input-art-ep-1"]',
+    ) as HTMLInputElement;
+    act(() => {
+      setNativeValue(epInput, "99");
+    });
+    expect(epInput.value).toBe("99");
+
+    await act(async () => {
+      epInput.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(mockShowToast).toHaveBeenCalledWith("話数の更新に失敗しました");
+    expect(
+      (container.querySelector('[data-testid="episode-input-art-ep-1"]') as HTMLInputElement).value,
+    ).toBe("1");
+
+    // 欠番あり (#1, #4) に記事を追加すると currentCount+1=3 ではなく max+1=5 が採番されること
+    const addSelect = container.querySelector(
+      '[data-testid="add-article-select-series-gap-1"]',
+    ) as HTMLSelectElement;
+    act(() => {
+      addSelect.value = "art-unassigned-gap";
+      addSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    const addBtn = container.querySelector(
+      '[data-testid="add-article-btn-series-gap-1"]',
+    ) as HTMLButtonElement;
+    await act(async () => {
+      addBtn.click();
+    });
+
+    expect(mockArticleUpdate).toHaveBeenCalledWith({
+      series_id: "series-gap-1",
+      episode_number: 5,
+    });
   });
 });

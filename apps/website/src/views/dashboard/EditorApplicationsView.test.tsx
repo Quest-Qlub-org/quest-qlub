@@ -156,4 +156,66 @@ describe("EditorApplicationsView", () => {
     expect(emptyText?.className).toContain("dark:text-gray-400");
     expect(emptyText?.className).not.toContain("dark:text-gray-500");
   });
+
+  it("does not misclassify general contact messages containing ライター応募 in subject as writer applications (#139)", async () => {
+    const mockMessages = [
+      {
+        id: "msg-app",
+        name: "正規応募者",
+        email: "real@example.com",
+        subject: "【ライター応募】正規応募者様より",
+        body: "【応募者名】: 正規応募者\n【志望動機・自己PR】:\n記事を書きたいです。",
+        created_at: "2026-10-24T10:00:00Z",
+      },
+      {
+        id: "msg-spoof",
+        name: "なりすまし送信者",
+        email: "spoof@example.com",
+        subject: "ライター応募について質問",
+        body: "一般お問い合わせの本文です。",
+        created_at: "2026-10-23T10:00:00Z",
+      },
+    ];
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "contact_messages") {
+        return {
+          select: vi.fn().mockReturnValue({
+            order: vi.fn().mockResolvedValue({ data: mockMessages, error: null }),
+          }),
+        } as any;
+      }
+      return {} as any;
+    });
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      showToast: mockShowToast,
+    } as any);
+
+    let container: HTMLElement = document.createElement("div");
+    await act(async () => {
+      const rendered = renderWithRouter(<EditorApplicationsView />);
+      container = rendered.container;
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // 応募者タブでは正規応募者のみ表示され、なりすましは除外されること
+    expect(container.textContent).toContain("正規応募者");
+    expect(container.textContent).not.toContain("なりすまし送信者");
+    expect(container.textContent).toContain("ライター応募 (1)");
+
+    // 「すべて」タブでもなりすましに「応募者」バッジや「ライターに昇格」ボタンが付かないこと
+    const allTabBtn = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("すべて"),
+    );
+    await act(async () => {
+      allTabBtn!.click();
+    });
+
+    expect(container.textContent).toContain("なりすまし送信者");
+    const promoteButtons = Array.from(container.querySelectorAll("button")).filter((b) =>
+      b.textContent?.includes("ライターに昇格"),
+    );
+    expect(promoteButtons).toHaveLength(1);
+  });
 });

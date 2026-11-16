@@ -470,4 +470,105 @@ describe("WriterDashboard", () => {
     );
     expect(buttons).toContain("削除");
   });
+
+  it("does not re-fetch on status update and does not resurrect deleted last article from global articles (#145)", async () => {
+    const mockDeleteEq = vi.fn().mockResolvedValue({ error: null });
+    const mockUpdateEq = vi.fn().mockResolvedValue({ error: null });
+    const selectSpy = vi.fn(() => ({
+      eq: vi.fn().mockReturnValue({
+        order: vi.fn().mockResolvedValue({
+          data: [
+            {
+              id: "art-last-1",
+              title: "最後のマイ記事",
+              status: "draft",
+              writer_id: "w-1",
+              views: 0,
+              likes: 0,
+              created_at: new Date().toISOString(),
+            },
+          ],
+          error: null,
+        }),
+      }),
+    }));
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") {
+        return {
+          select: selectSpy,
+          update: vi.fn().mockReturnValue({ eq: mockUpdateEq }),
+          delete: vi.fn().mockReturnValue({ eq: mockDeleteEq }),
+        } as any;
+      }
+      return {} as any;
+    });
+
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    const mockProfile = createTestProfile({ id: "w-1", role: "writer" });
+    let currentGlobalArticles = [
+      {
+        id: "art-last-1",
+        title: "最後のマイ記事",
+        writerId: "w-1",
+        status: "draft" as const,
+        thumbnail: "",
+        views: 0,
+        likes: 0,
+        tags: [],
+        isRecommended: false,
+        isPopular: false,
+      },
+    ];
+    const mockSetArticles = vi.fn((updater: any) => {
+      currentGlobalArticles =
+        typeof updater === "function" ? updater(currentGlobalArticles) : updater;
+    });
+
+    vi.spyOn(AppContextModule, "useApp").mockImplementation(
+      () =>
+        ({
+          profile: mockProfile,
+          articles: currentGlobalArticles,
+          setArticles: mockSetArticles,
+          showToast: vi.fn(),
+          navigate: vi.fn(),
+          authLoading: false,
+        }) as any,
+    );
+
+    const { container, rerender } = renderWithRouter(<WriterDashboard />);
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(selectSpy).toHaveBeenCalledTimes(1);
+    expect(container.textContent).toContain("最後のマイ記事");
+
+    // 申請クリック後、articles 更新を伴う再レンダーが起きても DB 再取得されないこと
+    const submitBtn = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("投稿申請"),
+    );
+    expect(submitBtn).toBeDefined();
+    await act(async () => {
+      submitBtn!.click();
+    });
+    rerender(<WriterDashboard />);
+    expect(selectSpy).toHaveBeenCalledTimes(1);
+
+    // 最後の記事を削除してもグローバル articles から復活せず空状態になること
+    const deleteBtn = Array.from(container.querySelectorAll("button")).find(
+      (b) => b.textContent?.trim() === "削除",
+    );
+    expect(deleteBtn).toBeDefined();
+    await act(async () => {
+      deleteBtn!.click();
+    });
+
+    expect(container.textContent).toContain("まだ記事がありません");
+    expect(container.textContent).not.toContain("最後のマイ記事");
+  });
 });

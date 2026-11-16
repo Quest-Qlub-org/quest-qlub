@@ -2,13 +2,15 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vite-plus/test";
 import { createRoot } from "react-dom/client";
 import { act } from "react";
-import { MemoryRouter, Routes, Route } from "react-router-dom";
+import { MemoryRouter, Routes, Route, Link } from "react-router-dom";
 import { ArticleView } from "./ArticleView";
 import { AppProviders } from "../context/AppContext";
+import { useUI } from "../context/UIContext";
 import { supabase } from "../supabase";
 import { createTestArticle, createTestProfile } from "../test/test-utils";
 import * as useFollowsModule from "../hooks/useFollows";
 import * as profileQueriesModule from "../utils/profileQueries";
+import { setInMemorySudoAuthorized } from "../components/RoleRoute";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -24,6 +26,7 @@ describe("ArticleView", () => {
   });
 
   afterEach(() => {
+    setInMemorySudoAuthorized(false);
     if (root) {
       act(() => {
         root!.unmount();
@@ -443,7 +446,8 @@ describe("ArticleView", () => {
       });
     }
 
-    // 著者として「申請取消」ボタンをクリック
+    // 著者として「申請取消」ボタンをクリック（Sudo 認可済み）
+    setInMemorySudoAuthorized(true);
     const withdrawBtn = container.querySelector(
       '[data-testid="preview-banner-withdraw-btn"]',
     ) as HTMLButtonElement;
@@ -909,7 +913,8 @@ describe("ArticleView", () => {
     expect(banner).toBeTruthy();
     expect(container.textContent).toContain("共同執筆の審査中記事");
 
-    // 共同執筆者にも申請取消ボタンが表示され、クリックでステータスが更新されること
+    // 共同執筆者にも申請取消ボタンが表示され、クリックでステータスが更新されること（Sudo 認可済み）
+    setInMemorySudoAuthorized(true);
     const withdrawBtn = container.querySelector(
       '[data-testid="preview-banner-withdraw-btn"]',
     ) as HTMLButtonElement;
@@ -1273,5 +1278,259 @@ describe("ArticleView", () => {
       await Promise.resolve();
     });
     expect(container.textContent).not.toContain("ライターページ");
+  });
+
+  it("requires Sudo confirmation before executing quick status change from preview banner (#137)", async () => {
+    const pendingArticle = {
+      id: "art-sudo-guard",
+      title: "Sudo保護テスト記事",
+      writer_id: "author-sudo",
+      status: "pending",
+      content: "<p>本文</p>",
+      created_at: "2026-10-24T12:00:00Z",
+    };
+
+    const updateMock = vi.fn().mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    });
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data: pendingArticle, error: null }),
+            }),
+          }),
+          update: updateMock,
+        } as any;
+      }
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            order: vi.fn().mockReturnValue({
+              order: vi.fn().mockResolvedValue({ data: [], error: null }),
+            }),
+            maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+          }),
+        }),
+      } as any;
+    });
+
+    vi.spyOn(useFollowsModule, "useFollows").mockReturnValue({
+      followedIds: [],
+      isFollowing: vi.fn(() => false),
+      toggleFollow: vi.fn(async () => true),
+      isAuthenticated: true,
+      currentUserId: "author-sudo",
+      loading: false,
+    });
+
+    // Sudo 未認可状態でレンダリング
+    setInMemorySudoAuthorized(false);
+
+    await act(async () => {
+      root!.render(
+        <MemoryRouter initialEntries={["/articles/art-sudo-guard"]}>
+          <AppProviders>
+            <Routes>
+              <Route path="/articles/:id" element={<ArticleView />} />
+            </Routes>
+          </AppProviders>
+        </MemoryRouter>,
+      );
+    });
+
+    for (let i = 0; i < 50; i++) {
+      if (container.textContent?.includes("Sudo保護テスト記事")) break;
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 20));
+      });
+    }
+
+    const withdrawBtn = container.querySelector(
+      '[data-testid="preview-banner-withdraw-btn"]',
+    ) as HTMLButtonElement;
+    expect(withdrawBtn).not.toBeNull();
+
+    await act(async () => {
+      withdrawBtn.click();
+      await Promise.resolve();
+    });
+
+    // Sudo 未認可時は Supabase update が実行されないこと
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  it("opens X and LINE share links with noopener,noreferrer (#139)", async () => {
+    const articleData = {
+      id: "art-share-sec",
+      title: "シェアセキュリティテスト",
+      content: "<p>本文</p>",
+      status: "published",
+      writer_id: "writer-share",
+      created_at: "2026-11-01T08:00:00Z",
+    };
+
+    const createQueryChain = (data: any = null) => {
+      const arr = data ? (Array.isArray(data) ? data : [data]) : [];
+      const promise = Promise.resolve({ data: arr, error: null });
+      const chain: any = Object.assign(promise, {
+        select: vi.fn(() => chain),
+        eq: vi.fn(() => chain),
+        in: vi.fn(() => chain),
+        order: vi.fn(() => chain),
+        range: vi.fn(() => Promise.resolve({ data: [], error: null })),
+        maybeSingle: vi.fn(() => Promise.resolve({ data: arr[0] ?? null, error: null })),
+        single: vi.fn(() => Promise.resolve({ data: arr[0] ?? null, error: null })),
+      });
+      return chain;
+    };
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") return createQueryChain(articleData);
+      return createQueryChain(null);
+    });
+
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+
+    await act(async () => {
+      root!.render(
+        <MemoryRouter initialEntries={["/articles/art-share-sec"]}>
+          <AppProviders>
+            <Routes>
+              <Route path="/articles/:id" element={<ArticleView />} />
+            </Routes>
+          </AppProviders>
+        </MemoryRouter>,
+      );
+    });
+
+    for (let i = 0; i < 50; i++) {
+      if (container.textContent?.includes("シェアセキュリティテスト")) break;
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 20));
+      });
+    }
+
+    const xBtn = container.querySelector('button[aria-label="Xで共有"]') as HTMLButtonElement;
+    const lineBtn = container.querySelector('button[aria-label="LINEで共有"]') as HTMLButtonElement;
+    expect(xBtn).not.toBeNull();
+    expect(lineBtn).not.toBeNull();
+
+    act(() => {
+      xBtn.click();
+      lineBtn.click();
+    });
+
+    expect(openSpy).toHaveBeenCalledTimes(2);
+    expect(openSpy).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining("https://twitter.com/intent/tweet"),
+      "_blank",
+      "noopener,noreferrer",
+    );
+    expect(openSpy).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining("https://line.me/R/msg/text/"),
+      "_blank",
+      "noopener,noreferrer",
+    );
+  });
+
+  it("resets notFound state when navigating from 404 article to valid article and handles clipboard errors (#145)", async () => {
+    const validArticle = {
+      id: "art-valid-nav",
+      title: "遷移後の有効記事",
+      content: "<p>有効本文</p>",
+      status: "published",
+      writer_id: "writer-1",
+      created_at: "2026-11-01T08:00:00Z",
+    };
+
+    const createQueryChain = (id?: string) => {
+      const data = id === "art-valid-nav" ? validArticle : null;
+      const promise = Promise.resolve({ data: data ? [data] : [], error: null });
+      const chain: any = Object.assign(promise, {
+        select: vi.fn(() => chain),
+        eq: vi.fn((_col: string, val: string) => createQueryChain(val)),
+        in: vi.fn(() => chain),
+        order: vi.fn(() => chain),
+        range: vi.fn(() => Promise.resolve({ data: [], error: null })),
+        maybeSingle: vi.fn(() => Promise.resolve({ data, error: null })),
+        single: vi.fn(() => Promise.resolve({ data, error: null })),
+      });
+      return chain;
+    };
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") return createQueryChain();
+      return createQueryChain();
+    });
+
+    const ToastProbe = () => {
+      const { toastMessage } = useUI();
+      return <div data-testid="toast-probe">{toastMessage}</div>;
+    };
+
+    await act(async () => {
+      root!.render(
+        <MemoryRouter initialEntries={["/articles/missing-404"]}>
+          <AppProviders>
+            <ToastProbe />
+            <Link to="/articles/art-valid-nav" data-testid="nav-to-valid">
+              有効記事へ
+            </Link>
+            <Routes>
+              <Route path="/articles/:id" element={<ArticleView />} />
+            </Routes>
+          </AppProviders>
+        </MemoryRouter>,
+      );
+    });
+
+    for (let i = 0; i < 50; i++) {
+      if (container.textContent?.includes("記事が見つかりません")) break;
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 20));
+      });
+    }
+    expect(container.textContent).toContain("記事が見つかりません");
+
+    // クリップボード失敗時のエラー処理も検証
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: vi.fn().mockRejectedValue(new Error("Clipboard denied")),
+      },
+    });
+
+    // 同じマウントを維持したまま有効な記事へルート遷移
+    const navLink = container.querySelector('[data-testid="nav-to-valid"]') as HTMLAnchorElement;
+    await act(async () => {
+      navLink.click();
+      await Promise.resolve();
+    });
+
+    for (let i = 0; i < 50; i++) {
+      if (container.textContent?.includes("遷移後の有効記事")) break;
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 20));
+      });
+    }
+
+    expect(container.textContent).toContain("遷移後の有効記事");
+    expect(container.textContent).not.toContain("記事が見つかりません");
+
+    const copyBtn = container.querySelector(
+      'button[aria-label="記事のリンクをコピー"]',
+    ) as HTMLButtonElement;
+    await act(async () => {
+      copyBtn.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(container.querySelector('[data-testid="toast-probe"]')?.textContent).toBe(
+      "リンクのコピーに失敗しました",
+    );
   });
 });

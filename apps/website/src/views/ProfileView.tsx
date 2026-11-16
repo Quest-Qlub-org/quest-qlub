@@ -1,11 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useParams } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { LogoIcon, CustomUserIcon } from "../components/icons/NavIcons";
 import { ArticleCard } from "../components/ArticleCard";
-import { ChevronLeft, UserPlus, UserCheck, Loader2, Users, X } from "lucide-react";
+import { ChevronLeft, UserPlus, UserCheck, Loader2 } from "lucide-react";
 import { useFollows, fetchFollowCounts, fetchFollowDetails } from "../hooks/useFollows";
-import { useFocusTrap } from "../hooks/useFocusTrap";
 import {
   updateMetaTags,
   resetMetaTags,
@@ -16,20 +15,20 @@ import {
 import { supabase } from "../supabase";
 import type { Profile } from "../supabase";
 import type { Article } from "../types";
-import { mapDbArticleToArticle } from "../types";
 import { ARTICLE_LIST_FIELDS } from "../context/DataContext";
 import { getProfileRoles, getRoleLabel } from "../utils/roles";
 import { fetchSingleProfileWithFallback } from "../utils/profileQueries";
+import { mapDbArticleWithSchedule, isArticlePubliclyVisible } from "../utils/scheduledArticles";
 import { normalizeHandle, normalizeXAccount } from "../utils/validation";
+import { ProfileFollowModal } from "./components/ProfileFollowModal";
 
 export const ProfileView = () => {
   const { username } = useParams<{ username: string }>();
-  const { writers, writersLoading, articles, navigate, viewParam, showToast, profile, user } =
-    useApp();
+  const { writers, writersLoading, articles, navigate, showToast, profile, user } = useApp();
   const { isFollowing, toggleFollow, isAuthenticated } = useFollows();
 
   const currentUserId = profile?.id || user?.id || null;
-  const targetIdentifier = username || viewParam;
+  const targetIdentifier = username;
   const cleanTarget = (targetIdentifier || "").replace(/^@/, "");
 
   // キャッシュまたは個別フェッチしたライター情報
@@ -44,6 +43,8 @@ export const ProfileView = () => {
   const [writerArticles, setWriterArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(!cachedWriter);
   const [notFound, setNotFound] = useState(false);
+  const articlesRef = useRef(articles);
+  articlesRef.current = articles;
 
   // フォロワー数（誰でも閲覧可能）
   const [followersCount, setFollowersCount] = useState(0);
@@ -60,7 +61,12 @@ export const ProfileView = () => {
   }, []);
 
   useEffect(() => {
+    setNotFound(false);
+    setWriterArticles([]);
+    setFollowersCount(0);
+
     if (!targetIdentifier) {
+      setWriter(null);
       setNotFound(true);
       setLoading(false);
       return;
@@ -72,6 +78,9 @@ export const ProfileView = () => {
     if (cachedWriter) {
       setWriter(cachedWriter);
       setLoading(false);
+    } else {
+      setWriter(null);
+      setLoading(true);
     }
 
     const fetchWriterData = async () => {
@@ -135,13 +144,17 @@ export const ProfileView = () => {
           if (!isMounted) return;
 
           if (!artsError && artsData && artsData.length > 0) {
-            setWriterArticles(artsData.map((item) => mapDbArticleToArticle(item)));
+            setWriterArticles(
+              artsData
+                .map((item) => mapDbArticleWithSchedule(item))
+                .filter((a) => isArticlePubliclyVisible(a)),
+            );
           } else {
             // グローバルarticlesからフォールバック（主執筆および共同執筆記事を含む）
-            const fallback = articles.filter(
+            const fallback = articlesRef.current.filter(
               (a) =>
                 (a.writerId === profileData?.id || a.collaboratorIds?.includes(profileData?.id)) &&
-                a.status === "published",
+                isArticlePubliclyVisible(a),
             );
             setWriterArticles(fallback);
           }
@@ -169,7 +182,6 @@ export const ProfileView = () => {
   const closeFollowModal = useCallback(() => {
     setFollowModalTab(null);
   }, []);
-  const followModalRef = useFocusTrap(Boolean(isOwnProfile && followModalTab), closeFollowModal);
 
   const handleOpenFollowModal = async (tab: "following" | "followers") => {
     if (!writer || !isOwnProfile) return;
@@ -402,118 +414,15 @@ export const ProfileView = () => {
       </div>
 
       {/* 本人専用：フォロー中・フォロワー詳細一覧モーダル */}
-      {isOwnProfile && followModalTab && (
-        <div
-          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in"
-          onClick={closeFollowModal}
-        >
-          <div
-            ref={followModalRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="follow-modal-title"
-            className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-700">
-              <div className="flex items-center gap-2">
-                <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                <h2
-                  id="follow-modal-title"
-                  className="font-bold text-gray-900 dark:text-gray-100 text-base"
-                >
-                  フォロー・フォロワー管理
-                </h2>
-              </div>
-              <button
-                type="button"
-                onClick={closeFollowModal}
-                aria-label="閉じる"
-                className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-2 border-b border-gray-100 dark:border-gray-700 text-xs font-bold">
-              <button
-                type="button"
-                onClick={() => setFollowModalTab("following")}
-                className={`py-3 text-center border-b-2 transition-colors cursor-pointer ${
-                  followModalTab === "following"
-                    ? "border-blue-600 text-blue-600 dark:text-blue-400 bg-blue-50/40 dark:bg-blue-950/40"
-                    : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
-                }`}
-              >
-                フォロー中 ({followingList.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setFollowModalTab("followers")}
-                className={`py-3 text-center border-b-2 transition-colors cursor-pointer ${
-                  followModalTab === "followers"
-                    ? "border-blue-600 text-blue-600 dark:text-blue-400 bg-blue-50/40 dark:bg-blue-950/40"
-                    : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
-                }`}
-              >
-                フォロワー ({followersList.length})
-              </button>
-            </div>
-
-            <div className="p-4 overflow-y-auto space-y-2.5">
-              {loadingFollowDetails ? (
-                <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-8">
-                  読み込み中...
-                </p>
-              ) : (followModalTab === "following" ? followingList : followersList).length === 0 ? (
-                <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-8">
-                  {followModalTab === "following"
-                    ? "フォロー中のアカウントはありません"
-                    : "フォロワーはまだいません"}
-                </p>
-              ) : (
-                (followModalTab === "following" ? followingList : followersList).map((item) => {
-                  const itemDisplayName =
-                    item.display_name || (item.username ? `@${item.username}` : "ユーザー");
-                  return (
-                    <Link
-                      key={item.id}
-                      to={`/writers/${item.username || item.id}`}
-                      onClick={closeFollowModal}
-                      className="flex items-center justify-between p-3 rounded-xl border border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/60 cursor-pointer transition-colors"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 overflow-hidden flex items-center justify-center shrink-0">
-                          {item.avatar_url ? (
-                            <img
-                              src={item.avatar_url}
-                              className="w-full h-full object-cover"
-                              alt={`${itemDisplayName}のアバター`}
-                              loading="lazy"
-                              decoding="async"
-                            />
-                          ) : (
-                            <CustomUserIcon className="w-6 h-6" />
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-bold text-gray-800 dark:text-gray-100 truncate">
-                            {itemDisplayName}
-                          </p>
-                          {item.username && (
-                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                              @{item.username}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </Link>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        </div>
+      {isOwnProfile && (
+        <ProfileFollowModal
+          activeTab={followModalTab}
+          onChangeTab={setFollowModalTab}
+          onClose={closeFollowModal}
+          loading={loadingFollowDetails}
+          followingList={followingList}
+          followersList={followersList}
+        />
       )}
     </div>
   );

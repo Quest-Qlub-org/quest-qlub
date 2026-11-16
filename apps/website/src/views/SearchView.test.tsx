@@ -465,4 +465,64 @@ describe("SearchView", () => {
     const clearButton = container.querySelector('button[aria-label="検索キーワードをクリア"]');
     expect(clearButton).not.toBeNull();
   });
+
+  it("applies limit to tag fetch when supported and toggles URL tag cleanly outside state updater (#145)", async () => {
+    const limitSpy = vi.fn().mockResolvedValue({
+      data: [{ tags: ["React"] }],
+      error: null,
+    });
+    const createChain = () => {
+      const p = Promise.resolve({ data: [], error: null });
+      const chain: any = Object.assign(p, {
+        select: vi.fn((fields: string) => {
+          if (fields === "tags") {
+            return {
+              eq: vi.fn().mockReturnValue({
+                order: vi.fn().mockReturnValue({
+                  limit: limitSpy,
+                }),
+              }),
+            };
+          }
+          return chain;
+        }),
+        eq: vi.fn(() => chain),
+        in: vi.fn(() => chain),
+        overlaps: vi.fn(() => chain),
+        order: vi.fn(() => chain),
+      });
+      return chain;
+    };
+
+    vi.spyOn(supabase, "from").mockImplementation(() => createChain());
+
+    const art = createTestArticle({
+      id: "art-tag-toggle",
+      title: "React入門記事",
+      tags: ["React"],
+      status: "published",
+    });
+    setupAppMock({ articles: [art], writers: [] });
+
+    await act(async () => {
+      renderSearchView("/search?tag=React");
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(limitSpy).toHaveBeenCalledWith(200);
+    expect(container.textContent).toContain("検索結果 (1件)");
+
+    const reactBtn = Array.from(container.querySelectorAll("button")).find(
+      (b) => b.textContent?.trim() === "#React",
+    );
+    expect(reactBtn?.getAttribute("aria-pressed")).toBe("true");
+
+    act(() => {
+      reactBtn!.click();
+    });
+
+    expect(reactBtn?.getAttribute("aria-pressed")).toBe("false");
+    expect(container.textContent).not.toContain("検索結果 (");
+  });
 });

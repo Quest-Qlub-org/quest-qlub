@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vite-plus/test"
 import { act } from "react";
 import { EditorArticlesView } from "./EditorArticlesView";
 import * as AppContextModule from "../../context/AppContext";
-import { renderWithRouter } from "../../test/test-utils";
+import { renderWithRouter, setNativeValue } from "../../test/test-utils";
 import { supabase } from "../../supabase";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -209,5 +209,83 @@ describe("EditorArticlesView", () => {
     expect(typeof updater).toBe("function");
     const filtered = updater([{ id: "art-del" }, { id: "art-other" }]);
     expect(filtered).toEqual([{ id: "art-other" }]);
+  });
+
+  it("does not downgrade future scheduled publish to published on DB error (#137)", async () => {
+    const updatedPayloads: any[] = [];
+    const mockUpdate = vi.fn((payload: any) => {
+      updatedPayloads.push(payload);
+      return {
+        eq: vi.fn().mockResolvedValue({
+          error: { message: "network failure" },
+        }),
+      };
+    });
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") {
+        return {
+          select: vi.fn().mockReturnValue({
+            order: vi.fn().mockResolvedValue({
+              data: [
+                {
+                  id: "art-sched-guard",
+                  title: "予約保護テスト記事",
+                  status: "draft",
+                  content: "<p>本文</p>",
+                  writer_id: "w-1",
+                  created_at: new Date().toISOString(),
+                },
+              ],
+              error: null,
+            }),
+          }),
+          update: mockUpdate,
+        } as any;
+      }
+      return {} as any;
+    });
+
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      getFontSizeClass: () => "text-base",
+      showToast: mockShowToast,
+      setArticles: mockSetArticles,
+    } as any);
+
+    let container: HTMLElement = document.createElement("div");
+    await act(async () => {
+      const rendered = renderWithRouter(<EditorArticlesView />);
+      container = rendered.container;
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const titleBtn = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("予約保護テスト記事"),
+    );
+    await act(async () => {
+      titleBtn!.click();
+    });
+
+    const schedInput = document.getElementById(
+      "editor-schedule-datetime-input",
+    ) as HTMLInputElement;
+    expect(schedInput).not.toBeNull();
+    act(() => {
+      setNativeValue(schedInput, "2099-12-31T10:00");
+    });
+
+    const scheduleBtn = Array.from(document.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("予約公開を設定"),
+    );
+    expect(scheduleBtn).toBeDefined();
+    await act(async () => {
+      scheduleBtn!.click();
+    });
+
+    expect(updatedPayloads).toHaveLength(1);
+    expect(updatedPayloads[0].status).toBe("scheduled");
+    expect(updatedPayloads.some((p) => p.status === "published")).toBe(false);
+    expect(mockShowToast).toHaveBeenCalledWith("ステータス変更に失敗しました");
   });
 });

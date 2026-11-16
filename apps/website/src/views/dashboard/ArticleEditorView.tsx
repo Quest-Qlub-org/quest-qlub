@@ -1,26 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  ChevronLeft,
-  ChevronDown,
-  ChevronUp,
-  Loader2,
-  Eye,
-  Edit3,
-  Save,
-  Check,
-  SlidersHorizontal,
-  Image as ImageIcon,
-  Tag,
-  Clock,
-  Send,
-} from "lucide-react";
+import { ChevronLeft, Loader2, Eye, Edit3, Save, Check, Clock, Send } from "lucide-react";
 import RichTextEditor from "../../components/RichTextEditor";
 import { supabase } from "../../supabase";
-import { sanitizeHtml } from "../../utils/sanitize";
 import { useApp } from "../../context/AppContext";
-import { LogoIcon } from "../../components/icons/NavIcons";
-import { getThumbnailColor, THUMBNAIL_COLORS, mapDbArticleToArticle } from "../../types";
+import { mapDbArticleToArticle } from "../../types";
 import type { Article, ArticleStatus } from "../../types";
 import {
   formatScheduledDateTime,
@@ -32,8 +16,14 @@ import {
 } from "../../utils/scheduledArticles";
 import { profileHasRole } from "../../utils/roles";
 import { updateMetaTags } from "../../utils/seo";
-import { isArticleOptionalColumnSchemaError } from "../../utils/supabaseErrors";
-import { CollaboratorSelect } from "../../components/CollaboratorSelect";
+import {
+  buildBaseArticlePayload,
+  insertArticleWithFallback,
+  updateArticleWithFallback,
+  uploadArticleImageToStorage,
+} from "./utils/articleEditorApi";
+import { ArticleEditorPreview } from "./components/ArticleEditorPreview";
+import { ArticleEditorSettingsPanel } from "./components/ArticleEditorSettingsPanel";
 
 export const ArticleEditorTabs = ({
   settingsPanel,
@@ -54,81 +44,6 @@ export interface ArticleEditorPageProps {
   editingId: string | null;
 }
 
-function buildBaseArticlePayload(params: {
-  title: string;
-  content: string;
-  summary: string;
-  tags: string[];
-  thumbnailColor: string;
-  thumbnailUrl: string | null;
-  seriesId: string;
-  episodeNumber: string;
-  commentsEnabled: boolean;
-  scheduledAt?: string | null;
-  collaboratorIds?: string[];
-}): Record<string, unknown> {
-  const payload: Record<string, unknown> = {
-    title: params.title,
-    content: params.content,
-    summary: params.summary || null,
-    tags: params.tags,
-    thumbnail_color: params.thumbnailColor,
-    thumbnail_url: params.thumbnailUrl,
-    series_id: params.seriesId || null,
-    episode_number: params.episodeNumber ? parseInt(params.episodeNumber, 10) : null,
-    comments_enabled: params.commentsEnabled,
-    collaborator_ids: params.collaboratorIds ?? [],
-  };
-  if (params.scheduledAt !== undefined) {
-    payload.scheduled_at = params.scheduledAt;
-  }
-  return payload;
-}
-
-async function updateArticleWithFallback(targetId: string, payload: Record<string, unknown>) {
-  let { error } = await supabase.from("articles").update(payload).eq("id", targetId);
-  if (error && isArticleOptionalColumnSchemaError(error)) {
-    const {
-      comments_enabled: _c,
-      scheduled_at: _s,
-      collaborator_ids: _collab,
-      ...safePayload
-    } = payload;
-    if (safePayload.status === "scheduled") {
-      safePayload.status = "published";
-    }
-    const retryRes = await supabase.from("articles").update(safePayload).eq("id", targetId);
-    error = retryRes.error;
-  }
-  return { error };
-}
-
-async function insertArticleWithFallback(payload: Record<string, unknown>) {
-  let { data, error } = await supabase.from("articles").insert(payload).select().single();
-  if (error && isArticleOptionalColumnSchemaError(error)) {
-    const {
-      comments_enabled: _c,
-      scheduled_at: _s,
-      collaborator_ids: _collab,
-      ...safePayload
-    } = payload;
-    if (safePayload.status === "scheduled") {
-      safePayload.status = "published";
-    }
-    const retryRes = await supabase.from("articles").insert(safePayload).select().single();
-    data = retryRes.data;
-    error = retryRes.error;
-  }
-  return { data, error };
-}
-
-const ALLOWED_IMAGE_TYPES: Record<string, string> = {
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-  "image/gif": "gif",
-};
-
 export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
   const {
     articles,
@@ -146,11 +61,10 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
   const editingArticle = editingId ? (articles.find((a) => a.id === editingId) ?? null) : null;
   const [loadedArticle, setLoadedArticle] = useState<typeof editingArticle>(null);
   const effectiveEditingArticle = editingArticle || loadedArticle;
-  const canManageCollaborators =
-    !effectiveEditingArticle ||
-    isEditor ||
-    !currentUserId ||
-    effectiveEditingArticle.writerId === currentUserId;
+  const canManageCollaborators = Boolean(
+    currentUserId &&
+    (!effectiveEditingArticle || isEditor || effectiveEditingArticle.writerId === currentUserId),
+  );
 
   useEffect(() => {
     updateMetaTags({
@@ -190,66 +104,32 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
   const [editorLoading, setEditorLoading] = useState(
     Boolean(editingId && !editingArticle?.content),
   );
+  const [notFound, setNotFound] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
+  const isDirtyRef = useRef(isDirty);
+  isDirtyRef.current = isDirty;
+  const savingRef = useRef(saving);
+  savingRef.current = saving;
+  const editVersionRef = useRef(0);
+  const autoSaveIdRef = useRef<string | null>(editingId);
+  const skipNextFetchForIdRef = useRef<string | null>(null);
+  const saveInFlightRef = useRef<Promise<void> | null>(null);
+  const hasPushedGuardRef = useRef(false);
+  const editorContainerRef = useRef<HTMLDivElement>(null);
+
+  const markDirty = () => {
+    editVersionRef.current += 1;
+    setIsDirty(true);
+  };
 
   useEffect(() => {
     if (!editingId) {
+      autoSaveIdRef.current = null;
+      skipNextFetchForIdRef.current = null;
+      setNotFound(false);
+      setIsDirty(false);
       setEditorLoading(false);
-      return;
-    }
-
-    let isMounted = true;
-    const fetchArticleForEdit = async () => {
-      try {
-        const { data, error } = await supabase
-          .from("articles")
-          .select("*")
-          .eq("id", editingId)
-          .maybeSingle();
-
-        if (isMounted && data && !error) {
-          const mapped = mapDbArticleToArticle(data);
-          const hasEditAccess =
-            isEditor ||
-            !currentUserId ||
-            mapped.writerId === currentUserId ||
-            (mapped.collaboratorIds ?? []).includes(currentUserId);
-          if (!hasEditAccess) {
-            showToast("この記事を編集する権限がありません");
-            navigate("writerDash");
-            return;
-          }
-          setLoadedArticle(mapped);
-          setFormTitle(mapped.title ?? "");
-          setFormContent(mapped.content ?? "");
-          setFormColor(mapped.thumbnailColor ?? "blue");
-          setTags(mapped.tags ?? []);
-          setFormSeriesId(mapped.seriesId ?? "");
-          setFormEpisodeNumber(mapped.episodeNumber?.toString() ?? "");
-          setThumbnailUrl(mapped.thumbnailUrl ?? null);
-          setFormSummary(mapped.summary ?? "");
-          setCollaboratorIds(mapped.collaboratorIds ?? []);
-          setFormCommentsEnabled(mapped.commentsEnabled !== false);
-          setFormScheduledAt(
-            toDatetimeLocalValue(mapped.scheduledAt ?? getLocalScheduledAt(mapped.id)),
-          );
-          setIsDirty(false);
-        }
-      } catch (e) {
-        console.error("Failed to load article for editing", e);
-      } finally {
-        if (isMounted) setEditorLoading(false);
-      }
-    };
-
-    void fetchArticleForEdit();
-    return () => {
-      isMounted = false;
-    };
-  }, [editingId]);
-
-  useEffect(() => {
-    if (!editingId) {
       setLoadedArticle(null);
       setFormTitle("");
       setFormContent("");
@@ -267,46 +147,97 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
       setShowPreview(false);
       setThumbnailUploading(false);
       setLastSavedAt(null);
+      return;
     }
-  }, [editingId]);
 
-  const uploadImageToStorage = async (file: File, prefix = "thumb"): Promise<string | null> => {
-    const ext = ALLOWED_IMAGE_TYPES[file.type];
-    if (!ext) {
-      showToast("JPEG、PNG、WebP、GIF形式の画像を選択してください");
-      return null;
+    if (skipNextFetchForIdRef.current === editingId) {
+      skipNextFetchForIdRef.current = null;
+      setNotFound(false);
+      setEditorLoading(false);
+      return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      showToast("10MB以下の画像を選択してください");
-      return null;
-    }
-    const fileName = `${currentUserId}/${prefix}_${Date.now()}.${ext}`;
-    const { error } = await supabase.storage
-      .from("thumbnails")
-      .upload(fileName, file, { upsert: true });
-    if (error) {
-      showToast("画像のアップロードに失敗しました");
-      return null;
-    }
-    const { data } = supabase.storage.from("thumbnails").getPublicUrl(fileName);
-    return data.publicUrl;
-  };
+
+    autoSaveIdRef.current = editingId;
+    setNotFound(false);
+    setIsDirty(false);
+    setEditorLoading(!editingArticle?.content);
+
+    let isMounted = true;
+    const fetchArticleForEdit = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("articles")
+          .select("*")
+          .eq("id", editingId)
+          .maybeSingle();
+
+        if (!isMounted) return;
+
+        if (error || !data) {
+          if (!editingArticle) {
+            setNotFound(true);
+          }
+          return;
+        }
+
+        const mapped = mapDbArticleToArticle(data);
+        const hasEditAccess =
+          isEditor ||
+          !currentUserId ||
+          mapped.writerId === currentUserId ||
+          (mapped.collaboratorIds ?? []).includes(currentUserId);
+        if (!hasEditAccess) {
+          showToast("この記事を編集する権限がありません");
+          navigate("writerDash");
+          return;
+        }
+        setLoadedArticle(mapped);
+        setFormTitle(mapped.title ?? "");
+        setFormContent(mapped.content ?? "");
+        setFormColor(mapped.thumbnailColor ?? "blue");
+        setTags(mapped.tags ?? []);
+        setFormSeriesId(mapped.seriesId ?? "");
+        setFormEpisodeNumber(mapped.episodeNumber?.toString() ?? "");
+        setThumbnailUrl(mapped.thumbnailUrl ?? null);
+        setFormSummary(mapped.summary ?? "");
+        setCollaboratorIds(mapped.collaboratorIds ?? []);
+        setFormCommentsEnabled(mapped.commentsEnabled !== false);
+        setFormScheduledAt(
+          toDatetimeLocalValue(mapped.scheduledAt ?? getLocalScheduledAt(mapped.id)),
+        );
+        setNotFound(false);
+        setIsDirty(false);
+      } catch (e) {
+        console.error("Failed to load article for editing", e);
+        if (isMounted && !editingArticle) {
+          setNotFound(true);
+        }
+      } finally {
+        if (isMounted) setEditorLoading(false);
+      }
+    };
+
+    void fetchArticleForEdit();
+    return () => {
+      isMounted = false;
+    };
+  }, [editingId]);
 
   const handleThumbnailUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setThumbnailUploading(true);
-    const url = await uploadImageToStorage(file, "thumb");
+    const url = await uploadArticleImageToStorage(file, currentUserId, "thumb", showToast);
     if (url) {
       setThumbnailUrl(url);
-      setIsDirty(true);
+      markDirty();
       showToast("サムネイル画像をアップロードしました");
     }
     setThumbnailUploading(false);
   };
 
   const handleInlineImageUpload = async (file: File): Promise<string | null> => {
-    const url = await uploadImageToStorage(file, "inline");
+    const url = await uploadArticleImageToStorage(file, currentUserId, "inline", showToast);
     if (url) {
       showToast("本文に画像を挿入しました");
     }
@@ -320,14 +251,14 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
       .filter((t) => t && !tags.includes(t));
     if (newTags.length) {
       setTags([...tags, ...newTags]);
-      setIsDirty(true);
+      markDirty();
     }
     setTagInput("");
   };
 
   const removeTag = (tag: string) => {
     setTags(tags.filter((t) => t !== tag));
-    setIsDirty(true);
+    markDirty();
   };
 
   const handleSave = async (submitForReview = false) => {
@@ -335,14 +266,22 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
       showToast("タイトルを入力してください");
       return;
     }
-    setSaving(true);
-    const targetId = editingId || effectiveEditingArticle?.id || autoSaveIdRef.current;
     const scheduledIso = toSafeIsoString(formScheduledAt);
     if (formScheduledAt.trim() && !scheduledIso) {
       showToast("有効な公開予約日時を入力してください");
-      setSaving(false);
       return;
     }
+    setSaving(true);
+    if (saveInFlightRef.current) {
+      try {
+        await saveInFlightRef.current;
+      } catch {
+        // ignore prior autosave error
+      }
+    }
+
+    const versionAtStart = editVersionRef.current;
+    const targetId = editingId || effectiveEditingArticle?.id || autoSaveIdRef.current;
     const isFutureSchedule = isArticleScheduledFuture(scheduledIso);
 
     const currentValues = {
@@ -359,172 +298,187 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
       collaboratorIds,
     };
 
-    if (targetId) {
-      const nextStatus: ArticleStatus | undefined = submitForReview
-        ? isEditor
-          ? isFutureSchedule
-            ? "scheduled"
-            : "published"
-          : "pending"
-        : undefined;
+    const runSave = (async () => {
+      if (targetId) {
+        const nextStatus: ArticleStatus | undefined = submitForReview
+          ? isEditor
+            ? isFutureSchedule
+              ? "scheduled"
+              : "published"
+            : "pending"
+          : undefined;
 
-      const updatePayload = buildBaseArticlePayload(currentValues);
-      if (!canManageCollaborators) {
-        delete updatePayload.collaborator_ids;
-      }
-      if (nextStatus) {
-        updatePayload.status = nextStatus;
-      }
-
-      const { error } = await updateArticleWithFallback(targetId, updatePayload);
-
-      if (!error) {
-        setLocalScheduledAt(targetId, scheduledIso);
-        const currentStatus = effectiveEditingArticle?.status ?? "draft";
-        const resolvedStatus: ArticleStatus =
-          nextStatus ??
-          (isFutureSchedule && currentStatus === "published" ? "scheduled" : currentStatus);
-
-        const updatedArticleItem: Article = {
-          id: targetId,
-          title: formTitle,
-          thumbnail: effectiveEditingArticle?.thumbnail ?? "",
-          content: formContent,
-          summary: formSummary || undefined,
-          tags,
-          thumbnailColor: formColor,
-          thumbnailUrl: thumbnailUrl,
-          seriesId: formSeriesId || null,
-          episodeNumber: formEpisodeNumber ? parseInt(formEpisodeNumber, 10) : null,
-          commentsEnabled: formCommentsEnabled,
-          collaboratorIds,
-          scheduledAt: scheduledIso,
-          status: resolvedStatus,
-          writerId: effectiveEditingArticle?.writerId ?? currentUserId ?? "",
-          views: effectiveEditingArticle?.views ?? 0,
-          likes: effectiveEditingArticle?.likes ?? 0,
-          isRecommended: effectiveEditingArticle?.isRecommended ?? false,
-          isPopular: effectiveEditingArticle?.isPopular ?? false,
-          createdAt: effectiveEditingArticle?.createdAt,
-        };
-
-        setLoadedArticle((prev) =>
-          prev ? { ...prev, ...updatedArticleItem } : updatedArticleItem,
-        );
-
-        setArticles((prev) => {
-          const exists = prev.some((a) => a.id === targetId);
-          if (exists) {
-            return prev.map((a) => (a.id === targetId ? { ...a, ...updatedArticleItem } : a));
-          }
-          if (resolvedStatus === "published") {
-            return [updatedArticleItem, ...prev];
-          }
-          return prev;
-        });
-        setIsDirty(false);
-        setLastSavedAt(
-          new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }),
-        );
-        const isCollaborator = Boolean(
-          effectiveEditingArticle?.collaboratorIds?.includes(currentUserId ?? ""),
-        );
-        const isEditingOtherArticle =
-          isEditor &&
-          !isCollaborator &&
-          Boolean(effectiveEditingArticle && effectiveEditingArticle.writerId !== currentUserId);
-        const destination = isEditingOtherArticle ? "editorArticles" : "writerDash";
-
-        if (submitForReview) {
-          showToast(
-            nextStatus === "published"
-              ? "記事を公開しました"
-              : scheduledIso
-                ? `公開予約（${formatScheduledDateTime(scheduledIso)}）で申請しました`
-                : "投稿申請しました",
-          );
-          navigate(destination);
-        } else {
-          showToast(effectiveEditingArticle ? "記事を更新しました" : "下書きを保存しました");
-          if (effectiveEditingArticle) {
-            navigate(destination);
-          }
+        const updatePayload = buildBaseArticlePayload(currentValues, canManageCollaborators);
+        if (nextStatus) {
+          updatePayload.status = nextStatus;
         }
-      } else {
-        console.error("記事更新エラー:", error);
-        showToast("エラーが発生しました。もう一度お試しください。");
-      }
-    } else {
-      const initialStatus: ArticleStatus = submitForReview
-        ? isEditor && isFutureSchedule
-          ? "scheduled"
-          : "pending"
-        : "draft";
 
-      const insertPayload = buildBaseArticlePayload(currentValues);
-      insertPayload.writer_id = currentUserId;
-      insertPayload.status = initialStatus;
-      insertPayload.views = 0;
-      insertPayload.likes = 0;
-      insertPayload.is_recommended = false;
-      insertPayload.is_popular = false;
-      if (scheduledIso) {
-        insertPayload.scheduled_at = scheduledIso;
-      }
+        const { error } = await updateArticleWithFallback(targetId, updatePayload);
 
-      const { data, error } = await insertArticleWithFallback(insertPayload);
-      if (!error && data) {
-        autoSaveIdRef.current = data.id;
-        setLocalScheduledAt(data.id, scheduledIso);
-        setArticles((prev) => [
-          {
-            id: data.id,
-            title: data.title,
-            thumbnail: "",
-            thumbnailColor: formColor,
-            thumbnailUrl: thumbnailUrl,
-            writerId: data.writer_id,
-            views: 0,
-            likes: 0,
-            tags,
-            isRecommended: false,
-            isPopular: false,
-            status: initialStatus,
+        if (!error) {
+          setLocalScheduledAt(targetId, scheduledIso);
+          const currentStatus = effectiveEditingArticle?.status ?? "draft";
+          const resolvedStatus: ArticleStatus =
+            nextStatus ??
+            (isFutureSchedule && currentStatus === "published" ? "scheduled" : currentStatus);
+
+          const updatedArticleItem: Article = {
+            id: targetId,
+            title: formTitle,
+            thumbnail: effectiveEditingArticle?.thumbnail ?? "",
             content: formContent,
             summary: formSummary || undefined,
+            tags,
+            thumbnailColor: formColor,
+            thumbnailUrl: thumbnailUrl,
             seriesId: formSeriesId || null,
             episodeNumber: formEpisodeNumber ? parseInt(formEpisodeNumber, 10) : null,
             commentsEnabled: formCommentsEnabled,
-            collaboratorIds: data.collaborator_ids ?? collaboratorIds,
+            collaboratorIds,
             scheduledAt: scheduledIso,
-          },
-          ...prev,
-        ]);
-        setIsDirty(false);
-        setLastSavedAt(
-          new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }),
-        );
-        if (submitForReview) {
-          showToast(
-            scheduledIso
-              ? `公開予約（${formatScheduledDateTime(scheduledIso)}）で申請しました`
-              : "投稿申請しました",
+            status: resolvedStatus,
+            writerId: effectiveEditingArticle?.writerId ?? currentUserId ?? "",
+            views: effectiveEditingArticle?.views ?? 0,
+            likes: effectiveEditingArticle?.likes ?? 0,
+            isRecommended: effectiveEditingArticle?.isRecommended ?? false,
+            isPopular: effectiveEditingArticle?.isPopular ?? false,
+            createdAt: effectiveEditingArticle?.createdAt,
+          };
+
+          setLoadedArticle((prev) =>
+            prev ? { ...prev, ...updatedArticleItem } : updatedArticleItem,
           );
-          navigate("writerDash");
+
+          setArticles((prev) => {
+            const exists = prev.some((a) => a.id === targetId);
+            if (exists) {
+              return prev.map((a) => (a.id === targetId ? { ...a, ...updatedArticleItem } : a));
+            }
+            if (resolvedStatus === "published") {
+              return [updatedArticleItem, ...prev];
+            }
+            return prev;
+          });
+          if (editVersionRef.current === versionAtStart) {
+            setIsDirty(false);
+          }
+          setLastSavedAt(
+            new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }),
+          );
+          const isCollaborator = Boolean(
+            effectiveEditingArticle?.collaboratorIds?.includes(currentUserId ?? ""),
+          );
+          const isEditingOtherArticle =
+            isEditor &&
+            !isCollaborator &&
+            Boolean(effectiveEditingArticle && effectiveEditingArticle.writerId !== currentUserId);
+          const destination = isEditingOtherArticle ? "editorArticles" : "writerDash";
+
+          if (submitForReview) {
+            showToast(
+              nextStatus === "published"
+                ? "記事を公開しました"
+                : scheduledIso
+                  ? `公開予約（${formatScheduledDateTime(scheduledIso)}）で申請しました`
+                  : "投稿申請しました",
+            );
+            hasPushedGuardRef.current = false;
+            navigate(destination);
+          } else {
+            showToast(effectiveEditingArticle ? "記事を更新しました" : "下書きを保存しました");
+            if (effectiveEditingArticle) {
+              hasPushedGuardRef.current = false;
+              navigate(destination);
+            }
+          }
         } else {
-          showToast("下書きを保存しました");
+          console.error("記事更新エラー:", error);
+          showToast("エラーが発生しました。もう一度お試しください。");
         }
       } else {
-        console.error("下書き保存エラー:", error);
-        showToast("エラーが発生しました。もう一度お試しください。");
-      }
-    }
-    setSaving(false);
-  };
+        const initialStatus: ArticleStatus = submitForReview
+          ? isEditor
+            ? isFutureSchedule
+              ? "scheduled"
+              : "published"
+            : "pending"
+          : "draft";
 
-  const [isDirty, setIsDirty] = useState(false);
-  const autoSaveIdRef = useRef<string | null>(editingId);
-  const editorContainerRef = useRef<HTMLDivElement>(null);
+        const insertPayload = buildBaseArticlePayload(currentValues, canManageCollaborators);
+        insertPayload.writer_id = currentUserId;
+        insertPayload.status = initialStatus;
+        insertPayload.views = 0;
+        insertPayload.likes = 0;
+        insertPayload.is_recommended = false;
+        insertPayload.is_popular = false;
+        if (scheduledIso) {
+          insertPayload.scheduled_at = scheduledIso;
+        }
+
+        const { data, error } = await insertArticleWithFallback(insertPayload);
+        if (!error && data) {
+          autoSaveIdRef.current = data.id;
+          setLocalScheduledAt(data.id, scheduledIso);
+          setArticles((prev) => [
+            {
+              id: data.id,
+              title: data.title,
+              thumbnail: "",
+              thumbnailColor: formColor,
+              thumbnailUrl: thumbnailUrl,
+              writerId: data.writer_id,
+              views: 0,
+              likes: 0,
+              tags,
+              isRecommended: false,
+              isPopular: false,
+              status: initialStatus,
+              content: formContent,
+              summary: formSummary || undefined,
+              seriesId: formSeriesId || null,
+              episodeNumber: formEpisodeNumber ? parseInt(formEpisodeNumber, 10) : null,
+              commentsEnabled: formCommentsEnabled,
+              collaboratorIds: data.collaborator_ids ?? collaboratorIds,
+              scheduledAt: scheduledIso,
+            },
+            ...prev,
+          ]);
+          if (editVersionRef.current === versionAtStart) {
+            setIsDirty(false);
+          }
+          setLastSavedAt(
+            new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }),
+          );
+          if (submitForReview) {
+            showToast(
+              initialStatus === "published"
+                ? "記事を公開しました"
+                : scheduledIso
+                  ? `公開予約（${formatScheduledDateTime(scheduledIso)}）で申請しました`
+                  : "投稿申請しました",
+            );
+            hasPushedGuardRef.current = false;
+            navigate("writerDash");
+          } else {
+            showToast("下書きを保存しました");
+          }
+        } else {
+          console.error("下書き保存エラー:", error);
+          showToast("エラーが発生しました。もう一度お試しください。");
+        }
+      }
+    })();
+
+    saveInFlightRef.current = runSave;
+    try {
+      await runSave;
+    } finally {
+      if (saveInFlightRef.current === runSave) {
+        saveInFlightRef.current = null;
+      }
+      setSaving(false);
+    }
+  };
 
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
@@ -554,6 +508,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
             return;
           } else {
             setIsDirty(false);
+            hasPushedGuardRef.current = false;
             return;
           }
         }
@@ -573,6 +528,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
             e.stopPropagation();
           } else {
             setIsDirty(false);
+            hasPushedGuardRef.current = false;
           }
         }
       }
@@ -582,20 +538,38 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
   }, [isDirty]);
 
   useEffect(() => {
-    if (!isDirty) return;
-    const handlePopState = () => {
-      if (!window.confirm("保存されていない変更があります。ページを離れますか？")) {
-        window.history.pushState(null, "", window.location.href);
-      }
-    };
-    window.history.pushState(null, "", window.location.href);
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
+    if (isDirty && !hasPushedGuardRef.current) {
+      window.history.pushState({ __editorGuard: true }, "", window.location.href);
+      hasPushedGuardRef.current = true;
+    }
   }, [isDirty]);
 
   useEffect(() => {
-    if (!isDirty || !formTitle.trim() || !currentUserId) return;
+    const handlePopState = () => {
+      if (!hasPushedGuardRef.current) return;
+      if (isDirtyRef.current) {
+        if (!window.confirm("保存されていない変更があります。ページを離れますか？")) {
+          window.history.pushState({ __editorGuard: true }, "", window.location.href);
+        } else {
+          hasPushedGuardRef.current = false;
+          isDirtyRef.current = false;
+          setIsDirty(false);
+          window.history.back();
+        }
+      } else {
+        hasPushedGuardRef.current = false;
+        window.history.back();
+      }
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  useEffect(() => {
+    if (!isDirty || !formTitle.trim() || !currentUserId || saving) return;
     const timer = setTimeout(async () => {
+      if (savingRef.current || saveInFlightRef.current) return;
+      const versionAtStart = editVersionRef.current;
       const scheduledIso = toSafeIsoString(formScheduledAt);
       const currentValues = {
         title: formTitle,
@@ -611,22 +585,25 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
         collaboratorIds,
       };
 
-      if (autoSaveIdRef.current) {
-        const updatePayload = buildBaseArticlePayload(currentValues);
-        await updateArticleWithFallback(autoSaveIdRef.current, updatePayload);
-        setLocalScheduledAt(autoSaveIdRef.current, scheduledIso);
-      } else {
-        const insertPayload = buildBaseArticlePayload(currentValues);
-        insertPayload.writer_id = currentUserId;
-        insertPayload.status = "draft";
-        insertPayload.views = 0;
-        insertPayload.likes = 0;
-        insertPayload.is_recommended = false;
-        insertPayload.is_popular = false;
+      const runAutoSave = (async () => {
+        if (autoSaveIdRef.current) {
+          const updatePayload = buildBaseArticlePayload(currentValues, canManageCollaborators);
+          const { error } = await updateArticleWithFallback(autoSaveIdRef.current, updatePayload);
+          if (error) return;
+          setLocalScheduledAt(autoSaveIdRef.current, scheduledIso);
+        } else {
+          const insertPayload = buildBaseArticlePayload(currentValues, canManageCollaborators);
+          insertPayload.writer_id = currentUserId;
+          insertPayload.status = "draft";
+          insertPayload.views = 0;
+          insertPayload.likes = 0;
+          insertPayload.is_recommended = false;
+          insertPayload.is_popular = false;
 
-        const { data } = await insertArticleWithFallback(insertPayload);
-        if (data) {
+          const { data, error } = await insertArticleWithFallback(insertPayload);
+          if (error || !data) return;
           autoSaveIdRef.current = data.id;
+          skipNextFetchForIdRef.current = data.id;
           setLocalScheduledAt(data.id, scheduledIso);
           void routerNavigate(`/writer-dash/edit/${data.id}`, { replace: true });
           const newArticle: Article = {
@@ -653,12 +630,23 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
           setLoadedArticle(newArticle);
           setArticles((prev) => [newArticle, ...prev]);
         }
+        if (editVersionRef.current === versionAtStart) {
+          setIsDirty(false);
+        }
+        setLastSavedAt(
+          new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }),
+        );
+        showToast("自動保存しました");
+      })();
+
+      saveInFlightRef.current = runAutoSave;
+      try {
+        await runAutoSave;
+      } finally {
+        if (saveInFlightRef.current === runAutoSave) {
+          saveInFlightRef.current = null;
+        }
       }
-      setIsDirty(false);
-      setLastSavedAt(
-        new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }),
-      );
-      showToast("自動保存しました");
     }, 5000);
     return () => clearTimeout(timer);
   }, [
@@ -673,7 +661,9 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
     formCommentsEnabled,
     formScheduledAt,
     collaboratorIds,
+    canManageCollaborators,
     isDirty,
+    saving,
     currentUserId,
     setArticles,
     showToast,
@@ -684,6 +674,21 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
         <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
         <p className="text-sm text-gray-500 font-medium">記事データを読み込んでいます...</p>
+      </div>
+    );
+  }
+
+  if (notFound) {
+    return (
+      <div className="p-12 text-center space-y-4">
+        <p className="text-gray-500 dark:text-gray-400 text-base font-bold">記事が見つかりません</p>
+        <button
+          type="button"
+          onClick={() => navigate("writerDash")}
+          className="px-5 py-2.5 bg-gray-900 text-white text-xs font-bold rounded-xl hover:bg-gray-800 transition-colors"
+        >
+          ダッシュボードへ戻る
+        </button>
       </div>
     );
   }
@@ -704,7 +709,12 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
               )
                 return;
               setIsDirty(false);
-              window.history.back();
+              if (hasPushedGuardRef.current) {
+                hasPushedGuardRef.current = false;
+                window.history.go(-2);
+              } else {
+                window.history.back();
+              }
             }}
             className="p-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full transition-colors shrink-0"
             aria-label="戻る"
@@ -796,470 +806,81 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
 
       <div className="max-w-4xl mx-auto px-4 py-6">
         {showPreview ? (
-          /* プレビュー画面（実際の記事詳細ページと同じデザイン） */
-          <div className="bg-white dark:bg-gray-800 rounded-2xl overflow-hidden shadow-sm border border-gray-200 dark:border-gray-700 animate-in fade-in duration-200">
-            {thumbnailUrl ? (
-              <div className="w-full bg-gray-50 dark:bg-gray-900" style={{ aspectRatio: "16/9" }}>
-                <img
-                  src={thumbnailUrl}
-                  alt={formTitle || "サムネイルプレビュー"}
-                  className="w-full h-full object-contain"
-                />
-              </div>
-            ) : (
-              <div
-                className={`w-full flex items-center justify-center ${getThumbnailColor(formColor).bg}`}
-                style={{ aspectRatio: "16/9", maxHeight: "280px" }}
-              >
-                <LogoIcon className="w-20 h-20 opacity-20" />
-              </div>
-            )}
-
-            <div className="p-6 md:p-8 space-y-5">
-              {selectedSeries && (
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 px-2 py-1 rounded-full">
-                    連載
-                  </span>
-                  <span className="text-sm font-bold text-blue-600 dark:text-blue-400">
-                    {selectedSeries.title}
-                  </span>
-                  {formEpisodeNumber && (
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
-                      第{formEpisodeNumber}話
-                    </span>
-                  )}
-                </div>
-              )}
-
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 leading-tight">
-                {formTitle || (
-                  <span className="text-gray-500 dark:text-gray-400">（タイトル未入力）</span>
-                )}
-              </h2>
-
-              {formSummary && (
-                <div className="bg-blue-50 dark:bg-blue-950/40 p-4 rounded-xl text-gray-700 dark:text-gray-300 border border-blue-100 dark:border-blue-800/50 font-medium text-sm leading-relaxed">
-                  {formSummary}
-                </div>
-              )}
-
-              {tags.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs font-bold rounded-full border border-gray-200 dark:border-gray-600"
-                    >
-                      #{tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              <div className="border-t border-gray-100 dark:border-gray-700 pt-4">
-                {formContent && formContent !== "<p></p>" ? (
-                  <div
-                    className={`text-gray-800 dark:text-gray-200 leading-loose article-content ${getFontSizeClass()}`}
-                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(formContent) }}
-                  />
-                ) : (
-                  <p className="text-sm text-gray-500 dark:text-gray-400 py-8 text-center">
-                    （本文がまだ入力されていません）
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
+          <ArticleEditorPreview
+            title={formTitle}
+            summary={formSummary}
+            content={formContent}
+            thumbnailUrl={thumbnailUrl}
+            thumbnailColor={formColor}
+            tags={tags}
+            selectedSeries={selectedSeries}
+            episodeNumber={formEpisodeNumber}
+            fontSizeClass={getFontSizeClass()}
+          />
         ) : (
           <ArticleEditorTabs
             settingsPanel={
-              <div className="space-y-4">
-                {/* タイトル＆要約カード */}
-                <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 md:p-6 shadow-sm border border-gray-200 dark:border-gray-700 space-y-4">
-                  <div>
-                    <label
-                      htmlFor="article-title-input"
-                      className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1.5"
-                    >
-                      記事タイトル <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      id="article-title-input"
-                      required
-                      aria-required="true"
-                      className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-300 rounded-xl px-4 py-3 text-lg md:text-xl font-bold focus:outline-none focus:ring-2 focus:ring-blue-400 transition-shadow"
-                      placeholder="読者の目を引くタイトルを入力..."
-                      value={formTitle}
-                      onChange={(e) => {
-                        setFormTitle(e.target.value);
-                        setIsDirty(true);
-                      }}
-                    />
-                  </div>
-
-                  <div>
-                    <label
-                      htmlFor="article-summary-input"
-                      className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1.5"
-                    >
-                      リード文・要約{" "}
-                      <span className="text-gray-500 dark:text-gray-400 font-normal">
-                        （記事冒頭やSNSシェア時の説明文に表示されます）
-                      </span>
-                    </label>
-                    <textarea
-                      id="article-summary-input"
-                      className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 placeholder:text-gray-500 dark:placeholder:text-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
-                      rows={2}
-                      placeholder="この記事のポイントや概要を1〜2文で入力（省略可）"
-                      value={formSummary}
-                      onChange={(e) => {
-                        setFormSummary(e.target.value);
-                        setIsDirty(true);
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {/* 折りたたみ可能な詳細設定パネル（サムネイル・タグ・連載） */}
-                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-                  <button
-                    type="button"
-                    aria-expanded={settingsExpanded}
-                    aria-controls="article-extra-settings-panel"
-                    onClick={() => setSettingsExpanded((v) => !v)}
-                    className="w-full px-5 py-3.5 bg-gray-50/70 dark:bg-gray-800/70 hover:bg-gray-100/70 dark:hover:bg-gray-750 flex items-center justify-between transition-colors text-left"
-                  >
-                    <div className="flex items-center gap-2">
-                      <SlidersHorizontal className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                      <span className="text-sm font-bold text-gray-800 dark:text-gray-200">
-                        サムネイル・タグ・連載設定
-                      </span>
-                      <span className="text-xs text-gray-500 dark:text-gray-400 font-normal hidden sm:inline">
-                        {tags.length > 0 ? `（タグ ${tags.length}件）` : ""}
-                      </span>
-                    </div>
-                    {settingsExpanded ? (
-                      <ChevronUp className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                    ) : (
-                      <ChevronDown className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                    )}
-                  </button>
-
-                  {settingsExpanded && (
-                    <div
-                      id="article-extra-settings-panel"
-                      className="p-5 md:p-6 border-t border-gray-100 dark:border-gray-700 grid grid-cols-1 md:grid-cols-2 gap-6"
-                    >
-                      {/* 左カラム: サムネイル設定 */}
-                      <div className="space-y-4">
-                        <div>
-                          <label
-                            htmlFor="article-thumbnail-upload"
-                            className="flex items-center gap-1.5 text-xs font-bold text-gray-600 dark:text-gray-300 mb-2"
-                          >
-                            <ImageIcon className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                            <span>サムネイル画像（推奨 16:9）</span>
-                          </label>
-                          {thumbnailUrl ? (
-                            <div
-                              className="mb-2.5 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900"
-                              style={{ aspectRatio: "16/9", maxHeight: "180px" }}
-                            >
-                              <img
-                                src={thumbnailUrl}
-                                alt={formTitle || "サムネイルプレビュー"}
-                                className="w-full h-full object-contain"
-                              />
-                            </div>
-                          ) : (
-                            <div
-                              className={`mb-2.5 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center ${getThumbnailColor(formColor).bg}`}
-                              style={{ aspectRatio: "16/9", maxHeight: "140px" }}
-                            >
-                              <LogoIcon className="w-12 h-12 opacity-30" />
-                            </div>
-                          )}
-                          <div className="flex items-center gap-2">
-                            <label className="px-3.5 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs font-bold rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 cursor-pointer border border-gray-200 dark:border-gray-600 transition-colors">
-                              {thumbnailUploading
-                                ? "アップロード中..."
-                                : thumbnailUrl
-                                  ? "画像を変更"
-                                  : "画像をアップロード"}
-                              <input
-                                id="article-thumbnail-upload"
-                                type="file"
-                                accept="image/jpeg,image/png,image/webp,image/gif"
-                                className="hidden"
-                                onChange={(e) => void handleThumbnailUpload(e)}
-                                disabled={thumbnailUploading}
-                              />
-                            </label>
-                            {thumbnailUrl && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setThumbnailUrl(null);
-                                  setIsDirty(true);
-                                }}
-                                className="px-3 py-2 text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-xl transition-colors"
-                              >
-                                削除
-                              </button>
-                            )}
-                          </div>
-                        </div>
-
-                        {!thumbnailUrl && (
-                          <div>
-                            <p
-                              id="article-bg-color-label"
-                              className="block text-xs font-bold text-gray-600 dark:text-gray-300 mb-2"
-                            >
-                              背景カラー（画像未設定時）:{" "}
-                              <span className="text-gray-500 dark:text-gray-400 font-normal">
-                                {getThumbnailColor(formColor).label}
-                              </span>
-                            </p>
-                            <div
-                              role="radiogroup"
-                              aria-labelledby="article-bg-color-label"
-                              className="flex gap-2 flex-wrap"
-                            >
-                              {THUMBNAIL_COLORS.map((color) => (
-                                <button
-                                  type="button"
-                                  role="radio"
-                                  aria-checked={formColor === color.id}
-                                  aria-label={`${color.label}を背景色に選択`}
-                                  key={color.id}
-                                  onClick={() => {
-                                    setFormColor(color.id);
-                                    setIsDirty(true);
-                                  }}
-                                  className={`w-8 h-8 rounded-full ${color.bg} border-2 transition-all ${
-                                    formColor === color.id
-                                      ? "border-gray-800 dark:border-white scale-110 shadow-xs"
-                                      : "border-gray-200 dark:border-gray-700 hover:scale-105"
-                                  }`}
-                                  title={color.label}
-                                />
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        <div className="pt-2 border-t border-gray-100 dark:border-gray-700/60">
-                          {canManageCollaborators ? (
-                            <CollaboratorSelect
-                              value={collaboratorIds}
-                              onChange={(ids) => {
-                                setCollaboratorIds(ids);
-                                setIsDirty(true);
-                              }}
-                              excludeUserIds={Array.from(
-                                new Set([
-                                  ...(effectiveEditingArticle?.writerId
-                                    ? [effectiveEditingArticle.writerId]
-                                    : []),
-                                  ...(currentUserId ? [currentUserId] : []),
-                                ]),
-                              )}
-                              label="共同執筆者（共同編集者）"
-                              description="他のライターと共同執筆・編集できます"
-                            />
-                          ) : (
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              共同執筆者の設定は主作成者または編集長のみ変更できます。
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* 右カラム: タグ＆連載設定 */}
-                      <div className="space-y-4">
-                        <div>
-                          <label
-                            htmlFor="article-tag-input"
-                            className="flex items-center gap-1.5 text-xs font-bold text-gray-600 dark:text-gray-300 mb-2"
-                          >
-                            <Tag className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                            <span>タグ</span>
-                          </label>
-                          {tags.length > 0 && (
-                            <div className="flex flex-wrap gap-1.5 mb-2.5">
-                              {tags.map((tag) => (
-                                <span
-                                  key={tag}
-                                  className="inline-flex items-center gap-1 text-xs font-bold bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2.5 py-1 rounded-full"
-                                >
-                                  #{tag}
-                                  <button
-                                    type="button"
-                                    aria-label={`タグ「${tag}」を削除`}
-                                    onClick={() => removeTag(tag)}
-                                    className="hover:text-red-500 font-bold leading-none ml-0.5"
-                                  >
-                                    &times;
-                                  </button>
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                          <div className="flex gap-2">
-                            <input
-                              id="article-tag-input"
-                              className="flex-1 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-300 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
-                              placeholder="タグを入力（Enterまたはカンマで追加）"
-                              value={tagInput}
-                              onChange={(e) => setTagInput(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" || e.key === ",") {
-                                  e.preventDefault();
-                                  addTag(tagInput);
-                                }
-                              }}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => addTag(tagInput)}
-                              className="px-3.5 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl hover:bg-blue-700 shrink-0 transition-colors"
-                            >
-                              追加
-                            </button>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                          <div className={formSeriesId ? "sm:col-span-2" : "sm:col-span-3"}>
-                            <label
-                              htmlFor="article-series-select"
-                              className="block text-xs font-bold text-gray-600 dark:text-gray-300 mb-1.5"
-                            >
-                              連載シリーズ
-                            </label>
-                            <select
-                              id="article-series-select"
-                              className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
-                              value={formSeriesId}
-                              onChange={(e) => {
-                                setFormSeriesId(e.target.value);
-                                setIsDirty(true);
-                              }}
-                            >
-                              <option value="">連載なし（単発記事）</option>
-                              {seriesList
-                                .filter(
-                                  (s) =>
-                                    s.writerId === currentUserId ||
-                                    s.collaboratorIds?.includes(currentUserId ?? "") ||
-                                    (effectiveEditingArticle &&
-                                      s.id === effectiveEditingArticle.seriesId) ||
-                                    isEditor,
-                                )
-                                .map((s) => (
-                                  <option key={s.id} value={s.id}>
-                                    {s.title}
-                                  </option>
-                                ))}
-                            </select>
-                          </div>
-                          {formSeriesId && (
-                            <div>
-                              <label
-                                htmlFor="article-episode-input"
-                                className="block text-xs font-bold text-gray-600 dark:text-gray-300 mb-1.5"
-                              >
-                                話数
-                              </label>
-                              <input
-                                id="article-episode-input"
-                                type="number"
-                                min={1}
-                                className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
-                                placeholder="例: 1"
-                                value={formEpisodeNumber}
-                                onChange={(e) => {
-                                  setFormEpisodeNumber(e.target.value);
-                                  setIsDirty(true);
-                                }}
-                              />
-                            </div>
-                          )}
-                        </div>
-
-                        {/* コメント機能のオン/オフ設定 */}
-                        <div className="pt-2 border-t border-gray-100 dark:border-gray-700">
-                          <label className="flex items-center justify-between cursor-pointer bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-750 transition-colors p-3 rounded-xl border border-gray-200 dark:border-gray-700">
-                            <div>
-                              <p className="text-xs font-bold text-gray-700 dark:text-gray-200">
-                                コメント機能
-                              </p>
-                              <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                                {formCommentsEnabled
-                                  ? "オン（読者からのコメントを受け付け・表示します）"
-                                  : "オフ（ライターと編集長以外にコメント欄を非表示にします）"}
-                              </p>
-                            </div>
-                            <input
-                              type="checkbox"
-                              checked={formCommentsEnabled}
-                              onChange={(e) => {
-                                setFormCommentsEnabled(e.target.checked);
-                                setIsDirty(true);
-                              }}
-                              className="w-4 h-4 accent-blue-600 rounded cursor-pointer"
-                            />
-                          </label>
-                        </div>
-
-                        {/* 予約投稿日時設定 (#54-3) */}
-                        <div className="pt-2 border-t border-gray-100 dark:border-gray-700">
-                          <div className="bg-purple-50/60 dark:bg-purple-950/30 p-3 rounded-xl border border-purple-200 dark:border-purple-800/50 space-y-2">
-                            <div className="flex items-center justify-between gap-2">
-                              <label
-                                htmlFor="schedule-datetime-input"
-                                className="text-xs font-bold text-purple-900 dark:text-purple-200 flex items-center gap-1.5"
-                              >
-                                <Clock className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                                <span>公開予約日時（任意）</span>
-                              </label>
-                              {formScheduledAt && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setFormScheduledAt("");
-                                    setIsDirty(true);
-                                  }}
-                                  className="text-[11px] text-purple-600 dark:text-purple-400 hover:underline font-bold"
-                                >
-                                  予約を解除
-                                </button>
-                              )}
-                            </div>
-                            <input
-                              id="schedule-datetime-input"
-                              type="datetime-local"
-                              data-testid="schedule-datetime-input"
-                              value={formScheduledAt}
-                              onChange={(e) => {
-                                setFormScheduledAt(e.target.value);
-                                setIsDirty(true);
-                              }}
-                              className="w-full border border-purple-200 dark:border-purple-800/60 rounded-lg px-3 py-1.5 text-xs bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-400"
-                            />
-                            <p className="text-[11px] text-purple-700 dark:text-purple-300 leading-relaxed">
-                              日時を指定すると、指定日時に達するまで一般読者には非表示となり、予定時刻に自動公開されます。
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
+              <ArticleEditorSettingsPanel
+                formTitle={formTitle}
+                onChangeTitle={(value) => {
+                  setFormTitle(value);
+                  markDirty();
+                }}
+                formSummary={formSummary}
+                onChangeSummary={(value) => {
+                  setFormSummary(value);
+                  markDirty();
+                }}
+                settingsExpanded={settingsExpanded}
+                onToggleSettingsExpanded={() => setSettingsExpanded((v) => !v)}
+                thumbnailUrl={thumbnailUrl}
+                thumbnailUploading={thumbnailUploading}
+                onThumbnailUpload={(e) => void handleThumbnailUpload(e)}
+                onClearThumbnail={() => {
+                  setThumbnailUrl(null);
+                  markDirty();
+                }}
+                formColor={formColor}
+                onChangeColor={(colorId) => {
+                  setFormColor(colorId);
+                  markDirty();
+                }}
+                canManageCollaborators={canManageCollaborators}
+                collaboratorIds={collaboratorIds}
+                onChangeCollaboratorIds={(ids) => {
+                  setCollaboratorIds(ids);
+                  markDirty();
+                }}
+                effectiveEditingArticle={effectiveEditingArticle}
+                currentUserId={currentUserId}
+                tags={tags}
+                tagInput={tagInput}
+                onChangeTagInput={setTagInput}
+                onAddTag={addTag}
+                onRemoveTag={removeTag}
+                formSeriesId={formSeriesId}
+                onChangeSeriesId={(seriesId) => {
+                  setFormSeriesId(seriesId);
+                  markDirty();
+                }}
+                formEpisodeNumber={formEpisodeNumber}
+                onChangeEpisodeNumber={(ep) => {
+                  setFormEpisodeNumber(ep);
+                  markDirty();
+                }}
+                seriesList={seriesList}
+                isEditor={isEditor}
+                formCommentsEnabled={formCommentsEnabled}
+                onChangeCommentsEnabled={(enabled) => {
+                  setFormCommentsEnabled(enabled);
+                  markDirty();
+                }}
+                formScheduledAt={formScheduledAt}
+                onChangeScheduledAt={(scheduledAt) => {
+                  setFormScheduledAt(scheduledAt);
+                  markDirty();
+                }}
+              />
             }
             editorPanel={
               <div>
@@ -1267,7 +888,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                   content={formContent}
                   onChange={(html) => {
                     setFormContent(html);
-                    setIsDirty(true);
+                    markDirty();
                   }}
                   placeholder="ここから記事の本文を書き始めましょう..."
                   onUploadImage={handleInlineImageUpload}

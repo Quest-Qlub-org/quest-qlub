@@ -1,22 +1,11 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
-import { getThumbnailColor, ARTICLE_STATUS_CONFIG } from "../types";
+import { getThumbnailColor } from "../types";
 import { mapDbArticleToArticle } from "../types";
 import type { Article, ArticleStatus, Series } from "../types";
-import { LogoIcon, CustomUserIcon, CustomStarIcon } from "../components/icons/NavIcons";
-import {
-  ChevronLeft,
-  Share2,
-  Eye,
-  Loader2,
-  UserPlus,
-  UserCheck,
-  Calendar,
-  Check,
-  Edit3,
-  Clock,
-} from "lucide-react";
+import { LogoIcon, CustomStarIcon } from "../components/icons/NavIcons";
+import { ChevronLeft, Eye, Loader2, Calendar } from "lucide-react";
 import { sanitizeHtml } from "../utils/sanitize";
 import { supabase } from "../supabase";
 import type { Profile } from "../supabase";
@@ -35,16 +24,25 @@ import {
 } from "../utils/seo";
 import { formatArticleDate } from "../utils/date";
 import {
-  formatScheduledDateTime,
   getEffectiveArticleStatus,
   getLocalScheduledAt,
   isArticlePubliclyVisible,
   setLocalScheduledAt,
 } from "../utils/scheduledArticles";
 import { profileHasRole } from "../utils/roles";
+import { isArticleOptionalColumnSchemaError } from "../utils/supabaseErrors";
+import { checkIsSudoActive } from "../components/RoleRoute";
+import { SudoConfirmModal } from "../components/SudoConfirmModal";
+import { ArticlePreviewBanner } from "./components/ArticlePreviewBanner";
+import { ArticleAuthorSection } from "./components/ArticleAuthorSection";
+import { ArticleShareSection } from "./components/ArticleShareSection";
+
+type PendingSudoAction =
+  | { type: "status"; nextStatus: ArticleStatus }
+  | { type: "comments"; nextEnabled: boolean };
 
 export const ArticleView = () => {
-  const { id: paramId } = useParams<{ id: string }>();
+  const { id: articleId } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const {
     articles,
@@ -54,7 +52,6 @@ export const ArticleView = () => {
     toggleFavorite,
     showToast,
     getFontSizeClass,
-    viewParam,
     seriesList,
     userRole,
     profile,
@@ -62,8 +59,6 @@ export const ArticleView = () => {
     navigate: appNavigate,
   } = useApp();
   const { isFollowing, toggleFollow, isAuthenticated, currentUserId } = useFollows();
-
-  const articleId = paramId || viewParam;
 
   // キャッシュまたは個別フェッチした記事データ
   const cachedArticle = articles.find((a) => a.id === articleId);
@@ -75,10 +70,18 @@ export const ArticleView = () => {
   const [writerFallback, setWriterFallback] = useState<Profile | null>(null);
   const [collaboratorFallbacks, setCollaboratorFallbacks] = useState<Profile[]>([]);
   const [seriesFallback, setSeriesFallback] = useState<Series | null>(null);
+  const [pendingSudoAction, setPendingSudoAction] = useState<PendingSudoAction | null>(null);
 
   // Issue #23: 一覧から除外された本文(content)を詳細画面で個別取得
   useEffect(() => {
+    setNotFound(false);
+    setWriterFallback(null);
+    setCollaboratorFallbacks([]);
+    setSeriesFallback(null);
+    setPendingSudoAction(null);
+
     if (!articleId) {
+      setDetailedArticle(null);
       setNotFound(true);
       setLoading(false);
       return;
@@ -349,12 +352,12 @@ export const ArticleView = () => {
     );
   }
 
-  const handleQuickStatusChange = async (nextStatus: ArticleStatus) => {
+  const executeQuickStatusChange = async (nextStatus: ArticleStatus) => {
     let { error } = await supabase
       .from("articles")
       .update({ status: nextStatus, scheduled_at: null })
       .eq("id", article.id);
-    if (error) {
+    if (error && isArticleOptionalColumnSchemaError(error)) {
       const retry = await supabase
         .from("articles")
         .update({ status: nextStatus })
@@ -395,6 +398,46 @@ export const ArticleView = () => {
     }
   };
 
+  const executeToggleCommentsEnabled = async (nextEnabled: boolean) => {
+    const { error } = await supabase
+      .from("articles")
+      .update({ comments_enabled: nextEnabled })
+      .eq("id", article.id);
+    if (!error) {
+      setDetailedArticle((prev) => (prev ? { ...prev, commentsEnabled: nextEnabled } : prev));
+      showToast(nextEnabled ? "コメント機能をオンにしました" : "コメント機能をオフにしました");
+    } else {
+      if (
+        (error as { code?: string; message?: string }).code === "42703" ||
+        error.message?.includes("comments_enabled")
+      ) {
+        showToast("データベース更新準備中のため、コメント設定を変更できません");
+      } else {
+        showToast("コメント設定の更新に失敗しました");
+      }
+    }
+  };
+
+  const requestSudoOrExecute = (action: PendingSudoAction) => {
+    if (!checkIsSudoActive()) {
+      if (!user?.email) {
+        showToast("セキュリティ確認のため、再ログインが必要です");
+        return;
+      }
+      setPendingSudoAction(action);
+      return;
+    }
+    if (action.type === "status") {
+      void executeQuickStatusChange(action.nextStatus);
+    } else {
+      void executeToggleCommentsEnabled(action.nextEnabled);
+    }
+  };
+
+  const handleQuickStatusChange = (nextStatus: ArticleStatus) => {
+    requestSudoOrExecute({ type: "status", nextStatus });
+  };
+
   return (
     <div className="animate-in slide-in-from-right-8 duration-300 bg-white dark:bg-gray-900 min-h-screen text-gray-800 dark:text-gray-100 transition-colors">
       <div className="sticky top-0 z-40 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 px-2 py-2 flex items-center">
@@ -408,89 +451,20 @@ export const ArticleView = () => {
       </div>
 
       {article.status !== "published" && (
-        <div
-          data-testid="article-preview-banner"
-          className="bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-900 px-4 py-3 text-amber-800 dark:text-amber-200 text-xs font-bold flex flex-col sm:flex-row items-center justify-between gap-2 max-w-full"
-        >
-          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-            <span className="px-2 py-0.5 rounded bg-amber-200 dark:bg-amber-800 text-amber-900 dark:text-amber-100 font-extrabold text-[10px]">
-              PREVIEW
-            </span>
-            <span>
-              【プレビュー表示中】ステータス:{" "}
-              {ARTICLE_STATUS_CONFIG[article.status]?.label ?? article.status}
-              （一般には公開されていません）
-            </span>
-            {formatScheduledDateTime(article.scheduledAt) && (
-              <span className="inline-flex items-center gap-1 text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/50 px-2 py-0.5 rounded-full">
-                <Clock className="w-3 h-3" /> 公開予定:{" "}
-                {formatScheduledDateTime(article.scheduledAt)}
-              </span>
-            )}
-          </div>
-
-          {/* プレビュー画面上でその場で操作できるアクションボタン (#54-12) */}
-          {(isEditor || isAuthor || isCollaborator) && (
-            <div className="flex flex-wrap items-center gap-2 shrink-0">
-              {(isAuthor || isCollaborator || isEditor) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (typeof appNavigate === "function") {
-                      appNavigate("writerEdit", article.id);
-                    } else {
-                      void navigate(`/writer-dash/edit/${article.id}`);
-                    }
-                  }}
-                  className="px-2.5 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-amber-300 dark:border-amber-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 inline-flex items-center gap-1 cursor-pointer"
-                >
-                  <Edit3 className="w-3.5 h-3.5" /> 編集する
-                </button>
-              )}
-              {(isAuthor || isCollaborator) && article.status === "draft" && (
-                <button
-                  type="button"
-                  onClick={() => void handleQuickStatusChange("pending")}
-                  className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer"
-                >
-                  投稿申請する
-                </button>
-              )}
-              {(isAuthor || isCollaborator) && !isEditor && article.status === "pending" && (
-                <button
-                  type="button"
-                  data-testid="preview-banner-withdraw-btn"
-                  onClick={() => void handleQuickStatusChange("draft")}
-                  className="px-3 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-                >
-                  申請取消
-                </button>
-              )}
-              {isEditor && (
-                <>
-                  <button
-                    type="button"
-                    data-testid="preview-banner-approve-btn"
-                    onClick={() => void handleQuickStatusChange("published")}
-                    className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 inline-flex items-center gap-1 shadow-sm cursor-pointer"
-                  >
-                    <Check className="w-3.5 h-3.5" /> 許可 (公開)
-                  </button>
-                  {article.status !== "draft" && (
-                    <button
-                      type="button"
-                      data-testid="preview-banner-reject-btn"
-                      onClick={() => void handleQuickStatusChange("draft")}
-                      className="px-3 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-                    >
-                      差し戻し
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
-          )}
-        </div>
+        <ArticlePreviewBanner
+          article={article}
+          isAuthor={isAuthor}
+          isCollaborator={isCollaborator}
+          isEditor={isEditor}
+          onEditClick={() => {
+            if (typeof appNavigate === "function") {
+              appNavigate("writerEdit", article.id);
+            } else {
+              void navigate(`/writer-dash/edit/${article.id}`);
+            }
+          }}
+          onQuickStatusChange={handleQuickStatusChange}
+        />
       )}
 
       <div className="max-w-3xl mx-auto px-4 md:px-8 pt-4">
@@ -586,252 +560,18 @@ export const ArticleView = () => {
           ))}
         </div>
 
-        {(() => {
-          const uniqueCollaboratorIds = Array.from(
-            new Set((article.collaboratorIds ?? []).filter((id) => id && id !== article.writerId)),
-          );
-
-          const coAuthors = uniqueCollaboratorIds.map(
-            (id) =>
-              writers.find((w) => w.id === id) ||
-              collaboratorFallbacks.find((w) => w.id === id) ||
-              ({
-                id,
-                role: "writer" as const,
-                display_name: null,
-                username: null,
-                avatar_url: null,
-              } as Profile),
-          );
-
-          // 単独執筆（共同執筆者がいない場合）: 従来通りの横幅すべてを使う単一カード表示
-          if (coAuthors.length === 0) {
-            const singleWriter =
-              writer ||
-              (article.writerId
-                ? {
-                    id: article.writerId,
-                    role: "writer" as const,
-                    display_name: null,
-                    username: null,
-                    avatar_url: null,
-                  }
-                : null);
-
-            if (!singleWriter) return null;
-
-            const singleWriterName =
-              singleWriter.display_name ??
-              (singleWriter.username ? `@${singleWriter.username}` : "名称未設定");
-
-            return (
-              <Link
-                to={`/writers/${singleWriter.username || singleWriter.id}`}
-                data-testid={`author-card-${singleWriter.id}`}
-                className="flex items-center justify-between p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xs cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="bg-gray-100 dark:bg-gray-700 p-2 rounded-full border border-gray-200 dark:border-gray-600">
-                    {singleWriter.avatar_url ? (
-                      <img
-                        src={singleWriter.avatar_url}
-                        className="w-8 h-8 rounded-full object-cover"
-                        alt={`${singleWriterName}のアバター`}
-                        loading="lazy"
-                        decoding="async"
-                      />
-                    ) : (
-                      <CustomUserIcon className="w-8 h-8" />
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 font-bold mb-0.5">
-                      この記事を執筆した人
-                    </p>
-                    <p className="font-bold text-gray-800 dark:text-gray-100">{singleWriterName}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {currentUserId !== singleWriter.id && (
-                    <button
-                      type="button"
-                      onClick={async (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (!isAuthenticated) {
-                          showToast("フォローするにはログインが必要です");
-                          void navigate("/login");
-                          return;
-                        }
-                        if (currentUserId === singleWriter.id) {
-                          showToast("自分自身をフォローすることはできません");
-                          return;
-                        }
-                        const wasFollowing = isFollowing(singleWriter.id);
-                        const ok = await toggleFollow(singleWriter.id);
-                        if (!ok) {
-                          showToast("フォロー処理に失敗しました");
-                          return;
-                        }
-                        showToast(
-                          wasFollowing ? "フォローを解除しました" : "ライターをフォローしました",
-                        );
-                      }}
-                      className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-xs cursor-pointer ${
-                        isFollowing(singleWriter.id)
-                          ? "bg-blue-600 text-white hover:bg-blue-700"
-                          : "bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
-                      }`}
-                    >
-                      {isFollowing(singleWriter.id) ? (
-                        <>
-                          <UserCheck className="w-3.5 h-3.5" />
-                          <span>フォロー中</span>
-                        </>
-                      ) : (
-                        <>
-                          <UserPlus className="w-3.5 h-3.5" />
-                          <span>フォロー</span>
-                        </>
-                      )}
-                    </button>
-                  )}
-                  <span className="text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 px-3 py-1.5 rounded-full hidden sm:inline-block">
-                    プロフィールへ
-                  </span>
-                </div>
-              </Link>
-            );
-          }
-
-          // 共同執筆者が存在する場合: 複数人一覧表示
-          const authors: Array<{ profile: Profile; roleLabel: string; isPrimary: boolean }> = [];
-          if (article.writerId) {
-            const mainAuthor: Profile = writer || {
-              id: article.writerId,
-              role: "writer",
-              display_name: null,
-              username: null,
-              avatar_url: null,
-            };
-            authors.push({ profile: mainAuthor, roleLabel: "主執筆", isPrimary: true });
-          } else if (writer) {
-            authors.push({ profile: writer, roleLabel: "主執筆", isPrimary: true });
-          }
-
-          coAuthors.forEach((ca) => {
-            authors.push({ profile: ca, roleLabel: "共同執筆", isPrimary: false });
-          });
-
-          return (
-            <div className="space-y-3 pt-2">
-              <h2 className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">
-                この記事を執筆した人
-              </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {authors.map(({ profile: authorProfile, roleLabel, isPrimary }) => {
-                  const displayName =
-                    authorProfile.display_name ??
-                    (authorProfile.username ? `@${authorProfile.username}` : "名称未設定");
-                  const isMe = currentUserId === authorProfile.id;
-
-                  return (
-                    <div
-                      key={authorProfile.id}
-                      data-testid={`author-card-${authorProfile.id}`}
-                      className="flex items-center justify-between gap-2 p-3.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xs hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors"
-                    >
-                      <Link
-                        to={`/writers/${authorProfile.username || authorProfile.id}`}
-                        className="flex items-center justify-between gap-3 flex-1 min-w-0 cursor-pointer"
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="bg-gray-100 dark:bg-gray-700 p-2 rounded-full border border-gray-200 dark:border-gray-600 shrink-0">
-                            {authorProfile.avatar_url ? (
-                              <img
-                                src={authorProfile.avatar_url}
-                                className="w-8 h-8 rounded-full object-cover"
-                                alt={`${displayName}のアバター`}
-                                loading="lazy"
-                                decoding="async"
-                              />
-                            ) : (
-                              <CustomUserIcon className="w-8 h-8" />
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5 mb-0.5">
-                              <span
-                                className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded ${
-                                  isPrimary
-                                    ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
-                                    : "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300"
-                                }`}
-                              >
-                                {roleLabel}
-                              </span>
-                            </div>
-                            <p className="font-bold text-gray-800 dark:text-gray-100 text-sm truncate">
-                              {displayName}
-                            </p>
-                          </div>
-                        </div>
-                        <span className="text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 px-2.5 py-1 rounded-full hidden sm:inline-block shrink-0">
-                          詳細
-                        </span>
-                      </Link>
-                      {!isMe && (
-                        <button
-                          type="button"
-                          aria-pressed={isFollowing(authorProfile.id)}
-                          onClick={async () => {
-                            if (!isAuthenticated) {
-                              showToast("フォローするにはログインが必要です");
-                              void navigate("/login");
-                              return;
-                            }
-                            if (currentUserId === authorProfile.id) {
-                              showToast("自分自身をフォローすることはできません");
-                              return;
-                            }
-                            const wasFollowing = isFollowing(authorProfile.id);
-                            const ok = await toggleFollow(authorProfile.id);
-                            if (!ok) {
-                              showToast("フォロー処理に失敗しました");
-                              return;
-                            }
-                            showToast(
-                              wasFollowing
-                                ? "フォローを解除しました"
-                                : "ライターをフォローしました",
-                            );
-                          }}
-                          className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0 ${
-                            isFollowing(authorProfile.id)
-                              ? "bg-blue-600 text-white hover:bg-blue-700"
-                              : "bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
-                          }`}
-                        >
-                          {isFollowing(authorProfile.id) ? (
-                            <>
-                              <UserCheck className="w-3.5 h-3.5" />
-                              <span>フォロー中</span>
-                            </>
-                          ) : (
-                            <>
-                              <UserPlus className="w-3.5 h-3.5" />
-                              <span>フォロー</span>
-                            </>
-                          )}
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })()}
+        <ArticleAuthorSection
+          article={article}
+          writer={writer}
+          writers={writers}
+          collaboratorFallbacks={collaboratorFallbacks}
+          currentUserId={currentUserId}
+          isAuthenticated={isAuthenticated}
+          isFollowing={isFollowing}
+          toggleFollow={toggleFollow}
+          showToast={showToast}
+          onNavigateLogin={() => void navigate("/login")}
+        />
 
         <div
           className={`py-4 text-gray-800 dark:text-gray-200 leading-loose article-content ${getFontSizeClass()}`}
@@ -845,52 +585,12 @@ export const ArticleView = () => {
           )}
         </div>
 
-        <div className="border-t border-gray-200 dark:border-gray-800 pt-8 pb-4 space-y-4">
-          <p className="font-bold text-gray-800 dark:text-gray-200 text-center">この記事を共有</p>
-          <div className="flex flex-wrap justify-center gap-x-6 gap-y-2">
-            <button
-              type="button"
-              aria-label="Xで共有"
-              onClick={() =>
-                window.open(
-                  `https://twitter.com/intent/tweet?text=${encodeURIComponent(
-                    `${article.title} | ${writer?.display_name ?? "Quest Qlub"} From Quest Qlub`,
-                  )}&url=${encodeURIComponent(articleUrl)}&via=QuestQlub`,
-                  "_blank",
-                )
-              }
-              className="w-14 h-14 bg-black text-white rounded-full flex items-center justify-center hover:opacity-80 shadow-md cursor-pointer"
-            >
-              <span className="font-bold text-2xl">X</span>
-            </button>
-            <button
-              type="button"
-              aria-label="LINEで共有"
-              onClick={() =>
-                window.open(
-                  `https://line.me/R/msg/text/?${encodeURIComponent(
-                    `${article.title} | ${writer?.display_name ?? "Quest Qlub"} From Quest Qlub\n${articleUrl}`,
-                  )}`,
-                  "_blank",
-                )
-              }
-              className="w-14 h-14 bg-green-500 text-white rounded-full flex items-center justify-center hover:opacity-80 shadow-md cursor-pointer"
-            >
-              <span className="font-bold text-sm">LINE</span>
-            </button>
-            <button
-              type="button"
-              aria-label="記事のリンクをコピー"
-              onClick={() => {
-                void navigator.clipboard.writeText(articleUrl);
-                showToast("リンクをコピーしました");
-              }}
-              className="w-14 h-14 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 rounded-full flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm cursor-pointer"
-            >
-              <Share2 className="w-6 h-6" />
-            </button>
-          </div>
-        </div>
+        <ArticleShareSection
+          title={article.title}
+          writerName={writer?.display_name ?? "Quest Qlub"}
+          articleUrl={articleUrl}
+          showToast={showToast}
+        />
 
         <ArticleComments
           articleId={article.id}
@@ -898,30 +598,25 @@ export const ArticleView = () => {
           collaboratorIds={article.collaboratorIds}
           commentsEnabled={article.commentsEnabled !== false}
           onToggleCommentsEnabled={async (nextEnabled) => {
-            const { error } = await supabase
-              .from("articles")
-              .update({ comments_enabled: nextEnabled })
-              .eq("id", article.id);
-            if (!error) {
-              setDetailedArticle((prev) =>
-                prev ? { ...prev, commentsEnabled: nextEnabled } : prev,
-              );
-              showToast(
-                nextEnabled ? "コメント機能をオンにしました" : "コメント機能をオフにしました",
-              );
-            } else {
-              if (
-                (error as { code?: string; message?: string }).code === "42703" ||
-                error.message?.includes("comments_enabled")
-              ) {
-                showToast("データベース更新準備中のため、コメント設定を変更できません");
-              } else {
-                showToast("コメント設定の更新に失敗しました");
-              }
-            }
+            requestSudoOrExecute({ type: "comments", nextEnabled });
           }}
         />
       </div>
+      {pendingSudoAction && user?.email && (
+        <SudoConfirmModal
+          userEmail={user.email}
+          onSuccess={() => {
+            const action = pendingSudoAction;
+            setPendingSudoAction(null);
+            if (action.type === "status") {
+              void executeQuickStatusChange(action.nextStatus);
+            } else {
+              void executeToggleCommentsEnabled(action.nextEnabled);
+            }
+          }}
+          onCancel={() => setPendingSudoAction(null)}
+        />
+      )}
     </div>
   );
 };

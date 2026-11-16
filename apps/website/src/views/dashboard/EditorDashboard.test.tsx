@@ -257,4 +257,93 @@ describe("EditorDashboard", () => {
     expect(mockNavigate).toHaveBeenCalledWith("writerDash");
     unmount();
   });
+
+  it("does not downgrade future scheduled approval to published when DB update fails (#137)", async () => {
+    const updatedPayloads: any[] = [];
+    const mockUpdate = vi.fn((payload: any) => {
+      updatedPayloads.push(payload);
+      return {
+        eq: vi.fn().mockResolvedValue({
+          error: { code: "42703", message: "column articles.scheduled_at does not exist" },
+        }),
+      };
+    });
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") {
+        return {
+          select: vi.fn().mockReturnValue({
+            order: vi.fn().mockResolvedValue({
+              data: [
+                {
+                  id: "art-pending-sched-fail",
+                  title: "未来予約失敗テスト",
+                  content: "<p>本文</p>",
+                  status: "pending",
+                  writer_id: "w-1",
+                  views: 0,
+                  likes: 0,
+                  created_at: new Date().toISOString(),
+                },
+              ],
+              error: null,
+            }),
+          }),
+          update: mockUpdate,
+        } as any;
+      }
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockResolvedValue({ count: 0 }),
+        }),
+      } as any;
+    });
+
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      articles: [],
+      setArticles: mockSetArticles,
+      writers: [],
+      showToast: mockShowToast,
+      navigate: mockNavigate,
+      profile: createTestProfile({ id: "ed-1", role: "editor" }),
+    } as any);
+
+    const { container, unmount } = renderWithRouter(<EditorDashboard />);
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const previewBtn = container.querySelector(
+      '[data-testid="preview-pending-art-pending-sched-fail"]',
+    ) as HTMLButtonElement;
+    await act(async () => {
+      previewBtn.click();
+    });
+
+    const schedInput = container.querySelector(
+      '[data-testid="editor-preview-schedule-input"]',
+    ) as HTMLInputElement;
+    act(() => {
+      setNativeValue(schedInput, "2099-12-31T12:00");
+    });
+
+    const schedApproveBtn = container.querySelector(
+      '[data-testid="modal-schedule-approve-btn"]',
+    ) as HTMLButtonElement;
+    await act(async () => {
+      schedApproveBtn.click();
+    });
+
+    // 1回のみ scheduled で試み、published へフォールバックしないこと
+    expect(updatedPayloads).toHaveLength(1);
+    expect(updatedPayloads[0].status).toBe("scheduled");
+    expect(updatedPayloads.some((p) => p.status === "published")).toBe(false);
+    expect(mockShowToast).toHaveBeenCalledWith(
+      "データベース更新準備中のため、公開予約を設定できません",
+    );
+
+    unmount();
+  });
 });

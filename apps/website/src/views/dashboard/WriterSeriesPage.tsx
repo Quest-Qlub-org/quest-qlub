@@ -1,15 +1,16 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useApp } from "../../context/AppContext";
 import { supabase } from "../../supabase";
-import { ChevronLeft, Plus, X, Loader2 } from "lucide-react";
-import { ARTICLE_STATUS_CONFIG, mapDbArticleToArticle } from "../../types";
-import type { Article, ArticleStatus, Series } from "../../types";
+import { ChevronLeft, Loader2 } from "lucide-react";
+import { mapDbArticleToArticle } from "../../types";
+import type { Article, Series } from "../../types";
 import { ARTICLE_LIST_FIELDS, WRITER_ARTICLE_LIST_FIELDS } from "../../context/DataContext";
 import { applySeriesOverrides, removeLocalSeriesOverride } from "../../utils/seriesOverrides";
 import { updateMetaTags } from "../../utils/seo";
-import { CollaboratorSelect } from "../../components/CollaboratorSelect";
 import { isArticleOptionalColumnSchemaError } from "../../utils/supabaseErrors";
 import { profileHasRole } from "../../utils/roles";
+import { CreateSeriesForm } from "./components/CreateSeriesForm";
+import { SeriesCard } from "./components/SeriesCard";
 
 export const WriterSeriesPage = () => {
   const {
@@ -45,6 +46,7 @@ export const WriterSeriesPage = () => {
   const [editCollaboratorIds, setEditCollaboratorIds] = useState<string[]>([]);
   const [updating, setUpdating] = useState(false);
   const [addingArticleBySeries, setAddingArticleBySeries] = useState<Record<string, string>>({});
+  const [episodeInputs, setEpisodeInputs] = useState<Record<string, string>>({});
 
   const fetchMySeries = useCallback(async () => {
     if (!profile?.id) return;
@@ -340,6 +342,13 @@ export const WriterSeriesPage = () => {
       }
     } catch {
       showToast("話数の更新に失敗しました");
+    } finally {
+      setEpisodeInputs((prev) => {
+        if (!(articleId in prev)) return prev;
+        const next = { ...prev };
+        delete next[articleId];
+        return next;
+      });
     }
   };
 
@@ -365,10 +374,10 @@ export const WriterSeriesPage = () => {
     }
   };
 
-  const handleAddArticleToSeries = async (seriesId: string, currentCount: number) => {
+  const handleAddArticleToSeries = async (seriesId: string, maxEpisodeNumber: number) => {
     const targetArticleId = addingArticleBySeries[seriesId];
     if (!targetArticleId) return;
-    const nextEp = currentCount + 1;
+    const nextEp = maxEpisodeNumber + 1;
     try {
       const { error } = await supabase
         .from("articles")
@@ -421,49 +430,17 @@ export const WriterSeriesPage = () => {
       </div>
 
       <div className="md:grid md:grid-cols-2 md:gap-6 md:items-start space-y-6 md:space-y-0">
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-gray-700 space-y-4">
-          <h2 className="font-bold text-gray-800 dark:text-gray-100">新しい連載を作成</h2>
-          <div>
-            <label htmlFor="new-series-title" className="sr-only">
-              連載名（必須）
-            </label>
-            <input
-              id="new-series-title"
-              required
-              aria-required="true"
-              className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-400"
-              placeholder="連載名 *"
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-            />
-          </div>
-          <div>
-            <label htmlFor="new-series-desc" className="sr-only">
-              連載の説明（任意）
-            </label>
-            <textarea
-              id="new-series-desc"
-              className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
-              placeholder="連載の説明（任意）"
-              rows={3}
-              value={newDesc}
-              onChange={(e) => setNewDesc(e.target.value)}
-            />
-          </div>
-          <CollaboratorSelect
-            value={newCollaboratorIds}
-            onChange={setNewCollaboratorIds}
-            excludeUserIds={profile?.id ? [profile.id] : []}
-            label="共同編集者（任意）"
-          />
-          <button
-            onClick={handleCreate}
-            disabled={saving}
-            className="w-full bg-blue-500 text-white font-bold py-3 rounded-xl hover:bg-blue-600 disabled:opacity-50"
-          >
-            {saving ? "作成中..." : "連載を作成"}
-          </button>
-        </div>
+        <CreateSeriesForm
+          newTitle={newTitle}
+          onChangeTitle={setNewTitle}
+          newDesc={newDesc}
+          onChangeDesc={setNewDesc}
+          newCollaboratorIds={newCollaboratorIds}
+          onChangeCollaboratorIds={setNewCollaboratorIds}
+          excludeUserIds={profile?.id ? [profile.id] : []}
+          saving={saving}
+          onCreate={handleCreate}
+        />
         <div className="space-y-3">
           <h2 className="font-bold text-gray-800 dark:text-gray-100">作成済みの連載</h2>
           {mySeries.length === 0 ? (
@@ -476,261 +453,61 @@ export const WriterSeriesPage = () => {
                 .filter((a) => a.seriesId === s.id)
                 .sort((a, b) => (a.episodeNumber ?? 0) - (b.episodeNumber ?? 0));
               const unassignedArticles = mergedWriterArticles.filter((a) => !a.seriesId);
-              const expanded = expandedSeriesId === s.id;
-              const isEditing = editingSeriesId === s.id;
-
-              if (isEditing) {
-                return (
-                  <div
-                    key={s.id}
-                    className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-blue-300 dark:border-blue-700 p-4 space-y-3"
-                  >
-                    <h3 className="font-bold text-sm text-blue-600 dark:text-blue-400">
-                      連載を編集
-                    </h3>
-                    <div>
-                      <label htmlFor={`edit-series-title-${s.id}`} className="sr-only">
-                        連載名（必須）
-                      </label>
-                      <input
-                        id={`edit-series-title-${s.id}`}
-                        required
-                        aria-required="true"
-                        data-testid="edit-series-title"
-                        className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 font-bold"
-                        placeholder="連載名を編集 *"
-                        value={editTitle}
-                        onChange={(e) => setEditTitle(e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor={`edit-series-desc-${s.id}`} className="sr-only">
-                        連載の説明（任意）
-                      </label>
-                      <textarea
-                        id={`edit-series-desc-${s.id}`}
-                        data-testid="edit-series-desc"
-                        className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
-                        placeholder="連載の説明（任意）"
-                        rows={2}
-                        value={editDesc}
-                        onChange={(e) => setEditDesc(e.target.value)}
-                      />
-                    </div>
-                    {s.writerId === profile?.id ||
-                    userRole === "editor" ||
-                    profile?.role === "editor" ||
-                    profileHasRole(profile, "editor") ? (
-                      <CollaboratorSelect
-                        value={editCollaboratorIds}
-                        onChange={setEditCollaboratorIds}
-                        excludeUserIds={Array.from(
-                          new Set([
-                            ...(s.writerId ? [s.writerId] : []),
-                            ...(profile?.id ? [profile.id] : []),
-                          ]),
-                        )}
-                        label="共同編集者"
-                      />
-                    ) : (
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        共同編集者の設定は主作成者または編集長のみ変更できます。
-                      </p>
-                    )}
-                    <div className="flex gap-2 justify-end">
-                      <button
-                        onClick={handleCancelEdit}
-                        disabled={updating}
-                        className="px-3 py-1.5 text-xs font-bold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                      >
-                        キャンセル
-                      </button>
-                      <button
-                        onClick={() => void handleSaveEdit(s.id)}
-                        disabled={updating}
-                        className="px-3 py-1.5 text-xs font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                      >
-                        {updating ? "保存中..." : "変更を保存"}
-                      </button>
-                    </div>
-                  </div>
-                );
-              }
-
-              const isOwner = s.writerId === profile?.id;
               const isEditor =
                 userRole === "editor" ||
                 profile?.role === "editor" ||
                 profileHasRole(profile, "editor");
-              const canDelete = isOwner || isEditor;
-              const isCollaborator =
-                !isOwner && Boolean(s.collaboratorIds?.includes(profile?.id ?? ""));
 
               return (
-                <div
+                <SeriesCard
                   key={s.id}
-                  className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden"
-                >
-                  <div className="p-4 flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-bold text-gray-900 dark:text-gray-100 break-words">
-                          {s.title}
-                        </p>
-                        {isCollaborator && (
-                          <span
-                            data-testid="collaborator-series-badge"
-                            className="px-2 py-0.5 rounded text-[11px] font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300"
-                          >
-                            共同編集
-                          </span>
-                        )}
-                      </div>
-                      {s.description && (
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5 break-words">
-                          {s.description}
-                        </p>
-                      )}
-                      <button
-                        type="button"
-                        aria-expanded={expanded}
-                        aria-controls={`series-articles-panel-${s.id}`}
-                        onClick={() => setExpandedSeriesId(expanded ? null : s.id)}
-                        className="text-xs text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 mt-1 flex items-center gap-1"
-                      >
-                        {seriesArticles.length}件の記事
-                        <span aria-hidden="true">{expanded ? "▲" : "▼"}</span>
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        onClick={() => handleStartEdit(s)}
-                        className="text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-sm font-bold"
-                      >
-                        編集
-                      </button>
-                      {canDelete && (
-                        <button
-                          onClick={() => handleDelete(s.id, s.title)}
-                          className="text-red-400 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 text-sm font-bold"
-                        >
-                          削除
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  {expanded && (
-                    <div
-                      id={`series-articles-panel-${s.id}`}
-                      className="border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-850 px-4 py-3 space-y-2.5"
-                    >
-                      {seriesArticles.length === 0 ? (
-                        <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-2">
-                          この連載にはまだ記事がありません
-                        </p>
-                      ) : (
-                        seriesArticles.map((a) => (
-                          <div
-                            key={a.id}
-                            className="flex flex-wrap sm:flex-nowrap items-center gap-2 bg-white dark:bg-gray-800 rounded-xl px-3 py-2 border border-gray-100 dark:border-gray-700"
-                          >
-                            <div className="flex items-center gap-1 shrink-0">
-                              <span className="text-xs text-gray-500 dark:text-gray-400">#</span>
-                              <input
-                                type="number"
-                                min={1}
-                                aria-label={`${a.title}の話数`}
-                                data-testid={`episode-input-${a.id}`}
-                                defaultValue={a.episodeNumber ?? ""}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") {
-                                    (e.currentTarget as HTMLInputElement).blur();
-                                  }
-                                }}
-                                onBlur={(e) => {
-                                  const nextVal = e.target.value;
-                                  const currentVal =
-                                    a.episodeNumber != null ? String(a.episodeNumber) : "";
-                                  if (nextVal !== currentVal) {
-                                    void handleUpdateEpisodeNumber(a.id, nextVal);
-                                  }
-                                }}
-                                className="w-12 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 rounded px-1.5 py-0.5 text-xs text-center text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                              />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
-                                {a.title}
-                              </p>
-                              <p className="text-xs text-gray-500 dark:text-gray-400">
-                                {ARTICLE_STATUS_CONFIG[a.status as ArticleStatus]?.label ??
-                                  a.status}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0 ml-auto">
-                              <button
-                                onClick={() => {
-                                  navigate("writerEdit", a.id);
-                                }}
-                                className="text-xs text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-bold"
-                              >
-                                記事編集
-                              </button>
-                              <button
-                                type="button"
-                                data-testid={`remove-from-series-${a.id}`}
-                                onClick={() => void handleRemoveArticleFromSeries(a.id)}
-                                title="この連載から外す"
-                                aria-label={`${a.title}をこの連載から外す`}
-                                className="text-xs text-gray-500 dark:text-gray-400 hover:text-red-500 p-1"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </div>
-                        ))
-                      )}
-
-                      {unassignedArticles.length > 0 && (
-                        <div className="pt-2 border-t border-gray-200/70 dark:border-gray-700 flex flex-col sm:flex-row gap-2">
-                          <label htmlFor={`add-article-select-${s.id}`} className="sr-only">
-                            連載に追加する記事を選択
-                          </label>
-                          <select
-                            id={`add-article-select-${s.id}`}
-                            data-testid={`add-article-select-${s.id}`}
-                            value={addingArticleBySeries[s.id] || ""}
-                            onChange={(e) =>
-                              setAddingArticleBySeries((prev) => ({
-                                ...prev,
-                                [s.id]: e.target.value,
-                              }))
-                            }
-                            className="flex-1 border border-gray-200 dark:border-gray-700 rounded-lg px-2.5 py-1.5 text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-400 min-w-0"
-                          >
-                            <option value="">＋ 既存の単発記事をこの連載に追加...</option>
-                            {unassignedArticles.map((ua) => (
-                              <option key={ua.id} value={ua.id}>
-                                {ua.title}
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            type="button"
-                            data-testid={`add-article-btn-${s.id}`}
-                            disabled={!addingArticleBySeries[s.id]}
-                            onClick={() =>
-                              void handleAddArticleToSeries(s.id, seriesArticles.length)
-                            }
-                            className="px-3 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 disabled:opacity-40 inline-flex items-center justify-center gap-1 shrink-0"
-                          >
-                            <Plus className="w-3.5 h-3.5" /> 追加
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
+                  series={s}
+                  seriesArticles={seriesArticles}
+                  unassignedArticles={unassignedArticles}
+                  isEditing={editingSeriesId === s.id}
+                  expanded={expandedSeriesId === s.id}
+                  updating={updating}
+                  currentUserId={profile?.id}
+                  isEditor={isEditor}
+                  editTitle={editTitle}
+                  onChangeEditTitle={setEditTitle}
+                  editDesc={editDesc}
+                  onChangeEditDesc={setEditDesc}
+                  editCollaboratorIds={editCollaboratorIds}
+                  onChangeEditCollaboratorIds={setEditCollaboratorIds}
+                  onStartEdit={handleStartEdit}
+                  onCancelEdit={handleCancelEdit}
+                  onSaveEdit={(id) => void handleSaveEdit(id)}
+                  onDelete={handleDelete}
+                  onToggleExpand={() =>
+                    setExpandedSeriesId(expandedSeriesId === s.id ? null : s.id)
+                  }
+                  episodeInputs={episodeInputs}
+                  onChangeEpisodeInput={(articleId, value) =>
+                    setEpisodeInputs((prev) => ({ ...prev, [articleId]: value }))
+                  }
+                  onClearEpisodeInput={(articleId) =>
+                    setEpisodeInputs((prev) => {
+                      const next = { ...prev };
+                      delete next[articleId];
+                      return next;
+                    })
+                  }
+                  onUpdateEpisodeNumber={(articleId, nextVal) =>
+                    void handleUpdateEpisodeNumber(articleId, nextVal)
+                  }
+                  onRemoveArticleFromSeries={(articleId) =>
+                    void handleRemoveArticleFromSeries(articleId)
+                  }
+                  addingArticleId={addingArticleBySeries[s.id] || ""}
+                  onChangeAddingArticleId={(articleId) =>
+                    setAddingArticleBySeries((prev) => ({ ...prev, [s.id]: articleId }))
+                  }
+                  onAddArticleToSeries={(seriesId, maxEp) =>
+                    void handleAddArticleToSeries(seriesId, maxEp)
+                  }
+                  onNavigateEditArticle={(articleId) => navigate("writerEdit", articleId)}
+                />
               );
             })
           )}
