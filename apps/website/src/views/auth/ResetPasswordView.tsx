@@ -20,9 +20,33 @@ export const ResetPasswordView = () => {
   }, []);
 
   useEffect(() => {
-    void supabase.auth.getSession().then(({ data: { session } }) => {
-      setIsAuthorized(session !== null);
+    let isMounted = true;
+    void supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        if (isMounted) {
+          setIsAuthorized(session !== null);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setIsAuthorized(false);
+        }
+      });
+
+    const authListener = supabase.auth.onAuthStateChange((event, session) => {
+      if (!isMounted) return;
+      if (event === "PASSWORD_RECOVERY" || session !== null) {
+        setIsAuthorized(true);
+      } else if (event === "SIGNED_OUT") {
+        setIsAuthorized(false);
+      }
     });
+
+    return () => {
+      isMounted = false;
+      authListener?.data?.subscription?.unsubscribe();
+    };
   }, []);
 
   const handleResetPassword = async (e?: React.FormEvent) => {
@@ -40,16 +64,21 @@ export const ResetPasswordView = () => {
     setLoading(true);
     setError("");
 
-    const { error: updateErr } = await supabase.auth.updateUser({ password });
+    try {
+      const { error: updateErr } = await supabase.auth.updateUser({ password });
 
-    if (updateErr) {
-      setError(updateErr.message);
-    } else {
-      showToast("パスワードを更新しました。新しいパスワードでログインしてください。");
-      await supabase.auth.signOut();
-      navigate("login");
+      if (updateErr) {
+        setError(updateErr.message);
+      } else {
+        showToast("パスワードを更新しました。新しいパスワードでログインしてください。");
+        await supabase.auth.signOut().catch(() => {});
+        navigate("login");
+      }
+    } catch {
+      setError("パスワードの更新中にエラーが発生しました");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   if (isAuthorized === null) {

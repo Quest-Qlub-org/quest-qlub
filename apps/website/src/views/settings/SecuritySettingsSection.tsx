@@ -204,19 +204,28 @@ export function SecuritySettingsSection({ showToast }: { showToast: (msg: string
     }
   };
 
-  const handleDisableTotp = async (factorId: string) => {
+  const handleDisableTotp = async (factorsToDisable: FactorItem[]) => {
+    if (factorsToDisable.length === 0) return;
     if (!window.confirm("2段階認証を解除しますか？アカウントのセキュリティ強度が低下します。")) {
       return;
     }
-    setUnenrollingId(factorId);
-    const { error } = await supabase.auth.mfa.unenroll({ factorId });
-    if (error) {
-      showToast("2段階認証の解除に失敗しました: " + error.message);
-    } else {
+    setUnenrollingId(factorsToDisable[0].id);
+    try {
+      for (const factor of factorsToDisable) {
+        const { error } = await supabase.auth.mfa.unenroll({ factorId: factor.id });
+        if (error) {
+          showToast("2段階認証の解除に失敗しました: " + error.message);
+          await fetchSecurityData();
+          return;
+        }
+      }
       showToast("2段階認証を解除しました");
       await fetchSecurityData();
+    } catch {
+      showToast("2段階認証の解除中にエラーが発生しました");
+    } finally {
+      setUnenrollingId(null);
     }
-    setUnenrollingId(null);
   };
 
   const handleRegisterPasskey = async () => {
@@ -389,7 +398,7 @@ export function SecuritySettingsSection({ showToast }: { showToast: (msg: string
             </div>
             {isTotpEnabled ? (
               <button
-                onClick={() => void handleDisableTotp(totpFactors[0].id)}
+                onClick={() => void handleDisableTotp(totpFactors)}
                 disabled={unrollingId !== null || loading}
                 className="px-3 py-1.5 text-xs font-bold text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-50 flex items-center gap-1"
               >

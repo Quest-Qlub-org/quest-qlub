@@ -129,4 +129,40 @@ describe("SecuritySettingsSection - Password Change", () => {
     expect(newPasswordInput.value).toBe("");
     expect(confirmPasswordInput.value).toBe("");
   });
+
+  it("unenrolls all verified TOTP factors and resets loading state on error", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    vi.spyOn(supabase.auth.mfa, "listFactors").mockResolvedValue({
+      data: {
+        all: [
+          { id: "totp-1", factor_type: "totp", status: "verified", created_at: "" },
+          { id: "totp-2", factor_type: "totp", status: "verified", created_at: "" },
+        ],
+        totp: [],
+      },
+      error: null,
+    } as any);
+    const unenrollSpy = vi
+      .spyOn(supabase.auth.mfa, "unenroll")
+      .mockResolvedValueOnce({ data: { id: "totp-1" }, error: null } as any)
+      .mockRejectedValueOnce(new Error("Network error"));
+
+    await act(async () => {
+      root!.render(<SecuritySettingsSection showToast={mockShowToast} />);
+    });
+
+    const disableBtn = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("解除する"),
+    ) as HTMLButtonElement;
+    expect(disableBtn).toBeDefined();
+
+    await act(async () => {
+      disableBtn.click();
+    });
+
+    expect(unenrollSpy).toHaveBeenCalledWith({ factorId: "totp-1" });
+    expect(unenrollSpy).toHaveBeenCalledWith({ factorId: "totp-2" });
+    expect(mockShowToast).toHaveBeenCalledWith("2段階認証の解除中にエラーが発生しました");
+    expect(disableBtn.disabled).toBe(false);
+  });
 });

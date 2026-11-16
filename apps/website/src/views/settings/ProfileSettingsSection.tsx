@@ -288,23 +288,36 @@ function AvatarUpload({
     setUploading(true);
     setError("");
 
-    const filePath = `${profile.id}/avatar.${ext}`;
+    try {
+      const filePath = `${profile.id}/avatar.${ext}`;
 
-    const { error: uploadError } = await supabase.storage
-      .from("avatars")
-      .upload(filePath, file, { upsert: true });
-    if (uploadError) {
-      setError(`アップロードに失敗しました: ${uploadError.message}`);
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(filePath, file, { upsert: true });
+      if (uploadError) {
+        setError(`アップロードに失敗しました: ${uploadError.message}`);
+        return;
+      }
+
+      const { data } = supabase.storage.from("avatars").getPublicUrl(filePath);
+      const cleanUrl = data.publicUrl;
+      const displayUrl = cleanUrl + "?t=" + Date.now();
+      const { error: dbError } = await supabase
+        .from("profiles")
+        .update({ avatar_url: cleanUrl })
+        .eq("id", profile.id);
+
+      if (dbError) {
+        setError(`プロフィール画像の保存に失敗しました: ${dbError.message}`);
+        return;
+      }
+
+      onUpdate(displayUrl);
+    } catch {
+      setError("画像のアップロード中にエラーが発生しました");
+    } finally {
       setUploading(false);
-      return;
     }
-
-    const { data } = supabase.storage.from("avatars").getPublicUrl(filePath);
-    const cleanUrl = data.publicUrl;
-    const displayUrl = cleanUrl + "?t=" + Date.now();
-    await supabase.from("profiles").update({ avatar_url: cleanUrl }).eq("id", profile.id);
-    onUpdate(displayUrl);
-    setUploading(false);
   };
 
   return (
@@ -366,19 +379,24 @@ function DisplayNameEdit({
 
   const handleSave = async () => {
     if (!profile) return;
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      showToast("表示名を入力してください");
+      return;
+    }
     setSaving(true);
     try {
       const { error } = await supabase
         .from("profiles")
-        .update({ display_name: name })
+        .update({ display_name: trimmedName })
         .eq("id", profile.id);
       if (error) {
         showToast("表示名の更新に失敗しました: " + (error.message || "エラーが発生しました"));
       } else {
-        setProfile((p) => (p ? { ...p, display_name: name } : p));
+        setProfile((p) => (p ? { ...p, display_name: trimmedName } : p));
         if (setWriters) {
           setWriters((ws) =>
-            ws.map((w) => (w.id === profile.id ? { ...w, display_name: name } : w)),
+            ws.map((w) => (w.id === profile.id ? { ...w, display_name: trimmedName } : w)),
           );
         }
         notifyProfileUpdated();
@@ -467,24 +485,38 @@ function UsernameEdit({
     }
     setSaving(true);
     setErr("");
-    const { error } = await supabase
-      .from("profiles")
-      .update({ username: cleanUname })
-      .eq("id", profile.id);
-    if (error) {
-      setErr("このユーザー名はすでに使われています");
-    } else {
-      setProfile((p) => (p ? { ...p, username: cleanUname } : p));
-      if (setWriters) {
-        setWriters((ws) =>
-          ws.map((w) => (w.id === profile.id ? { ...w, username: cleanUname } : w)),
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ username: cleanUname })
+        .eq("id", profile.id);
+      if (error) {
+        const isDuplicateError =
+          error.code === "23505" ||
+          (typeof error.message === "string" &&
+            (error.message.toLowerCase().includes("duplicate") ||
+              error.message.toLowerCase().includes("unique")));
+        setErr(
+          isDuplicateError
+            ? "このユーザー名はすでに使われています"
+            : `ユーザー名の更新に失敗しました: ${error.message || "エラーが発生しました"}`,
         );
+      } else {
+        setProfile((p) => (p ? { ...p, username: cleanUname } : p));
+        if (setWriters) {
+          setWriters((ws) =>
+            ws.map((w) => (w.id === profile.id ? { ...w, username: cleanUname } : w)),
+          );
+        }
+        notifyProfileUpdated();
+        setEditing(false);
+        showToast("ユーザー名を更新しました");
       }
-      notifyProfileUpdated();
-      setEditing(false);
-      showToast("ユーザー名を更新しました");
+    } catch {
+      setErr("通信エラーが発生しました");
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   return (

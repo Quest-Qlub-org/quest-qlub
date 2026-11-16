@@ -260,14 +260,19 @@ export const LoginView = () => {
   const handleGoogleLogin = async () => {
     setLoading(true);
     setError("");
-    const { error: googleErr } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: window.location.origin,
-      },
-    });
-    if (googleErr) setError(googleErr.message);
-    setLoading(false);
+    try {
+      const { error: googleErr } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: window.location.origin,
+        },
+      });
+      if (googleErr) setError(googleErr.message);
+    } catch {
+      setError("Googleログインの開始に失敗しました");
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Step 2: 2段階認証 (TOTP または バックアップコード)
