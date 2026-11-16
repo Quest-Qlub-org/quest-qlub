@@ -23,6 +23,9 @@ const HIDE_HEADER_PATHS = [
   "/setup-profile",
 ];
 
+// インライン2FAを持つルートのみルートレベルの MFA バリアを免除（/setup-profile や /reset-password 等では免除しない）
+const MFA_BARRIER_EXEMPT_PATHS = ["/login"];
+
 export function AppLayout() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -30,6 +33,9 @@ export function AppLayout() {
   const { toastMessage, hideToast } = useUI();
 
   const hideHeader = HIDE_HEADER_PATHS.some((path) => location.pathname.startsWith(path));
+  const isMfaBarrierExempt = MFA_BARRIER_EXEMPT_PATHS.some((path) =>
+    location.pathname.startsWith(path),
+  );
   const mainRef = useRef<HTMLElement | null>(null);
   const prevPathnameRef = useRef(location.pathname);
   const [pageTitleAnnouncement, setPageTitleAnnouncement] = useState("");
@@ -70,8 +76,8 @@ export function AppLayout() {
   }, [location.pathname]);
 
   // Root-level MFA Barrier: 2FAが未完了の場合は Outlet を一切マウントせず、検証ツールによるDOM削除バイパスを物理的に無力化
-  // ただし /login 等の認証画面では LoginView 自身がインライン2FAを処理するためアンマウントしない（再ログイン画面ループ防止）
-  if (mfaChallengeRequired && !hideHeader) {
+  // ただし /login では LoginView 自身がインライン2FAを処理するためアンマウントしない（再ログイン画面ループ防止）
+  if (mfaChallengeRequired && !isMfaBarrierExempt) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center p-4">
         <MfaChallengeModal

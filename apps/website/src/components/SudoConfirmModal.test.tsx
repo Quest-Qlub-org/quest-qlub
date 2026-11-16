@@ -128,4 +128,93 @@ describe("SudoConfirmModal", () => {
     expect(passwordInput.getAttribute("aria-invalid")).toBe("true");
     expect(passwordInput.getAttribute("aria-describedby")).toBe("sudo-confirm-error");
   });
+
+  it("fails closed when getAuthenticatorAssuranceLevel errors or rejects", async () => {
+    const onSuccess = vi.fn();
+    vi.spyOn(supabase.auth, "signInWithPassword").mockResolvedValue({
+      data: { user: { id: "u-1" }, session: {} },
+      error: null,
+    } as any);
+    vi.spyOn(supabase.auth.mfa, "getAuthenticatorAssuranceLevel").mockResolvedValue({
+      data: null,
+      error: { message: "MFA service unavailable" },
+    } as any);
+
+    act(() => {
+      root!.render(
+        <SudoConfirmModal
+          userEmail="editor@example.com"
+          onSuccess={onSuccess}
+          onCancel={vi.fn()}
+        />,
+      );
+    });
+
+    const passwordInput = container.querySelector(
+      "#sudo-confirm-password-input",
+    ) as HTMLInputElement;
+    act(() => {
+      setNativeValue(passwordInput, "secret-pass");
+    });
+
+    await act(async () => {
+      container
+        .querySelector("form")!
+        .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(onSuccess).not.toHaveBeenCalled();
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "2段階認証状態の確認に失敗しました",
+    );
+  });
+
+  it("fails closed when AAL2 is required but only unverified TOTP factors exist", async () => {
+    const onSuccess = vi.fn();
+    vi.spyOn(supabase.auth, "signInWithPassword").mockResolvedValue({
+      data: { user: { id: "u-1" }, session: {} },
+      error: null,
+    } as any);
+    vi.spyOn(supabase.auth.mfa, "getAuthenticatorAssuranceLevel").mockResolvedValue({
+      data: { currentLevel: "aal1", nextLevel: "aal2" },
+      error: null,
+    } as any);
+    vi.spyOn(supabase.auth.mfa, "listFactors").mockResolvedValue({
+      data: { all: [], totp: [{ id: "unverified-1", status: "unverified" }] },
+      error: null,
+    } as any);
+
+    act(() => {
+      root!.render(
+        <SudoConfirmModal
+          userEmail="editor@example.com"
+          onSuccess={onSuccess}
+          onCancel={vi.fn()}
+        />,
+      );
+    });
+
+    const passwordInput = container.querySelector(
+      "#sudo-confirm-password-input",
+    ) as HTMLInputElement;
+    act(() => {
+      setNativeValue(passwordInput, "secret-pass");
+    });
+
+    await act(async () => {
+      container
+        .querySelector("form")!
+        .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(onSuccess).not.toHaveBeenCalled();
+    expect(container.querySelector('input[placeholder="123456"]')).toBeNull();
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "2段階認証の確認が必要です",
+    );
+  });
 });

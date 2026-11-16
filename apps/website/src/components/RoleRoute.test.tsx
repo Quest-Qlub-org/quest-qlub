@@ -190,11 +190,11 @@ describe("RoleRoute access control", () => {
     expect(container.textContent).toContain("編集長ダッシュボード");
   });
 
-  it("blocks access to protected route when mfaChallengeRequired is true even for editor", () => {
+  it("blocks access to protected route when mfaChallengeRequired is true even for editor with active user", () => {
     vi.spyOn(AuthContextModule, "useAuth").mockReturnValue({
       userRole: "editor",
       authLoading: false,
-      user: null,
+      user: { id: "user-e", email: "editor@example.com" } as any,
       profile: null,
       setProfile: vi.fn(),
       setUserRole: vi.fn(),
@@ -210,6 +210,7 @@ describe("RoleRoute access control", () => {
     );
 
     expect(container.textContent).not.toContain("編集長ダッシュボード");
+    expect(container.textContent).not.toContain("管理者権限の確認");
     expect(container.textContent).toContain("アクセス権限がありません");
   });
 
@@ -247,6 +248,10 @@ describe("RoleRoute access control", () => {
       const { supabase } = await import("../supabase");
       vi.spyOn(supabase.auth, "signInWithPassword").mockResolvedValue({
         data: { user: { id: "user-w" }, session: {} } as any,
+        error: null,
+      });
+      vi.spyOn(supabase.auth.mfa, "getAuthenticatorAssuranceLevel").mockResolvedValue({
+        data: { currentLevel: "aal1", nextLevel: "aal1", currentAuthenticationMethods: [] },
         error: null,
       });
 
@@ -323,6 +328,10 @@ describe("RoleRoute access control", () => {
       const { supabase } = await import("../supabase");
       vi.spyOn(supabase.auth, "signInWithPassword").mockResolvedValue({
         data: { user: { id: "user-w" }, session: {} } as any,
+        error: null,
+      });
+      vi.spyOn(supabase.auth.mfa, "getAuthenticatorAssuranceLevel").mockResolvedValue({
+        data: { currentLevel: "aal1", nextLevel: "aal1", currentAuthenticationMethods: [] },
         error: null,
       });
 

@@ -94,10 +94,12 @@ export function enrichFallbackProfileRoles<
     username?: string | null;
     display_name?: string | null;
   },
->(profile: T): T {
-  const localOverride = getLocalRolesOverride(profile.id);
-  if (localOverride && localOverride.length > 0) {
-    return { ...profile, roles: localOverride };
+>(profile: T, options?: { ignoreLocalOverrides?: boolean }): T {
+  if (!options?.ignoreLocalOverrides) {
+    const localOverride = getLocalRolesOverride(profile.id);
+    if (localOverride && localOverride.length > 0) {
+      return { ...profile, roles: localOverride };
+    }
   }
   if (Array.isArray(profile.roles) && profile.roles.length > 0) {
     return profile;
@@ -105,10 +107,9 @@ export function enrichFallbackProfileRoles<
 
   const baseRoles = profile.role?.trim() ? [profile.role.trim()] : ["viewer"];
   const uname = (profile.username ?? "").trim().toLowerCase();
-  const dname = (profile.display_name ?? "").trim().toLowerCase();
 
-  const isKnownEngineer =
-    uname === "root" || dname === "るーと" || uname === "noimzip" || dname === "noimzip";
+  // 変更困難な不変識別子（username）のみで初期エンジニアロールを補完する
+  const isKnownEngineer = uname === "root" || uname === "noimzip";
 
   if (isKnownEngineer && !baseRoles.includes("engineer")) {
     const merged = [...baseRoles.filter((r) => r !== "viewer"), "engineer"];
@@ -134,15 +135,18 @@ export function normalizeRoles(roles?: string[] | null, fallbackRole?: string | 
  */
 export function getProfileRoles(
   profile: { id?: string; role?: string | null; roles?: string[] | null } | null | undefined,
+  options?: { ignoreLocalOverrides?: boolean },
 ): string[] {
   if (!profile) return [];
   if (Array.isArray(profile.roles) && profile.roles.length > 0) {
     const cleaned = Array.from(new Set(profile.roles.map((r) => r.trim()))).filter(Boolean);
     if (cleaned.length > 0) return cleaned;
   }
-  const localOverride = getLocalRolesOverride(profile.id);
-  if (localOverride && localOverride.length > 0) {
-    return localOverride;
+  if (!options?.ignoreLocalOverrides) {
+    const localOverride = getLocalRolesOverride(profile.id);
+    if (localOverride && localOverride.length > 0) {
+      return localOverride;
+    }
   }
   return profile.role?.trim() ? [profile.role.trim()] : [];
 }
@@ -153,10 +157,11 @@ export function getProfileRoles(
 export function profileHasRole(
   profile: { id?: string; role?: string | null; roles?: string[] | null } | null | undefined,
   targetRole: string,
+  options?: { ignoreLocalOverrides?: boolean },
 ): boolean {
   const trimmed = targetRole?.trim();
   if (!trimmed) return false;
-  return getProfileRoles(profile).includes(trimmed);
+  return getProfileRoles(profile, options).includes(trimmed);
 }
 
 /**

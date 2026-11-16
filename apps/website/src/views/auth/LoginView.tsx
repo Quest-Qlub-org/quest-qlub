@@ -63,7 +63,7 @@ export const LoginView = () => {
         setError("2要素認証情報の取得に失敗しました");
         return;
       }
-      const verifiedTotp = data.totp.find((f) => f.status === "verified") ?? data.totp[0];
+      const verifiedTotp = data.totp.find((f) => f.status === "verified");
       if (verifiedTotp) {
         setFactorId(verifiedTotp.id);
       } else {
@@ -80,38 +80,46 @@ export const LoginView = () => {
     if (e) e.preventDefault();
     setLoading(true);
     setError("");
-    const { error: loginErr } = await supabase.auth.signInWithPassword({ email, password });
-    if (loginErr) {
-      setError("メールアドレスまたはパスワードが間違っています");
-      setLoading(false);
-      return;
-    }
-
-    // 2FA設定の確認: AAL2が要求されている場合は画面遷移を保留し、インライン2FAステップへ切り替える
     try {
-      const { data: mfaLevel } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      const { error: loginErr } = await supabase.auth.signInWithPassword({ email, password });
+      if (loginErr) {
+        setError("メールアドレスまたはパスワードが間違っています");
+        return;
+      }
+
+      // 2FA設定の確認: AAL2が要求されている場合は画面遷移を保留し、インライン2FAステップへ切り替える
+      // 確認に失敗した場合は fail-closed でセッションを破棄しログイン完了とみなさない
+      const { data: mfaLevel, error: mfaErr } =
+        await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (mfaErr) {
+        await supabase.auth.signOut().catch(() => {});
+        setMfaChallengeRequired(false);
+        setInMemorySudoAuthorized(false);
+        setError("2要素認証状態の確認に失敗しました。再度ログインしてください。");
+        return;
+      }
+
       if (mfaLevel && mfaLevel.currentLevel === "aal1" && mfaLevel.nextLevel === "aal2") {
         setStep("mfa_totp");
-        setLoading(false);
         void prepareMfaStep();
         return;
       }
-    } catch (err) {
-      console.warn("MFA level check error", err);
-    }
 
-    // MFA不要の通常アカウント、またはすでにAAL2完了済みの場合はメイン画面へ遷移
-    isMfaCompletedRef.current = true;
-    setMfaChallengeRequired(false);
-    setInMemorySudoAuthorized(true);
-    await refreshProfile();
-    try {
-      sessionStorage.setItem("quest_qlub_sudo_at", Date.now().toString());
-    } catch {
-      // ignore
+      // MFA不要の通常アカウント、またはすでにAAL2完了済みの場合はメイン画面へ遷移
+      isMfaCompletedRef.current = true;
+      setMfaChallengeRequired(false);
+      setInMemorySudoAuthorized(true);
+      await refreshProfile();
+      navigate("home");
+    } catch (err) {
+      console.warn("Login or MFA level check error", err);
+      await supabase.auth.signOut().catch(() => {});
+      setMfaChallengeRequired(false);
+      setInMemorySudoAuthorized(false);
+      setError("ログイン処理中にエラーが発生しました。再度お試しください。");
+    } finally {
+      setLoading(false);
     }
-    navigate("home");
-    setLoading(false);
   };
 
   const handleVerifyTotp = async (e: React.FormEvent) => {

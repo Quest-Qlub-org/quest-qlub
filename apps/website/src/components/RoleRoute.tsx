@@ -4,25 +4,15 @@ import { useAuth } from "../context/AuthContext";
 import { AccessDeniedView } from "../views/dashboard/AccessDeniedView";
 import { SudoConfirmModal } from "./SudoConfirmModal";
 import { profileHasRole } from "../utils/roles";
+import {
+  SUDO_TIMEOUT_MS,
+  checkIsSudoActive,
+  setInMemorySudoAuthorized,
+  isSudoMfaHandshakeActive,
+  getSudoRemainingMs,
+} from "../utils/sudoState";
 
-// メモリ内プライベートステート（ブラウザコンソールやDevToolsからの改ざんを完全防止）
-let inMemorySudoAuthorized = false;
-let lastSudoAuthorizedAt = 0;
-let sudoMfaHandshakeUntil = 0;
-
-export const SUDO_TIMEOUT_MS = 15 * 60 * 1000; // 15分
-const SUDO_MFA_HANDSHAKE_GRACE_MS = 3 * 60 * 1000; // Sudoパスワード検証直後の2FA入力猶予（3分）
-
-export function checkIsSudoActive(): boolean {
-  if (!inMemorySudoAuthorized) return false;
-  return Date.now() - lastSudoAuthorizedAt < SUDO_TIMEOUT_MS;
-}
-
-export function setInMemorySudoAuthorized(active: boolean, isMfaHandshake = false): void {
-  inMemorySudoAuthorized = active;
-  lastSudoAuthorizedAt = active ? Date.now() : 0;
-  sudoMfaHandshakeUntil = active && isMfaHandshake ? Date.now() + SUDO_MFA_HANDSHAKE_GRACE_MS : 0;
-}
+export { SUDO_TIMEOUT_MS, checkIsSudoActive, setInMemorySudoAuthorized };
 
 interface RoleRouteProps {
   requiredRole: "writer" | "editor" | "authenticated";
@@ -37,8 +27,7 @@ interface RoleRouteProps {
 export function SudoAreaLayout() {
   useEffect(() => {
     return () => {
-      const isHandshakeActive = Date.now() < sudoMfaHandshakeUntil;
-      if (!isHandshakeActive) {
+      if (!isSudoMfaHandshakeActive()) {
         setInMemorySudoAuthorized(false);
       }
     };
@@ -50,8 +39,12 @@ export function SudoAreaLayout() {
 export function RoleRoute({ requiredRole, children, manageLeaveLock = true }: RoleRouteProps) {
   const navigate = useNavigate();
   const { user, profile, userRole, authLoading, mfaChallengeRequired } = useAuth();
-  const isEditor = userRole === "editor" || profileHasRole(profile, "editor");
-  const isWriter = userRole === "writer" || profileHasRole(profile, "writer") || isEditor;
+  const isEditor =
+    userRole === "editor" || profileHasRole(profile, "editor", { ignoreLocalOverrides: true });
+  const isWriter =
+    userRole === "writer" ||
+    profileHasRole(profile, "writer", { ignoreLocalOverrides: true }) ||
+    isEditor;
   const isSudoRequired = requiredRole === "writer" || requiredRole === "editor";
   const [sudoPassed, setSudoPassed] = useState<boolean>(
     () => !isSudoRequired || checkIsSudoActive(),
@@ -65,8 +58,7 @@ export function RoleRoute({ requiredRole, children, manageLeaveLock = true }: Ro
   useEffect(() => {
     return () => {
       if (!manageLeaveLock) return;
-      const isHandshakeActive = Date.now() < sudoMfaHandshakeUntil;
-      if (isSudoRequired && !mfaPendingRef.current && !isHandshakeActive) {
+      if (isSudoRequired && !mfaPendingRef.current && !isSudoMfaHandshakeActive()) {
         setInMemorySudoAuthorized(false);
       }
     };
@@ -81,7 +73,7 @@ export function RoleRoute({ requiredRole, children, manageLeaveLock = true }: Ro
   // 15分（SUDO_TIMEOUT_MS）経過による自動ロックタイマー
   useEffect(() => {
     if (!isSudoRequired || !sudoPassed) return;
-    const remainingMs = Math.max(0, lastSudoAuthorizedAt + SUDO_TIMEOUT_MS - Date.now());
+    const remainingMs = getSudoRemainingMs();
     const timer = window.setTimeout(() => {
       setInMemorySudoAuthorized(false);
       setSudoPassed(false);
@@ -115,8 +107,8 @@ export function RoleRoute({ requiredRole, children, manageLeaveLock = true }: Ro
 
   // 管理者・ライター専用エリアの Sudo Mode（再認証 + 2FA一気通貫）チェック
   if (isSudoRequired && !sudoPassed) {
-    // すでに初期ログイン時のMFA自体が未完了でSudoも未通過の場合はアクセス拒否
-    if (mfaChallengeRequired && !user) {
+    // すでに初期ログイン時のMFA自体が未完了の場合は、Sudoに進まずアクセス拒否する
+    if (mfaChallengeRequired) {
       return <AccessDeniedView requiredRole="authenticated" />;
     }
     return (

@@ -61,24 +61,31 @@ export const SudoConfirmModal: React.FC<SudoConfirmModalProps> = ({
       }
 
       // 2FA有効ユーザーの場合、signInWithPassword でセッションが aal1 にダウングレードされるため、
-      // モーダル内でシームレスに2FA（AAL2）昇格まで完了させる
-      try {
-        const { data: mfaLevel } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-        if (mfaLevel && mfaLevel.currentLevel === "aal1" && mfaLevel.nextLevel === "aal2") {
-          const { data: factorsData, error: factorsErr } = await supabase.auth.mfa.listFactors();
-          if (!factorsErr && factorsData) {
-            const verifiedTotp =
-              factorsData.totp.find((f) => f.status === "verified") ?? factorsData.totp[0];
-            if (verifiedTotp) {
-              setFactorId(verifiedTotp.id);
-              setStep("mfa_totp");
-              setLoading(false);
-              return;
-            }
+      // モーダル内でシームレスに2FA（AAL2）昇格まで完了させる（確認不能・未検証時は fail-closed で拒否）
+      const { data: mfaLevel, error: mfaErr } =
+        await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (mfaErr) {
+        setInMemorySudoAuthorized(false);
+        setError("2段階認証状態の確認に失敗しました");
+        setLoading(false);
+        return;
+      }
+
+      if (mfaLevel && mfaLevel.currentLevel === "aal1" && mfaLevel.nextLevel === "aal2") {
+        const { data: factorsData, error: factorsErr } = await supabase.auth.mfa.listFactors();
+        if (!factorsErr && factorsData) {
+          const verifiedTotp = factorsData.totp.find((f) => f.status === "verified");
+          if (verifiedTotp) {
+            setFactorId(verifiedTotp.id);
+            setStep("mfa_totp");
+            setLoading(false);
+            return;
           }
         }
-      } catch {
-        // ignore MFA check error when not configured
+        setInMemorySudoAuthorized(false);
+        setError("2段階認証の確認が必要です");
+        setLoading(false);
+        return;
       }
 
       // 2FA不要ユーザーの場合はハンドシェイク猶予フラグを通常のSudo認可に確定させる
@@ -151,25 +158,26 @@ export const SudoConfirmModal: React.FC<SudoConfirmModalProps> = ({
           return;
         }
 
-        try {
-          const { data: mfaLevel } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-          if (mfaLevel && mfaLevel.currentLevel === "aal1" && mfaLevel.nextLevel === "aal2") {
-            const { data: factorsData, error: factorsErr } = await supabase.auth.mfa.listFactors();
-            if (!factorsErr && factorsData) {
-              const verifiedTotp =
-                factorsData.totp.find((f) => f.status === "verified") ?? factorsData.totp[0];
-              if (verifiedTotp) {
-                setFactorId(verifiedTotp.id);
-                setStep("mfa_totp");
-                return;
-              }
+        const { data: mfaLevel, error: mfaErr } =
+          await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+        if (mfaErr) {
+          setInMemorySudoAuthorized(false);
+          setError("2段階認証状態の確認に失敗しました");
+          return;
+        }
+        if (mfaLevel && mfaLevel.currentLevel === "aal1" && mfaLevel.nextLevel === "aal2") {
+          const { data: factorsData, error: factorsErr } = await supabase.auth.mfa.listFactors();
+          if (!factorsErr && factorsData) {
+            const verifiedTotp = factorsData.totp.find((f) => f.status === "verified");
+            if (verifiedTotp) {
+              setFactorId(verifiedTotp.id);
+              setStep("mfa_totp");
+              return;
             }
-            setInMemorySudoAuthorized(false);
-            setError("2段階認証の確認が必要です");
-            return;
           }
-        } catch {
-          // ignore if MFA assurance level is unavailable
+          setInMemorySudoAuthorized(false);
+          setError("2段階認証の確認が必要です");
+          return;
         }
 
         setInMemorySudoAuthorized(true, false);

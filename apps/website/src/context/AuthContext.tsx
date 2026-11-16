@@ -4,6 +4,7 @@ import { supabase } from "../supabase";
 import type { Profile } from "../supabase";
 import { getPrimaryRole } from "../utils/roles";
 import { fetchSingleProfileWithFallback } from "../utils/profileQueries";
+import { setInMemorySudoAuthorized } from "../utils/sudoState";
 
 export type UserRole = "guest" | "viewer" | "writer" | "editor" | "engineer";
 
@@ -29,10 +30,12 @@ function clearSensitiveStorage(): void {
   }
   try {
     const prefixes = [
+      "quest_qlub_profile_roles_v1",
       "quest_qlub_roles_override",
       "quest_qlub_scheduled_articles",
       "quest_qlub_series_overrides",
       "quest_qlub_comments_",
+      "quest_qlub_user_follows_",
       "quest_qlub_follows_",
       "article_draft_",
     ];
@@ -59,6 +62,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profileLoading, setProfileLoading] = useState(false);
   const [mfaChallengeRequired, setMfaChallengeRequired] = useState(false);
   const lastLoadedUserKeyRef = React.useRef<string | null>(null);
+  const prevUserIdRef = React.useRef<string | null>(null);
   const authLoading = authBaseLoading || profileLoading;
 
   const fetchProfileData = async (
@@ -67,15 +71,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     userMetadata?: Record<string, unknown>,
   ): Promise<{ profile: Profile; role: UserRole }> => {
     try {
-      const profileData = await fetchSingleProfileWithFallback({ id: userId });
+      // 認可判定では localStorage によるロール上書きを一切信用せず、DB 値のみを採用する
+      const profileData = await fetchSingleProfileWithFallback(
+        { id: userId },
+        { ignoreLocalOverrides: true },
+      );
 
       if (profileData) {
-        const profileRoles =
+        const rawRoles =
           Array.isArray(profileData.roles) && profileData.roles.length > 0
             ? profileData.roles
             : profileData.role
               ? [profileData.role]
-              : [];
+              : ["viewer"];
+        const profileRoles = rawRoles.length > 0 ? rawRoles : ["viewer"];
         const derivedRole =
           (getPrimaryRole(profileRoles) as UserRole) || (profileData.role as UserRole) || "viewer";
         return {
@@ -154,10 +163,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .then(({ data: { session } }) => {
         if (!isMounted) return;
         if (session?.user) {
+          prevUserIdRef.current = session.user.id;
           setProfileLoading(true);
           setUser(session.user);
           void checkMfaAssurance();
         } else {
+          setInMemorySudoAuthorized(false);
+          prevUserIdRef.current = null;
           setUser(null);
           setProfile(null);
           setUserRole("guest");
@@ -181,9 +193,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!isMounted) return;
 
       if (event === "SIGNED_OUT" || !session?.user) {
+        setInMemorySudoAuthorized(false);
         if (event === "SIGNED_OUT") {
           clearSensitiveStorage();
         }
+        prevUserIdRef.current = null;
         lastLoadedUserKeyRef.current = null;
         setUser(null);
         setProfile(null);
@@ -193,6 +207,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setAuthBaseLoading(false);
         return;
       }
+
+      if (prevUserIdRef.current !== null && prevUserIdRef.current !== session.user.id) {
+        setInMemorySudoAuthorized(false);
+      }
+      prevUserIdRef.current = session.user.id;
 
       const nextUserKey = `${session.user.id}:${session.user.email ?? ""}`;
       if (lastLoadedUserKeyRef.current !== nextUserKey) {
