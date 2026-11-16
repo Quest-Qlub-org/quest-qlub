@@ -3,12 +3,9 @@ import { Link } from "react-router-dom";
 import { supabase } from "../../supabase";
 import { useApp } from "../../context/AppContext";
 import { validatePassword } from "../../utils/validation";
-import {
-  verifySpamCheck,
-  getRemainingCooldownSeconds,
-  recordSubmissionTimestamp,
-  REGISTER_COOLDOWN_KEY,
-} from "../../utils/antiSpam";
+import { verifySpamCheck, REGISTER_COOLDOWN_KEY } from "../../utils/antiSpam";
+import { useSubmissionCooldown } from "../../hooks/useSubmissionCooldown";
+import { HoneypotInput } from "../../components/HoneypotInput";
 import { updateMetaTags } from "../../utils/seo";
 
 export const RegisterView = () => {
@@ -19,9 +16,7 @@ export const RegisterView = () => {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [honeypot, setHoneypot] = useState("");
   const [loadedAt] = useState(() => Date.now());
-  const [cooldown, setCooldown] = useState(() =>
-    getRemainingCooldownSeconds(REGISTER_COOLDOWN_KEY),
-  );
+  const { cooldown, triggerCooldown } = useSubmissionCooldown(REGISTER_COOLDOWN_KEY);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const { navigate, showToast } = useApp();
@@ -32,20 +27,6 @@ export const RegisterView = () => {
       noindex: true,
     });
   }, []);
-
-  useEffect(() => {
-    if (cooldown <= 0) return;
-    const timer = setInterval(() => {
-      setCooldown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [cooldown]);
 
   const handleRegister = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -90,8 +71,7 @@ export const RegisterView = () => {
     if (signUpErr) {
       setError(signUpErr.message);
     } else {
-      recordSubmissionTimestamp(REGISTER_COOLDOWN_KEY);
-      setCooldown(getRemainingCooldownSeconds(REGISTER_COOLDOWN_KEY));
+      triggerCooldown();
       navigate("login");
       showToast("確認メールを送信しました。メールを確認してください。");
     }
@@ -114,31 +94,7 @@ export const RegisterView = () => {
           </p>
         )}
         <form onSubmit={handleRegister} className="space-y-4">
-          {/* ボット対策ハニーポット */}
-          <div
-            style={{
-              opacity: 0,
-              position: "absolute",
-              top: 0,
-              left: "-9999px",
-              height: 0,
-              width: 0,
-              overflow: "hidden",
-              zIndex: -1,
-            }}
-            aria-hidden="true"
-          >
-            <label htmlFor="_reg_hp">Website</label>
-            <input
-              id="_reg_hp"
-              type="text"
-              name="_hp"
-              tabIndex={-1}
-              autoComplete="off"
-              value={honeypot}
-              onChange={(e) => setHoneypot(e.target.value)}
-            />
-          </div>
+          <HoneypotInput id="_reg_hp" value={honeypot} onChange={setHoneypot} />
 
           <div>
             <label htmlFor="register-display-name" className="sr-only">

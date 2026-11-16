@@ -5,6 +5,7 @@ import { useApp } from "../../context/AppContext";
 import { setInMemorySudoAuthorized } from "../../components/RoleRoute";
 import { Key, ShieldCheck, AlertCircle, LogOut, KeyRound } from "lucide-react";
 import { updateMetaTags } from "../../utils/seo";
+import { findVerifiedTotpFactor, verifyTotpCode, verifyBackupCode } from "../../utils/mfa";
 
 export const LoginView = () => {
   const [step, setStep] = useState<"credentials" | "mfa_totp" | "mfa_backup">("credentials");
@@ -58,19 +59,12 @@ export const LoginView = () => {
     setError("");
     setVerifyCode("");
     try {
-      const { data, error: factorsErr } = await supabase.auth.mfa.listFactors();
-      if (factorsErr) {
-        setError("2要素認証情報の取得に失敗しました");
-        return;
-      }
-      const verifiedTotp = data.totp.find((f) => f.status === "verified");
-      if (verifiedTotp) {
-        setFactorId(verifiedTotp.id);
+      const result = await findVerifiedTotpFactor();
+      if (result.factorId) {
+        setFactorId(result.factorId);
       } else {
-        setError("有効な2要素認証ファクターが見つかりませんでした");
+        setError(result.errorMessage ?? "有効な2要素認証ファクターが見つかりませんでした");
       }
-    } catch {
-      setError("通信エラーが発生しました");
     } finally {
       setFetchingFactor(false);
     }
@@ -130,21 +124,9 @@ export const LoginView = () => {
     setError("");
 
     try {
-      const challenge = await supabase.auth.mfa.challenge({ factorId });
-      if (challenge.error) {
-        setError(challenge.error.message || "認証チャレンジの作成に失敗しました");
-        setLoading(false);
-        return;
-      }
-
-      const verify = await supabase.auth.mfa.verify({
-        factorId,
-        challengeId: challenge.data.id,
-        code: verifyCode.trim(),
-      });
-
-      if (verify.error) {
-        setError("認証コードが正しくありません。最新の6桁コードを入力してください。");
+      const result = await verifyTotpCode(factorId, verifyCode);
+      if (!result.success) {
+        setError(result.errorMessage ?? "認証に失敗しました");
         setLoading(false);
         return;
       }
@@ -175,21 +157,13 @@ export const LoginView = () => {
     setError("");
 
     try {
-      const { data: isValid, error: rpcErr } = await supabase.rpc(
-        "verify_and_consume_backup_code",
-        {
-          p_code: backupCode.trim(),
-        },
-      );
-
-      if (rpcErr || !isValid) {
-        setError("バックアップコードが正しくないか、すでに使用されています。");
+      const result = await verifyBackupCode(backupCode);
+      if (!result.success) {
+        setError(result.errorMessage ?? "バックアップコードの検証に失敗しました");
         setLoading(false);
         return;
       }
 
-      // 成功: 2FAリセットセッションをリフレッシュ
-      await supabase.auth.refreshSession().catch(() => {});
       isMfaCompletedRef.current = true;
       setMfaChallengeRequired(false);
       setInMemorySudoAuthorized(true);

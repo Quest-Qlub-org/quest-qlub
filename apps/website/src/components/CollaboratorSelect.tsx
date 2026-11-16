@@ -60,16 +60,20 @@ export const CollaboratorSelect: React.FC<CollaboratorSelectProps> = ({
 
     missingIds.forEach((id) => attemptedIdsRef.current.add(id));
     let isMounted = true;
-    void fetchProfilesListWithFallback({ inIds: missingIds }).then((rows) => {
-      if (!isMounted || !rows || rows.length === 0) return;
-      setExtraProfiles((prev) => {
-        const next = { ...prev };
-        for (const row of rows) {
-          next[row.id] = row;
-        }
-        return next;
+    void fetchProfilesListWithFallback({ inIds: missingIds })
+      .then((rows) => {
+        if (!isMounted || !rows || rows.length === 0) return;
+        setExtraProfiles((prev) => {
+          const next = { ...prev };
+          for (const row of rows) {
+            next[row.id] = row;
+          }
+          return next;
+        });
+      })
+      .catch(() => {
+        // ignore missing profile fallback fetch failures
       });
-    });
 
     return () => {
       isMounted = false;

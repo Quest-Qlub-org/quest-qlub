@@ -44,7 +44,9 @@ export async function fetchProfilesListWithFallback(
   options: ProfileListQueryOptions = {},
 ): Promise<Profile[] | null> {
   const buildQuery = (selectFields: string) => {
-    let query: any = supabase.from("profiles").select(selectFields);
+    const table: any = supabase.from("profiles");
+    if (!table || typeof table.select !== "function") return null;
+    let query: any = table.select(selectFields);
     if (options.inRole && options.inRole.length > 0) {
       if (selectFields === PROFILE_SELECT_FIELDS_WITH_ROLES && typeof query.or === "function") {
         const roleList = options.inRole.join(",");
@@ -77,10 +79,15 @@ export async function fetchProfilesListWithFallback(
     return query;
   };
 
-  const res = await buildQuery(PROFILE_SELECT_FIELDS_WITH_ROLES);
+  const initialQuery = buildQuery(PROFILE_SELECT_FIELDS_WITH_ROLES);
+  if (!initialQuery) return null;
+  const res = await initialQuery;
+  if (!res) return null;
   if (res.error && isRolesColumnSchemaError(res.error)) {
-    const fallbackRes = await buildQuery(PROFILE_SELECT_FIELDS_BASE);
-    if (!fallbackRes.error && fallbackRes.data) {
+    const fallbackQuery = buildQuery(PROFILE_SELECT_FIELDS_BASE);
+    if (!fallbackQuery) return null;
+    const fallbackRes = await fallbackQuery;
+    if (fallbackRes && !fallbackRes.error && fallbackRes.data) {
       return (fallbackRes.data as unknown as Profile[]).map((p) =>
         enrichFallbackProfileRoles(p, { ignoreLocalOverrides: options.ignoreLocalOverrides }),
       );
@@ -105,7 +112,9 @@ export async function fetchSingleProfileWithFallback(
   options: SingleProfileQueryOptions = {},
 ): Promise<Profile | null> {
   const buildQuery = (selectFields: string) => {
-    let query: any = supabase.from("profiles").select(selectFields);
+    const table: any = supabase.from("profiles");
+    if (!table || typeof table.select !== "function") return null;
+    let query: any = table.select(selectFields);
     if (filter.id) {
       query = query.eq("id", filter.id);
     } else if (filter.username) {

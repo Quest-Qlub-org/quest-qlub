@@ -4,6 +4,7 @@ import { ShieldAlert, ShieldCheck, AlertCircle, Key, ArrowLeft } from "lucide-re
 import { useFocusTrap } from "../hooks/useFocusTrap";
 import { useAuth } from "../context/AuthContext";
 import { setInMemorySudoAuthorized } from "./RoleRoute";
+import { findVerifiedTotpFactor, verifyTotpCode } from "../utils/mfa";
 
 interface SudoConfirmModalProps {
   userEmail: string;
@@ -80,15 +81,12 @@ export const SudoConfirmModal: React.FC<SudoConfirmModalProps> = ({
       }
 
       if (mfaLevel && mfaLevel.currentLevel === "aal1" && mfaLevel.nextLevel === "aal2") {
-        const { data: factorsData, error: factorsErr } = await supabase.auth.mfa.listFactors();
-        if (!factorsErr && factorsData) {
-          const verifiedTotp = factorsData.totp.find((f) => f.status === "verified");
-          if (verifiedTotp) {
-            setFactorId(verifiedTotp.id);
-            setStep("mfa_totp");
-            setLoading(false);
-            return;
-          }
+        const factorResult = await findVerifiedTotpFactor();
+        if (factorResult.factorId) {
+          setFactorId(factorResult.factorId);
+          setStep("mfa_totp");
+          setLoading(false);
+          return;
         }
         setInMemorySudoAuthorized(false);
         setError("2段階認証の確認が必要です");
@@ -118,21 +116,9 @@ export const SudoConfirmModal: React.FC<SudoConfirmModalProps> = ({
     setError("");
 
     try {
-      const challenge = await supabase.auth.mfa.challenge({ factorId });
-      if (challenge.error) {
-        setError(challenge.error.message || "認証チャレンジの作成に失敗しました");
-        setLoading(false);
-        return;
-      }
-
-      const verify = await supabase.auth.mfa.verify({
-        factorId,
-        challengeId: challenge.data.id,
-        code: verifyCode.trim(),
-      });
-
-      if (verify.error) {
-        setError("認証コードが正しくありません。最新の6桁コードを入力してください。");
+      const result = await verifyTotpCode(factorId, verifyCode);
+      if (!result.success) {
+        setError(result.errorMessage ?? "2段階認証に失敗しました");
         setLoading(false);
         return;
       }
