@@ -4,6 +4,9 @@ import {
   verifySpamCheck,
   getRemainingCooldownSeconds,
   recordSubmissionTimestamp,
+  CONTACT_COOLDOWN_KEY,
+  REGISTER_COOLDOWN_KEY,
+  FORGOT_PASSWORD_COOLDOWN_KEY,
   COMMENT_COOLDOWN_KEY,
   COMMENT_COOLDOWN_DURATION_MS,
 } from "./antiSpam";
@@ -81,6 +84,13 @@ describe("antiSpam utility", () => {
       expect(getRemainingCooldownSeconds(COMMENT_COOLDOWN_KEY, COMMENT_COOLDOWN_DURATION_MS)).toBe(
         0,
       );
+    });
+
+    it("uses quest_qlub_ branded storage keys", () => {
+      expect(CONTACT_COOLDOWN_KEY).toBe("quest_qlub_contact_last_sent");
+      expect(REGISTER_COOLDOWN_KEY).toBe("quest_qlub_register_last_sent");
+      expect(FORGOT_PASSWORD_COOLDOWN_KEY).toBe("quest_qlub_forgot_password_last_sent");
+      expect(COMMENT_COOLDOWN_KEY).toBe("quest_qlub_comment_last_sent");
     });
   });
 });

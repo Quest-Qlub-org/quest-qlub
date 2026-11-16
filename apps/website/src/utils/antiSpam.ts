@@ -2,9 +2,9 @@
  * スパム・ボット対策用ユーティリティ
  */
 
-export const CONTACT_COOLDOWN_KEY = "share_quest_contact_last_sent";
-export const REGISTER_COOLDOWN_KEY = "share_quest_register_last_sent";
-export const FORGOT_PASSWORD_COOLDOWN_KEY = "share_quest_forgot_password_last_sent";
+export const CONTACT_COOLDOWN_KEY = "quest_qlub_contact_last_sent";
+export const REGISTER_COOLDOWN_KEY = "quest_qlub_register_last_sent";
+export const FORGOT_PASSWORD_COOLDOWN_KEY = "quest_qlub_forgot_password_last_sent";
 export const COMMENT_COOLDOWN_KEY = "quest_qlub_comment_last_sent";
 export const MINIMUM_SUBMISSION_TIME_MS = 2000; // 人間が入力を終えるまでの最低時間（2秒）
 export const COOLDOWN_DURATION_MS = 30 * 1000; // 送信後のクールダウン（30秒）

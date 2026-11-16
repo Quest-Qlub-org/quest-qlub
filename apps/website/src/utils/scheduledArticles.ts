@@ -167,14 +167,10 @@ export function enrichArticleWithSchedule(article: Article): Article {
 
 /**
  * DB 記事行を Article 型にマッピングし、ローカル退避済みの予約日時を補完する
+ * （mapDbArticleToArticle 内で既に getLocalScheduledAt を適用済み）
  */
 export function mapDbArticleWithSchedule(
   row: Parameters<typeof mapDbArticleToArticle>[0],
 ): Article {
-  const mapped = mapDbArticleToArticle(row);
-  const localSched = getLocalScheduledAt(mapped.id);
-  if (!mapped.scheduledAt && localSched) {
-    return { ...mapped, scheduledAt: localSched };
-  }
-  return mapped;
+  return mapDbArticleToArticle(row);
 }

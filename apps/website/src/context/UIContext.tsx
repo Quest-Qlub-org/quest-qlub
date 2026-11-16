@@ -1,4 +1,12 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  useMemo,
+} from "react";
 
 export type ThemeMode = "light" | "dark" | "system";
 
@@ -139,18 +147,31 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
     }
   }, [fontSize]);
 
-  const value: UIContextType = {
-    toastMessage,
-    showToast,
-    hideToast,
-    fontSize,
-    setFontSize,
-    getFontSizeClass,
-    theme,
-    setTheme,
-    effectiveTheme,
-    toggleTheme,
-  };
+  const value = useMemo<UIContextType>(
+    () => ({
+      toastMessage,
+      showToast,
+      hideToast,
+      fontSize,
+      setFontSize,
+      getFontSizeClass,
+      theme,
+      setTheme,
+      effectiveTheme,
+      toggleTheme,
+    }),
+    [
+      toastMessage,
+      showToast,
+      hideToast,
+      fontSize,
+      getFontSizeClass,
+      theme,
+      setTheme,
+      effectiveTheme,
+      toggleTheme,
+    ],
+  );
 
   return <UIContext.Provider value={value}>{children}</UIContext.Provider>;
 }

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "../supabase";
 import type { Profile } from "../supabase";
@@ -66,61 +66,66 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const loadedProfileUserIdRef = React.useRef<string | null>(null);
   const authLoading = authBaseLoading || profileLoading;
 
-  const fetchProfileData = async (
-    userId: string,
-    email?: string,
-    userMetadata?: Record<string, unknown>,
-  ): Promise<{ profile: Profile; role: UserRole }> => {
-    try {
-      // 認可判定では localStorage によるロール上書きを一切信用せず、DB 値のみを採用する
-      const profileData = await fetchSingleProfileWithFallback(
-        { id: userId },
-        { ignoreLocalOverrides: true },
-      );
+  const fetchProfileData = useCallback(
+    async (
+      userId: string,
+      email?: string,
+      userMetadata?: Record<string, unknown>,
+    ): Promise<{ profile: Profile; role: UserRole }> => {
+      try {
+        // 認可判定では localStorage によるロール上書きを一切信用せず、DB 値のみを採用する
+        const profileData = await fetchSingleProfileWithFallback(
+          { id: userId },
+          { ignoreLocalOverrides: true },
+        );
 
-      if (profileData) {
-        const rawRoles =
-          Array.isArray(profileData.roles) && profileData.roles.length > 0
-            ? profileData.roles
-            : profileData.role
-              ? [profileData.role]
-              : ["viewer"];
-        const profileRoles = rawRoles.length > 0 ? rawRoles : ["viewer"];
-        const derivedRole =
-          (getPrimaryRole(profileRoles) as UserRole) || (profileData.role as UserRole) || "viewer";
-        return {
-          profile: {
-            ...profileData,
-            roles: profileRoles,
-            email: email || user?.email || "",
-          },
-          role: derivedRole,
-        };
+        if (profileData) {
+          const rawRoles =
+            Array.isArray(profileData.roles) && profileData.roles.length > 0
+              ? profileData.roles
+              : profileData.role
+                ? [profileData.role]
+                : ["viewer"];
+          const profileRoles = rawRoles.length > 0 ? rawRoles : ["viewer"];
+          const derivedRole =
+            (getPrimaryRole(profileRoles) as UserRole) ||
+            (profileData.role as UserRole) ||
+            "viewer";
+          return {
+            profile: {
+              ...profileData,
+              roles: profileRoles,
+              email: email || user?.email || "",
+            },
+            role: derivedRole,
+          };
+        }
+      } catch (e) {
+        console.warn("Failed to fetch profile from DB, using fallback", e);
       }
-    } catch (e) {
-      console.warn("Failed to fetch profile from DB, using fallback", e);
-    }
 
-    // DB取得失敗またはレコード未作成時の安全なフォールバック
-    const fallbackProfile: Profile = {
-      id: userId,
-      email: email || user?.email || "",
-      role: "viewer",
-      roles: ["viewer"],
-      display_name:
-        (userMetadata?.display_name as string) ||
-        (userMetadata?.name as string) ||
-        (userMetadata?.full_name as string) ||
-        email?.split("@")[0] ||
-        "ユーザー",
-      username: (userMetadata?.username as string) || email?.split("@")[0] || "user",
-      avatar_url: (userMetadata?.avatar_url as string) || null,
-      bio: null,
-    };
-    return { profile: fallbackProfile, role: "viewer" };
-  };
+      // DB取得失敗またはレコード未作成時の安全なフォールバック
+      const fallbackProfile: Profile = {
+        id: userId,
+        email: email || user?.email || "",
+        role: "viewer",
+        roles: ["viewer"],
+        display_name:
+          (userMetadata?.display_name as string) ||
+          (userMetadata?.name as string) ||
+          (userMetadata?.full_name as string) ||
+          email?.split("@")[0] ||
+          "ユーザー",
+        username: (userMetadata?.username as string) || email?.split("@")[0] || "user",
+        avatar_url: (userMetadata?.avatar_url as string) || null,
+        bio: null,
+      };
+      return { profile: fallbackProfile, role: "viewer" };
+    },
+    [user?.email],
+  );
 
-  const refreshProfile = async () => {
+  const refreshProfile = useCallback(async () => {
     if (!user?.id) return;
     try {
       const { data } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
@@ -137,7 +142,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
     setProfile(updatedProfile);
     setUserRole(role);
-  };
+  }, [user?.id, user?.email, user?.user_metadata, fetchProfileData]);
 
   // 1. 初回セッション復元 & 認証イベントリスナー（デッドロック完全防止）
   useEffect(() => {
@@ -296,19 +301,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       isMounted = false;
     };
-  }, [user?.id, user?.email]);
+  }, [user?.id, user?.email, fetchProfileData]);
 
-  const value: AuthContextType = {
-    user,
-    profile,
-    setProfile,
-    userRole,
-    setUserRole,
-    authLoading,
-    mfaChallengeRequired,
-    setMfaChallengeRequired,
-    refreshProfile,
-  };
+  const value = useMemo<AuthContextType>(
+    () => ({
+      user,
+      profile,
+      setProfile,
+      userRole,
+      setUserRole,
+      authLoading,
+      mfaChallengeRequired,
+      setMfaChallengeRequired,
+      refreshProfile,
+    }),
+    [user, profile, userRole, authLoading, mfaChallengeRequired, refreshProfile],
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -98,44 +98,6 @@ export {
   CustomSettingsIcon,
 } from "./components/icons/NavIcons";
 
-// 既存テスト互換用 parseLocation
-export function parseLocation(pathname: string): { currentView: string; viewParam: string | null } {
-  if (pathname === "/" || pathname === "") return { currentView: "home", viewParam: null };
-  if (pathname === "/search") return { currentView: "search", viewParam: null };
-  if (pathname === "/settings") return { currentView: "settings", viewParam: null };
-  if (pathname === "/favorites") return { currentView: "favorites", viewParam: null };
-  if (pathname === "/about") return { currentView: "about", viewParam: null };
-  if (pathname === "/privacy") return { currentView: "privacy", viewParam: null };
-  if (pathname === "/terms") return { currentView: "terms", viewParam: null };
-  if (pathname === "/contact") return { currentView: "contact", viewParam: null };
-  if (pathname === "/offline") return { currentView: "offline", viewParam: null };
-  if (pathname === "/writer-apply") return { currentView: "writerApply", viewParam: null };
-  if (pathname === "/setup-profile") return { currentView: "setupProfile", viewParam: null };
-  if (pathname === "/writer-dash") return { currentView: "writerDash", viewParam: null };
-  if (pathname === "/writer-dash/new") return { currentView: "writerNew", viewParam: null };
-  if (pathname === "/writer-dash/series") return { currentView: "writerSeries", viewParam: null };
-  const writerEditMatch = pathname.match(/^\/writer-dash\/edit\/(.+)$/);
-  if (writerEditMatch) return { currentView: "writerEdit", viewParam: writerEditMatch[1] };
-  if (pathname === "/editor-dash") return { currentView: "editorDash", viewParam: null };
-  if (pathname === "/editor-dash/articles")
-    return { currentView: "editorArticles", viewParam: null };
-  if (pathname === "/editor-dash/recommend")
-    return { currentView: "editorRecommend", viewParam: null };
-  if (pathname === "/editor-dash/writers") return { currentView: "editorWriters", viewParam: null };
-  if (pathname === "/editor-dash/applications")
-    return { currentView: "editorApplications", viewParam: null };
-  if (pathname === "/login") return { currentView: "login", viewParam: null };
-  if (pathname === "/register") return { currentView: "register", viewParam: null };
-  if (pathname === "/forgot-password") return { currentView: "forgotPassword", viewParam: null };
-  if (pathname === "/reset-password") return { currentView: "resetPassword", viewParam: null };
-  if (pathname === "/writers") return { currentView: "writers", viewParam: null };
-  const writersMatch = pathname.match(/^\/writers\/(.+)$/);
-  if (writersMatch) return { currentView: "profile", viewParam: writersMatch[1] };
-  const articleMatch = pathname.match(/^\/articles\/(.+)$/);
-  if (articleMatch) return { currentView: "article", viewParam: articleMatch[1] };
-  return { currentView: "notFound", viewParam: null };
-}
-
 function ArticleEditWrapper() {
   const { id } = useParams<{ id: string }>();
   return <ArticleEditorPage editingId={id || null} />;

@@ -14,8 +14,6 @@ describe("LoginView MFA inline integration", () => {
     mockNavigate = vi.fn();
     vi.spyOn(AppContextModule, "useApp").mockReturnValue({
       navigate: mockNavigate,
-      currentView: "login",
-      viewParam: null,
       user: null,
       profile: null,
       setProfile: vi.fn(),
