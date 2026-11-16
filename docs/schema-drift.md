@@ -1,6 +1,6 @@
 # スキーマ・マイグレーションの現状記録
 
-最終更新: 2026-11-13
+最終更新: 2026-11-16
 
 このドキュメントは、Supabase の実DB（本番プロジェクト `uksgnlfnxytqljrctiqg`）と
 `supabase/migrations/` の間の差分、および未適用のマイグレーションを記録する。
@@ -47,7 +47,7 @@ DB の `supabase_migrations.schema_migrations` に記録済みのバージョン
   - **S3**: `contact_messages` のレート制限を DB トリガーで強制
     （同一メールアドレスにつき10分あたり3件）。Edge Function のインメモリ
     制限はコールドスタート・インスタンス毎で信頼できないため、DB 側を主防御とした。
-    インデックス `contact_messages_email_created_at_idx` を追加。
+    インデックス `contact_messages_email_created_at_idx` を追加（後に `20261116123000` で `lower(trim(email))` に合わせた式インデックス `idx_contact_messages_lower_trim_email_created_at` へ整理）。
   - **S2**: `articles.content` に代表的な XSS ベクタが含まれる場合、保存を拒否
     （`<script>`/`<iframe>` 等のタグ、タグ内イベントハンドラ、`javascript:` 等の
     URL スキーム、`srcdoc`）。
@@ -84,7 +84,7 @@ DB の `supabase_migrations.schema_migrations` に記録済みのバージョン
     - `user_follows` テーブルおよび `get_follow_counts` 関数が未適用の状態（PGRST205 / 42P01 / 42883）でも、`useFollows` フックがアカウント別の `localStorage`（`quest_qlub_user_follows_${currentUserId}`）へ透過的にフォールバック。ログイン済みユーザーがフォロー操作を行ってもエラーで弾かれたり `/login` に強制リダイレクトされることなく、安全にフォロー状態が維持されるクライアント耐障害性を担保。
     - 各画面（`ArticleView`, `ProfileView`, `WritersView`）において、フォローボタン押下時の未認証判定（`!isAuthenticated`）と実行失敗判定（`!ok`）を明確に分離。ログイン済みユーザーの操作失敗を「未ログイン」と誤認して `/login` に飛ばす挙動を根本解消するとともに、著者本人による自己フォロー操作の抑止（ボタン非表示および警告通知）を徹底。
 
-- `20261024070000_add_profile_roles_array.sql`（未適用・次回デプロイ / Issue #54）
+- `20261024070000_add_profile_roles_array.sql`（`20261113120000` で同期済み / Issue #54）
   - **プロフィール複数ロール対応（roles配列列と管理RPC）**:
     - `public.profiles` に `roles text[] DEFAULT '{}'::text[]` を追加し、1アカウントに複数のロール（例: 編集長 + エンジニア、ライター + エンジニア）を付与可能に拡張。
     - `anon`, `authenticated` に `roles` 列の SELECT 権限を付与（公開プロフィールおよび `/about` での表示用）。
@@ -96,7 +96,7 @@ DB の `supabase_migrations.schema_migrations` に記録済みのバージョン
     - `admin_set_user_roles` RPC が未定義（42883 エラー）の場合でも、`EditorWritersView` が即座に従来の `admin_change_user_role` へ自動フォールバックし、さらにローカルオーバーライド（`setLocalRolesOverride`）およびカスタムイベント（`quest_qlub_roles_updated`）と Supabase Realtime 購読によって `/about` へ即座に複数ロール・カスタムロールを反映。
     - `/about`（`AboutView`）では、ハードコードされていたメンバー一覧を廃止し、取得したロール情報から「編集長」「ライター」「エンジニア」「その他カスタムロール」へ動的分類して自動反映。複数ロールを持つメンバー（例: ライター兼エンジニアの「るーと」、編集長兼エンジニアの「Noimzip」）は該当するすべてのセクションへ重複して自動掲載される。
 
-- `20261024120000_fix_series_edit_and_scheduled_articles.sql`（未適用・次回デプロイ / Issue #54）
+- `20261024120000_fix_series_edit_and_scheduled_articles.sql`（`20261113120000` で同期済み / Issue #54）
   - **連載（`series`）編集権限の修復（Issue #54-10）**:
     - `public.series` テーブルに対する `authenticated` の `SELECT, INSERT, UPDATE, DELETE` 権限および `anon` の `SELECT` 権限を明示的に GRANT。
     - `writer_id`（`text`/`uuid` 型の差異を吸収するため `(writer_id)::text = (auth.uid())::text`）と `profiles.roles` 配列も考慮した `series_insert_own_or_editor`, `series_update_own_or_editor`, `series_delete_own_or_editor` RLS ポリシーを再構築し、0件更新（サイレント失敗）や権限拒否を根本解消。
@@ -114,7 +114,7 @@ DB の `supabase_migrations.schema_migrations` に記録済みのバージョン
     - `article_comments` の SELECT ポリシーを `article_comments_select_public`（`TO public`、`comments_enabled = true` の記事コメントを誰でも閲覧可能）と `article_comments_select_staff`（`TO authenticated`、`comments_enabled = false` 時に記事ライターまたは編集長が閲覧可能）に分離。
     - `article_comments` および `comment_edit_history` に対する `anon`, `authenticated` の `SELECT` 権限を明示的に GRANT。
 
-- `20261109163000_add_collaborators_to_articles_and_series.sql`（未適用・次回デプロイ）
+- `20261109163000_add_collaborators_to_articles_and_series.sql`（`20261113120000` で同期済み）
   - **記事・連載の共同編集機能（collaborator_ids）と複数執筆者表示**:
     - `public.articles` および `public.series` に `collaborator_ids text[] DEFAULT '{}'::text[]` カラムと GIN インデックスを追加。
     - `articles` の下書き閲覧（`articles_select_own_drafts`）および更新（`articles_update_own_articles`）ポリシーを拡張し、共同編集者（`auth.uid() = ANY(collaborator_ids)`）による下書き閲覧・更新・申請を許可。ライター/編集長ロール検証を維持。
@@ -143,7 +143,7 @@ DB の `supabase_migrations.schema_migrations` に記録済みのバージョン
 
 - `20261113120000_comprehensive_security_performance_and_schema_sync.sql`（本番DB `uksgnlfnxytqljrctiqg` 部分適用済み / Issue #122, #135）
   - **外部キーインデックス追加 & パフォーマンス最適化（Issue #135）**:
-    - 欠落していた外部キーインデックスを追加: `articles_series_id_idx` (`articles(series_id)`), `favorites_article_id_idx` (`favorites(article_id)`), `series_writer_id_idx` (`series(writer_id)`)。
+    - 欠落していた外部キーインデックスを追加: `idx_articles_series_id` (`articles(series_id)`), `idx_favorites_article_id` (`favorites(article_id)`), `idx_series_writer_id` (`series(writer_id)`)。
     - 全 RLS ポリシー内の `auth.uid()` / `auth.role()` 呼び出しを `(select auth.uid())` 形式へ最適化し、`get_advisors` 上で `unindexed_foreign_keys` 0 件・`auth_rls_initplan` 0 件を確認済み。
   - **スキーマ同期 & セキュリティ強化（Issue #122）**:
     - `profiles.roles` 配列、`articles.scheduled_at` / `collaborator_ids`、`series.collaborator_ids`、`user_follows` 権限・RLS、`contact_messages` / `comment_edit_history` / `mfa_backup_codes` / `storage.objects` のハードニングを統合。
@@ -155,7 +155,7 @@ DB の `supabase_migrations.schema_migrations` に記録済みのバージョン
   - **背景・課題**: `comment_edit_history` テーブルには DB トリガー `trg_enforce_comment_update_rules`（SECURITY DEFINER）による自動挿入が行われるが、`comment_edit_history_insert` ポリシーおよび INSERT 権限がクライアント（`authenticated`）に残存しているため、PostgREST 経由で直接 INSERT を実行して過去の編集履歴やタイムスタンプを捏造できる脆弱性が存在する。また、SELECT ポリシーが `USING (true)` となっており、記事の `comments_enabled = false` 設定時にも履歴が漏洩する。
   - **対応方針**:
     - `REVOKE INSERT ON public.comment_edit_history FROM authenticated, anon, PUBLIC;` を実行し、トリガー経由のみで履歴追加を許可。
-    - `comment_edit_history_insert` ポリシーを削除。
+    - `comment_edit_history_insert` ポリシーを `WITH CHECK (false)` へ変更（`20261112040000`）、`20261113120000` で直接 INSERT 権限を剥奪し、`20261116123000` で同ポリシーを削除。
     - `comment_edit_history_select` ポリシーを `USING (EXISTS (SELECT 1 FROM public.article_comments WHERE article_comments.id = comment_edit_history.comment_id))` に改修し、親コメントの閲覧権限（`comments_enabled` およびスタッフ権限）と連動させる。
 
 - **Issue #79: `user_follows` テーブルに対する `authenticated` ロールへの GRANT 権限不足の解消**:
@@ -173,9 +173,32 @@ DB の `supabase_migrations.schema_migrations` に記録済みのバージョン
   - **対応方針**:
     - `storage.objects` の上記3ポリシーを更新し、`'writer' = ANY(COALESCE(profiles.roles, '{}'::text[])) OR 'editor' = ANY(COALESCE(profiles.roles, '{}'::text[]))` の認可条件を追加する。
 
+## 新規・未適用マイグレーション（Issue #138, #140, #141, #148）
+
+- `20261116120000_fix_security_triggers_and_series_delete_rls.sql`（未適用・次回デプロイ / Issue #138）
+  - **予約投稿トリガー保護・連載 DELETE 権限・コメント更新改ざん防止の強化**:
+    - `enforce_article_update_rules()` で `NEW.status IN ('published', 'scheduled')` または `OLD.status IN ('published', 'scheduled') AND OLD.scheduled_at > now()` の場合に非編集長による `scheduled_at` 変更を抑止。
+    - `series_delete_own_or_editor` RLS に `(writer_id)::text = ((select auth.uid()))::text` および現役 `writer`/`editor` ロール確認を追加。
+    - `enforce_comment_update_rules_and_history()` で `NEW.author_name := OLD.author_name` および本文未変更時の `NEW.updated_at := OLD.updated_at` を強制。
+- `20261116121000_fix_scheduled_publish_comment_notnull_and_indexes.sql`（未適用・次回デプロイ / Issue #140）
+  - **予約投稿バッチ・コメント NOT NULL・重複 RLS・GIN インデックスの修正**:
+    - `enforce_article_update_rules()` の行単位 GUC リセットを廃止し、`publish_due_scheduled_articles()` / `increment_views()` / `sync_article_likes_on_favorite()` 側で例外時も確実にリセット（2件以上同時の予約公開失敗を解消）。
+    - `enforce_comment_rate_limit()` で `NEW.updated_at := NEW.created_at` を設定（`NOT NULL` 違反解消）。
+    - `enforce_article_insert_rules()` で `draft` / `pending` の `scheduled_at` を保持。
+    - `article_comments_select_public` / `article_comments_select_staff` の旧重複ポリシーを削除し、`idx_articles_collaborator_ids` / `idx_series_collaborator_ids` GIN インデックスを追加。
+- `20260901000000_baseline_schema.sql` & `20261116122000_fix_article_comments_author_id_constraint.sql`（未適用・次回デプロイ / Issue #141）
+  - **クリーン環境再現性（ベースライン DDL）と `article_comments.author_id` 制約是正**:
+    - コアテーブル（`profiles`, `series`, `articles`, `favorites`, `contact_messages`）、`storage.buckets` 初期レコード、初期関数シグネチャを冪等に定義し、初期マイグレーションの非冪等 `CREATE POLICY` へ `DROP POLICY IF EXISTS` ガードを追加。
+    - `article_comments.author_id` の外部キーを `ON DELETE CASCADE`・`NOT NULL` へ統一。
+- `20261116123000_cleanup_storage_avatars_comment_policy_and_contact_idx.sql`（未適用・次回デプロイ / Issue #148）
+  - **残余 DB 整理**:
+    - `storage_avatars_insert_own` / `update_own` / `delete_own` を `((select auth.uid()))::text` 化。
+    - 未使用の `comment_edit_history_insert` ポリシーを削除。
+    - `idx_contact_messages_lower_trim_email_created_at` 式インデックスを作成し、旧 `contact_messages_email_created_at_idx` を削除。
+
 ## セキュリティ強化（コード・Edge Function）
 
-- **S4**: `send-contact-email` の CORS 許可リストを厳格化し、メールヘッダインジェクション対策（CR/LF 除去）やプロキシヘッダに基づくクライアント IP のレート制限・入力検証を強化。Supabase Edge Function へデプロイ済み（version 8 / `ACTIVE`, `verify_jwt: true` / Issue #123）。
+- **S4**: `send-contact-email` の CORS 許可リストを厳格化し、メールヘッダインジェクション対策（CR/LF 除去）やプロキシヘッダに基づくクライアント IP のレート制限・入力検証を強化。さらに `Deno.serve` 移行・HTTP メソッド/JSON オブジェクト検証順序是正・レガシーオリジン削除を実施（Issue #123, #148 / Edge Function 再デプロイ待ち）。
 - **S6**: OGP / sitemap エンドポイント（`apps/website/api/_shared.ts`, `article-ogp.ts`, `writer-ogp.ts`, `sitemap.ts`）の共有化、予約投稿記事の公開判定（`buildPublishedOrDueFilter` + 42703 フォールバック）、Bot UA 誤マッチ修正を実施。
 
 ## 依存関係のバージョン状況（Dependabot & ツールチェーン）
