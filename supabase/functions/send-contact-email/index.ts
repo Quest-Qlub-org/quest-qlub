@@ -1,8 +1,20 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+interface DenoRuntime {
+  env: {
+    get(key: string): string | undefined;
+  };
+  serve?: (handler: (req: Request) => Response | Promise<Response>) => unknown;
+}
+
+function getDeno(): DenoRuntime | undefined {
+  return (globalThis as { Deno?: DenoRuntime }).Deno;
+}
+
+function getEnv(key: string): string | undefined {
+  return getDeno()?.env.get(key);
+}
 
 // 明示的に許可するオリジン（本番・ローカル）
 const ALLOWED_ORIGINS = [
-  "https://share-quest.vercel.app",
   "https://quest-qlub.vercel.app",
   "http://localhost:5173",
   "http://localhost:3000",
@@ -17,13 +29,13 @@ function isAllowedOrigin(origin: string): boolean {
   if (!origin) return false;
   if (ALLOWED_ORIGINS.includes(origin)) return true;
   if (ALLOWED_PREVIEW_ORIGIN.test(origin)) return true;
-  const allowedOriginEnv = Deno.env.get("ALLOWED_ORIGIN");
+  const allowedOriginEnv = getEnv("ALLOWED_ORIGIN");
   return !!allowedOriginEnv && origin === allowedOriginEnv;
 }
 
-function getCorsHeaders(req: Request) {
+function getCorsHeaders(req: Request): Record<string, string> {
   const origin = req.headers.get("origin") || "";
-  const allowedOriginEnv = Deno.env.get("ALLOWED_ORIGIN");
+  const allowedOriginEnv = getEnv("ALLOWED_ORIGIN");
   const fallback = allowedOriginEnv || "https://quest-qlub.vercel.app";
 
   return {
@@ -32,6 +44,17 @@ function getCorsHeaders(req: Request) {
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     Vary: "Origin",
   };
+}
+
+function jsonResponse(
+  payload: Record<string, unknown>,
+  status: number,
+  headers: Record<string, string>,
+): Response {
+  return new Response(JSON.stringify(payload), {
+    headers: { ...headers, "Content-Type": "application/json" },
+    status,
+  });
 }
 
 function escapeHtml(str: string): string {
@@ -50,6 +73,10 @@ const rateLimitMap = new Map<string, number[]>();
 const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1分
 const MAX_REQUESTS_PER_WINDOW = 3; // 1分間に最大3回まで
 const MAX_RATE_LIMIT_ENTRIES = 5000;
+
+export function resetRateLimitMapForTests(): void {
+  rateLimitMap.clear();
+}
 
 function cleanupRateLimitMap(now: number): void {
   if (rateLimitMap.size < MAX_RATE_LIMIT_ENTRIES) return;
@@ -81,14 +108,34 @@ function isRateLimited(key: string): boolean {
   return false;
 }
 
-serve(async (req) => {
+export async function handleContactRequest(req: Request): Promise<Response> {
   const corsHeaders = getCorsHeaders(req);
 
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  if (req.method !== "POST") {
+    return jsonResponse({ error: "Method Not Allowed" }, 405, {
+      ...corsHeaders,
+      Allow: "POST, OPTIONS",
+    });
+  }
+
   try {
+    let parsed: unknown;
+    try {
+      parsed = await req.json();
+    } catch {
+      return jsonResponse({ error: "リクエスト形式が不正です。" }, 400, corsHeaders);
+    }
+
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return jsonResponse({ error: "リクエスト形式が不正です。" }, 400, corsHeaders);
+    }
+
+    const raw = parsed as Record<string, unknown>;
+
     // クライアントIPの取得（プロキシ/Edge信頼ヘッダを優先、XFFは末尾の信頼済みホップを参照）
     const clientIp =
       req.headers.get("cf-connecting-ip")?.trim() ||
@@ -97,28 +144,21 @@ serve(async (req) => {
       "unknown-ip";
 
     if (isRateLimited(`ip:${clientIp}`)) {
-      return new Response(
-        JSON.stringify({
+      return jsonResponse(
+        {
           error:
             "短時間に多数のリクエストが送信されました。しばらく時間をおいて再度お試しください。",
-        }),
-        {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 429,
         },
+        429,
+        corsHeaders,
       );
     }
-
-    const raw = await req.json();
 
     // ボット対策1: ハニーポットフィールドのチェック（人間には見えないダミー項目）
     if (raw._hp || raw.honeypot || raw.website_trap) {
       console.warn("Honeypot field triggered by bot from IP:", clientIp);
       // ボットには成功したように見せかけて実際の送信は行わない（ステルス拒否）
-      return new Response(JSON.stringify({ ok: true }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200,
-      });
+      return jsonResponse({ ok: true }, 200, corsHeaders);
     }
 
     const name = typeof raw.name === "string" ? raw.name.trim() : "";
@@ -126,49 +166,35 @@ serve(async (req) => {
     const subject = typeof raw.subject === "string" ? raw.subject.trim() : "";
     const body = typeof raw.body === "string" ? raw.body.trim() : "";
 
-    // メールアドレス単位のレート制限（大文字・小文字を正規化）
-    const normalizedEmail = email.toLowerCase();
-    if (normalizedEmail && isRateLimited(`email:${normalizedEmail}`)) {
-      return new Response(
-        JSON.stringify({
-          error:
-            "このメールアドレスから短時間に連続してお問い合わせが送信されました。しばらくお待ちください。",
-        }),
-        {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 429,
-        },
-      );
-    }
-
-    // Validation
+    // Validation（メールアドレス単位のレート制限より前に実施し、不正入力による枠消費を防止）
     if (!name || !email || !subject || !body) {
-      return new Response(JSON.stringify({ error: "すべての項目を入力してください。" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 400,
-      });
+      return jsonResponse({ error: "すべての項目を入力してください。" }, 400, corsHeaders);
     }
 
     if (name.length > 100 || subject.length > 200 || body.length > 5000) {
-      return new Response(JSON.stringify({ error: "入力文字数が上限を超えています。" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 400,
-      });
+      return jsonResponse({ error: "入力文字数が上限を超えています。" }, 400, corsHeaders);
     }
 
     if (!EMAIL_REGEX.test(email) || email.length > 254) {
-      return new Response(JSON.stringify({ error: "有効なメールアドレスを入力してください。" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 400,
-      });
+      return jsonResponse({ error: "有効なメールアドレスを入力してください。" }, 400, corsHeaders);
     }
 
-    // Header injection prevention: reject CR / LF in email and subject
+    // Header injection prevention: reject CR / LF in email, name, and subject
     if (/[\r\n]/.test(email) || /[\r\n]/.test(name) || /[\r\n]/.test(subject)) {
-      return new Response(JSON.stringify({ error: "不正な改行文字が含まれています。" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 400,
-      });
+      return jsonResponse({ error: "不正な改行文字が含まれています。" }, 400, corsHeaders);
+    }
+
+    // メールアドレス単位のレート制限（大文字・小文字を正規化）
+    const normalizedEmail = email.toLowerCase();
+    if (isRateLimited(`email:${normalizedEmail}`)) {
+      return jsonResponse(
+        {
+          error:
+            "このメールアドレスから短時間に連続してお問い合わせが送信されました。しばらくお待ちください。",
+        },
+        429,
+        corsHeaders,
+      );
     }
 
     const safeName = escapeHtml(name);
@@ -227,7 +253,7 @@ serve(async (req) => {
  </body>
 </html>`;
 
-    const receiverEmail = Deno.env.get("CONTACT_RECEIVER_EMAIL");
+    const receiverEmail = getEnv("CONTACT_RECEIVER_EMAIL");
     if (!receiverEmail) {
       console.warn(
         "CONTACT_RECEIVER_EMAIL is not set. Defaulting to contact@quest-qlub.com. Note: With unverified onboarding@resend.dev, emails will fail if receiver does not match Resend account email.",
@@ -235,21 +261,21 @@ serve(async (req) => {
     }
     const toEmail = receiverEmail || "contact@quest-qlub.com";
 
-    const senderEmail =
-      Deno.env.get("CONTACT_SENDER_EMAIL") || "Quest Qlub <onboarding@resend.dev>";
-    if (!Deno.env.get("CONTACT_SENDER_EMAIL")) {
+    const senderEmail = getEnv("CONTACT_SENDER_EMAIL") || "Quest Qlub <onboarding@resend.dev>";
+    if (!getEnv("CONTACT_SENDER_EMAIL")) {
       console.warn(
         "CONTACT_SENDER_EMAIL is not configured. Falling back to 'Quest Qlub <onboarding@resend.dev>'. Ensure custom domain is configured in Resend to avoid delivery restrictions.",
       );
     }
 
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    const resendApiKey = getEnv("RESEND_API_KEY");
     if (!resendApiKey) {
       console.error("RESEND_API_KEY is not configured.");
-      return new Response(JSON.stringify({ error: "メール送信サービスの設定が不足しています。" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 500,
-      });
+      return jsonResponse(
+        { error: "メール送信サービスの設定が不足しています。" },
+        500,
+        corsHeaders,
+      );
     }
 
     const res = await fetch("https://api.resend.com/emails", {
@@ -272,21 +298,21 @@ serve(async (req) => {
 
     if (!res.ok) {
       console.error("Resend API error:", result);
-      return new Response(JSON.stringify({ error: "メール送信サービスでエラーが発生しました。" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 502,
-      });
+      return jsonResponse(
+        { error: "メール送信サービスでエラーが発生しました。" },
+        502,
+        corsHeaders,
+      );
     }
 
-    return new Response(JSON.stringify({ ok: true }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200,
-    });
+    return jsonResponse({ ok: true }, 200, corsHeaders);
   } catch (e) {
     console.error("Error:", e);
-    return new Response(JSON.stringify({ error: "サーバー内部エラーが発生しました。" }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 500,
-    });
+    return jsonResponse({ error: "サーバー内部エラーが発生しました。" }, 500, corsHeaders);
   }
-});
+}
+
+const deno = getDeno();
+if (deno && typeof deno.serve === "function") {
+  deno.serve(handleContactRequest);
+}
