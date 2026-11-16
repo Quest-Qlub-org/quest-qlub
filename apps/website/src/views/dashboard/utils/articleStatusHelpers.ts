@@ -22,13 +22,13 @@ export async function fetchArticlePreviewDetails(
         const { data, error } = await eqQuery.maybeSingle();
         if (!error && data) {
           if (selectFields === "*") {
-            const row = data as Parameters<typeof mapDbArticleToArticle>[0] &
+            const row = data as unknown as Parameters<typeof mapDbArticleToArticle>[0] &
               Record<string, unknown>;
             if (typeof row.id === "string" && typeof row.title === "string") {
               return enrichArticleWithSchedule(mapDbArticleToArticle(row));
             }
           }
-          const row = data as Record<string, unknown>;
+          const row = data as unknown as Record<string, unknown>;
           return enrichArticleWithSchedule({
             ...article,
             content: typeof row.content === "string" ? row.content : article.content,
