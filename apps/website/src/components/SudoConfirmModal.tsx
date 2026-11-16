@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { supabase } from "../supabase";
 import { ShieldAlert, ShieldCheck, AlertCircle, Key, ArrowLeft } from "lucide-react";
 import { useFocusTrap } from "../hooks/useFocusTrap";
@@ -24,6 +24,14 @@ export const SudoConfirmModal: React.FC<SudoConfirmModalProps> = ({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [isPasskeySupported, setIsPasskeySupported] = useState(false);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const modalRef = useFocusTrap<HTMLDivElement>(true, () => {
     onCancel();
@@ -95,7 +103,10 @@ export const SudoConfirmModal: React.FC<SudoConfirmModalProps> = ({
     } catch {
       setInMemorySudoAuthorized(false);
       setError("認証処理中にエラーが発生しました");
-      setLoading(false);
+    } finally {
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -131,7 +142,10 @@ export const SudoConfirmModal: React.FC<SudoConfirmModalProps> = ({
       onSuccess();
     } catch {
       setError("2段階認証の処理中にエラーが発生しました");
-      setLoading(false);
+    } finally {
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 

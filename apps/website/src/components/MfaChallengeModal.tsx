@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "../supabase";
 import { ShieldCheck, AlertCircle, LogOut, KeyRound } from "lucide-react";
 import { useFocusTrap } from "../hooks/useFocusTrap";
@@ -21,6 +21,14 @@ export const MfaChallengeModal = ({
   const [loading, setLoading] = useState(false);
   const [factorId, setFactorId] = useState<string | null>(null);
   const [fetchingFactor, setFetchingFactor] = useState(true);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const modalRef = useFocusTrap<HTMLDivElement>(isOpen, () => {
     if (onCancel) {
@@ -29,12 +37,24 @@ export const MfaChallengeModal = ({
   });
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      setMode("totp");
+      setVerifyCode("");
+      setBackupCode("");
+      setError("");
+      setLoading(false);
+      setFactorId(null);
+      return;
+    }
 
     let isMounted = true;
+    setMode("totp");
     setFetchingFactor(true);
     setError("");
     setVerifyCode("");
+    setBackupCode("");
+    setLoading(false);
+    setFactorId(null);
 
     const fetchFactors = async () => {
       try {
@@ -46,7 +66,7 @@ export const MfaChallengeModal = ({
           return;
         }
 
-        const verifiedTotp = data.totp.find((f) => f.status === "verified") ?? data.totp[0];
+        const verifiedTotp = data.totp.find((f) => f.status === "verified");
         if (verifiedTotp) {
           setFactorId(verifiedTotp.id);
         } else {
@@ -79,7 +99,6 @@ export const MfaChallengeModal = ({
       const challenge = await supabase.auth.mfa.challenge({ factorId });
       if (challenge.error) {
         setError(challenge.error.message || "認証チャレンジの作成に失敗しました");
-        setLoading(false);
         return;
       }
 
@@ -91,14 +110,16 @@ export const MfaChallengeModal = ({
 
       if (verify.error) {
         setError("認証コードが正しくありません。最新の6桁コードを入力してください。");
-        setLoading(false);
         return;
       }
 
       onSuccess();
     } catch {
       setError("認証処理中にエラーが発生しました");
-      setLoading(false);
+    } finally {
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -119,7 +140,6 @@ export const MfaChallengeModal = ({
 
       if (rpcErr || !isValid) {
         setError("バックアップコードが正しくないか、すでに使用されています。");
-        setLoading(false);
         return;
       }
 
@@ -128,7 +148,10 @@ export const MfaChallengeModal = ({
       onSuccess();
     } catch {
       setError("認証処理中にエラーが発生しました");
-      setLoading(false);
+    } finally {
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 

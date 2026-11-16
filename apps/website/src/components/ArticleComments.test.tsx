@@ -812,4 +812,31 @@ describe("ArticleComments (DB-backed, Auth-required, Role permissions, Pinning &
 
     unmount();
   });
+
+  it("does not render NaN dates when comment timestamps are invalid", async () => {
+    mockCommentsDb.push({
+      id: "c-bad-date",
+      article_id: articleId,
+      author_id: "viewer-bad-date",
+      author_name: "不正日付読者",
+      content: "日時パーステスト",
+      is_pinned: false,
+      created_at: "not-a-valid-date",
+      updated_at: "not-a-valid-date",
+    });
+    mockAuth("viewer", "viewer-1", "一般読者");
+
+    const { container, unmount } = renderWithRouter(
+      <ArticleComments articleId={articleId} writerId={writerId} commentsEnabled={true} />,
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("日時パーステスト");
+    expect(container.textContent).not.toContain("NaN");
+
+    unmount();
+  });
 });

@@ -3,6 +3,28 @@ import { useEffect, useRef } from "react";
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+function isElementVisible(el: HTMLElement): boolean {
+  if (el instanceof HTMLInputElement && el.type === "hidden") return false;
+  if (el.hasAttribute("hidden")) return false;
+  if (typeof window !== "undefined" && typeof window.getComputedStyle === "function") {
+    const style = window.getComputedStyle(el);
+    if (style.display === "none" || style.visibility === "hidden") {
+      return false;
+    }
+    let parent = el.parentElement;
+    while (parent) {
+      if (parent.hasAttribute("hidden")) return false;
+      const parentStyle = window.getComputedStyle(parent);
+      if (parentStyle.display === "none") {
+        return false;
+      }
+      parent = parent.parentElement;
+    }
+    return true;
+  }
+  return el.offsetParent !== null;
+}
+
 export function useFocusTrap<T extends HTMLElement = HTMLDivElement>(
   isOpen: boolean,
   onClose?: () => void,
@@ -27,7 +49,7 @@ export function useFocusTrap<T extends HTMLElement = HTMLDivElement>(
       if (e.key === "Tab" && containerRef.current) {
         const focusable = Array.from(
           containerRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
-        ).filter((el) => el.offsetParent !== null); // 可視要素のみ
+        ).filter(isElementVisible); // position: fixed を含む可視要素のみ
 
         if (focusable.length === 0) {
           e.preventDefault();
@@ -59,9 +81,12 @@ export function useFocusTrap<T extends HTMLElement = HTMLDivElement>(
 
     document.addEventListener("keydown", handleKeyDown);
 
-    // モーダル表示時に初期フォーカスを設定
+    // モーダル表示時に初期フォーカスを設定（すでにコンテナ内にフォーカスがある場合は奪わない）
     const timer = setTimeout(() => {
       if (containerRef.current) {
+        if (containerRef.current.contains(document.activeElement)) {
+          return;
+        }
         const autoFocusEl = containerRef.current.querySelector<HTMLElement>(
           "[autofocus], [autoFocus]",
         );

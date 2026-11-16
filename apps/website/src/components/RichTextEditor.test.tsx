@@ -113,4 +113,37 @@ describe("RichTextEditor", () => {
     expect(proseMirror).toBeTruthy();
     expect(proseMirror?.className).toContain("focus-visible:ring-2");
   });
+
+  it("resets file input value after upload and displays error when image upload fails or returns null", async () => {
+    const onUploadImage = vi
+      .fn()
+      .mockResolvedValueOnce(null)
+      .mockRejectedValueOnce(new Error("Upload network failure"));
+
+    render(
+      <RichTextEditor
+        content="<p>初期テキスト</p>"
+        onChange={vi.fn()}
+        onUploadImage={onUploadImage}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "画像を挿入" }));
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(["dummy"], "test.png", { type: "image/png" });
+
+    // 1. null 返却時にエラー表示され、fileInput.value がリセットされること
+    fireEvent.change(fileInput, { target: { files: [file] } });
+    await waitFor(() => {
+      expect(screen.getByText("画像のアップロードに失敗しました")).toBeTruthy();
+    });
+    expect(fileInput.value).toBe("");
+
+    // 2. 例外スロー時にエラーメッセージが表示されること
+    fireEvent.change(fileInput, { target: { files: [file] } });
+    await waitFor(() => {
+      expect(screen.getByText("Upload network failure")).toBeTruthy();
+    });
+    expect(fileInput.value).toBe("");
+  });
 });

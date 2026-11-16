@@ -216,8 +216,9 @@ export function ArticleComments({
     setCooldown(getRemainingCooldownSeconds(COMMENT_COOLDOWN_KEY, COMMENT_COOLDOWN_DURATION_MS));
   }, []);
 
+  const isCoolingDown = cooldown > 0;
   useEffect(() => {
-    if (cooldown <= 0) return;
+    if (!isCoolingDown) return;
     const timer = setInterval(() => {
       setCooldown((prev) => {
         if (prev <= 1) {
@@ -228,7 +229,7 @@ export function ArticleComments({
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, [cooldown]);
+  }, [isCoolingDown]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -533,8 +534,10 @@ export function ArticleComments({
   };
 
   const formatDate = (isoString: string) => {
+    if (!isoString) return "";
     try {
       const d = new Date(isoString);
+      if (Number.isNaN(d.getTime())) return "";
       return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
     } catch {
       return "";

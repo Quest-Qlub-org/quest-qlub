@@ -85,4 +85,42 @@ describe("useFocusTrap", () => {
     });
     vi.useRealTimers();
   });
+
+  it("preserves React autoFocus child focus and includes position: fixed elements in Tab cycle", () => {
+    vi.useFakeTimers();
+    function FixedAutoFocusModal() {
+      const ref = useFocusTrap<HTMLDivElement>(true, vi.fn());
+      return (
+        <div ref={ref} role="dialog" aria-modal="true" style={{ position: "fixed" }}>
+          <button id="close-btn">Close</button>
+          <input id="autofocus-input" autoFocus />
+        </div>
+      );
+    }
+
+    const root = createRoot(rootContainer);
+    act(() => {
+      root.render(<FixedAutoFocusModal />);
+    });
+
+    const inputEl = rootContainer.querySelector("#autofocus-input") as HTMLInputElement;
+    const closeBtn = rootContainer.querySelector("#close-btn") as HTMLButtonElement;
+    expect(document.activeElement).toBe(inputEl);
+
+    // 50ms 後のタイマーでも autoFocus 済み入力欄から閉じるボタンへフォーカスを奪わないこと
+    act(() => {
+      vi.advanceTimersByTime(60);
+    });
+    expect(document.activeElement).toBe(inputEl);
+
+    // position: fixed モーダル内でも Tab ラップアラウンドが機能すること
+    const tabEvent = new KeyboardEvent("keydown", { key: "Tab", cancelable: true, bubbles: true });
+    document.dispatchEvent(tabEvent);
+    expect(document.activeElement).toBe(closeBtn);
+
+    act(() => {
+      root.unmount();
+    });
+    vi.useRealTimers();
+  });
 });

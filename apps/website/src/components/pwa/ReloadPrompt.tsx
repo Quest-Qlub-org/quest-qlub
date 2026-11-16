@@ -23,7 +23,7 @@ export function ReloadPrompt() {
     const interval = setInterval(
       () => {
         if (registrationRef.current && typeof navigator !== "undefined" && navigator.onLine) {
-          void registrationRef.current.update();
+          void Promise.resolve(registrationRef.current.update()).catch(() => {});
         }
       },
       60 * 60 * 1000,
