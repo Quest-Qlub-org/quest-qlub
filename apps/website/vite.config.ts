@@ -55,7 +55,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ["**/*.{js,css,html,ico,png,svg,jpg,jpeg,webp}"],
+        globPatterns: ["**/*.{js,css,html,ico,png,jpg,jpeg,webp}"],
         globIgnores: ["**/pwa-*.png"],
         runtimeCaching: [
           {
