@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { updateMetaTags } from "../../utils/seo";
 import { profileHasRole } from "../../utils/roles";
+import { isArticleOptionalColumnSchemaError } from "../../utils/supabaseErrors";
 import { useFocusTrap } from "../../hooks/useFocusTrap";
 
 function enrichArticleWithLocalSchedule(article: Article): Article {
@@ -186,8 +187,8 @@ export const EditorDashboard = () => {
 
     let { error } = await supabase.from("articles").update(updatePayload).eq("id", article.id);
 
-    // scheduled_at カラム未適用環境や status check 制約環境での安全なフォールバック
-    if (error) {
+    // scheduled_at カラム未適用環境でのフォールバック（未来日時の予約公開は絶対に即時公開へダウングレードしない）
+    if (error && isArticleOptionalColumnSchemaError(error) && !isFuture) {
       const retry = await supabase
         .from("articles")
         .update({ status: "published" })
@@ -209,6 +210,8 @@ export const EditorDashboard = () => {
           ? `公開予約（${formatScheduledDateTime(targetIso)}）として承認しました`
           : "記事を公開しました",
       );
+    } else if (isFuture && isArticleOptionalColumnSchemaError(error)) {
+      showToast("データベース更新準備中のため、公開予約を設定できません");
     } else {
       showToast("エラーが発生しました。もう一度お試しください。");
     }
@@ -219,7 +222,7 @@ export const EditorDashboard = () => {
       .from("articles")
       .update({ status: "draft", scheduled_at: null })
       .eq("id", article.id);
-    if (error) {
+    if (error && isArticleOptionalColumnSchemaError(error)) {
       const retry = await supabase
         .from("articles")
         .update({ status: "draft" })

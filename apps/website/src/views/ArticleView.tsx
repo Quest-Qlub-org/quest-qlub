@@ -42,6 +42,13 @@ import {
   setLocalScheduledAt,
 } from "../utils/scheduledArticles";
 import { profileHasRole } from "../utils/roles";
+import { isArticleOptionalColumnSchemaError } from "../utils/supabaseErrors";
+import { checkIsSudoActive } from "../components/RoleRoute";
+import { SudoConfirmModal } from "../components/SudoConfirmModal";
+
+type PendingSudoAction =
+  | { type: "status"; nextStatus: ArticleStatus }
+  | { type: "comments"; nextEnabled: boolean };
 
 export const ArticleView = () => {
   const { id: paramId } = useParams<{ id: string }>();
@@ -75,6 +82,7 @@ export const ArticleView = () => {
   const [writerFallback, setWriterFallback] = useState<Profile | null>(null);
   const [collaboratorFallbacks, setCollaboratorFallbacks] = useState<Profile[]>([]);
   const [seriesFallback, setSeriesFallback] = useState<Series | null>(null);
+  const [pendingSudoAction, setPendingSudoAction] = useState<PendingSudoAction | null>(null);
 
   // Issue #23: 一覧から除外された本文(content)を詳細画面で個別取得
   useEffect(() => {
@@ -349,12 +357,12 @@ export const ArticleView = () => {
     );
   }
 
-  const handleQuickStatusChange = async (nextStatus: ArticleStatus) => {
+  const executeQuickStatusChange = async (nextStatus: ArticleStatus) => {
     let { error } = await supabase
       .from("articles")
       .update({ status: nextStatus, scheduled_at: null })
       .eq("id", article.id);
-    if (error) {
+    if (error && isArticleOptionalColumnSchemaError(error)) {
       const retry = await supabase
         .from("articles")
         .update({ status: nextStatus })
@@ -393,6 +401,46 @@ export const ArticleView = () => {
     } else {
       showToast("エラーが発生しました。もう一度お試しください。");
     }
+  };
+
+  const executeToggleCommentsEnabled = async (nextEnabled: boolean) => {
+    const { error } = await supabase
+      .from("articles")
+      .update({ comments_enabled: nextEnabled })
+      .eq("id", article.id);
+    if (!error) {
+      setDetailedArticle((prev) => (prev ? { ...prev, commentsEnabled: nextEnabled } : prev));
+      showToast(nextEnabled ? "コメント機能をオンにしました" : "コメント機能をオフにしました");
+    } else {
+      if (
+        (error as { code?: string; message?: string }).code === "42703" ||
+        error.message?.includes("comments_enabled")
+      ) {
+        showToast("データベース更新準備中のため、コメント設定を変更できません");
+      } else {
+        showToast("コメント設定の更新に失敗しました");
+      }
+    }
+  };
+
+  const requestSudoOrExecute = (action: PendingSudoAction) => {
+    if (!checkIsSudoActive()) {
+      if (!user?.email) {
+        showToast("セキュリティ確認のため、再ログインが必要です");
+        return;
+      }
+      setPendingSudoAction(action);
+      return;
+    }
+    if (action.type === "status") {
+      void executeQuickStatusChange(action.nextStatus);
+    } else {
+      void executeToggleCommentsEnabled(action.nextEnabled);
+    }
+  };
+
+  const handleQuickStatusChange = (nextStatus: ArticleStatus) => {
+    requestSudoOrExecute({ type: "status", nextStatus });
   };
 
   return (
@@ -450,7 +498,7 @@ export const ArticleView = () => {
               {(isAuthor || isCollaborator) && article.status === "draft" && (
                 <button
                   type="button"
-                  onClick={() => void handleQuickStatusChange("pending")}
+                  onClick={() => handleQuickStatusChange("pending")}
                   className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer"
                 >
                   投稿申請する
@@ -460,7 +508,7 @@ export const ArticleView = () => {
                 <button
                   type="button"
                   data-testid="preview-banner-withdraw-btn"
-                  onClick={() => void handleQuickStatusChange("draft")}
+                  onClick={() => handleQuickStatusChange("draft")}
                   className="px-3 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
                 >
                   申請取消
@@ -471,7 +519,7 @@ export const ArticleView = () => {
                   <button
                     type="button"
                     data-testid="preview-banner-approve-btn"
-                    onClick={() => void handleQuickStatusChange("published")}
+                    onClick={() => handleQuickStatusChange("published")}
                     className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 inline-flex items-center gap-1 shadow-sm cursor-pointer"
                   >
                     <Check className="w-3.5 h-3.5" /> 許可 (公開)
@@ -480,7 +528,7 @@ export const ArticleView = () => {
                     <button
                       type="button"
                       data-testid="preview-banner-reject-btn"
-                      onClick={() => void handleQuickStatusChange("draft")}
+                      onClick={() => handleQuickStatusChange("draft")}
                       className="px-3 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
                     >
                       差し戻し
@@ -898,30 +946,25 @@ export const ArticleView = () => {
           collaboratorIds={article.collaboratorIds}
           commentsEnabled={article.commentsEnabled !== false}
           onToggleCommentsEnabled={async (nextEnabled) => {
-            const { error } = await supabase
-              .from("articles")
-              .update({ comments_enabled: nextEnabled })
-              .eq("id", article.id);
-            if (!error) {
-              setDetailedArticle((prev) =>
-                prev ? { ...prev, commentsEnabled: nextEnabled } : prev,
-              );
-              showToast(
-                nextEnabled ? "コメント機能をオンにしました" : "コメント機能をオフにしました",
-              );
-            } else {
-              if (
-                (error as { code?: string; message?: string }).code === "42703" ||
-                error.message?.includes("comments_enabled")
-              ) {
-                showToast("データベース更新準備中のため、コメント設定を変更できません");
-              } else {
-                showToast("コメント設定の更新に失敗しました");
-              }
-            }
+            requestSudoOrExecute({ type: "comments", nextEnabled });
           }}
         />
       </div>
+      {pendingSudoAction && user?.email && (
+        <SudoConfirmModal
+          userEmail={user.email}
+          onSuccess={() => {
+            const action = pendingSudoAction;
+            setPendingSudoAction(null);
+            if (action.type === "status") {
+              void executeQuickStatusChange(action.nextStatus);
+            } else {
+              void executeToggleCommentsEnabled(action.nextEnabled);
+            }
+          }}
+          onCancel={() => setPendingSudoAction(null)}
+        />
+      )}
     </div>
   );
 };

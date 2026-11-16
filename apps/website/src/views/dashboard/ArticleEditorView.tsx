@@ -54,19 +54,22 @@ export interface ArticleEditorPageProps {
   editingId: string | null;
 }
 
-function buildBaseArticlePayload(params: {
-  title: string;
-  content: string;
-  summary: string;
-  tags: string[];
-  thumbnailColor: string;
-  thumbnailUrl: string | null;
-  seriesId: string;
-  episodeNumber: string;
-  commentsEnabled: boolean;
-  scheduledAt?: string | null;
-  collaboratorIds?: string[];
-}): Record<string, unknown> {
+function buildBaseArticlePayload(
+  params: {
+    title: string;
+    content: string;
+    summary: string;
+    tags: string[];
+    thumbnailColor: string;
+    thumbnailUrl: string | null;
+    seriesId: string;
+    episodeNumber: string;
+    commentsEnabled: boolean;
+    scheduledAt?: string | null;
+    collaboratorIds?: string[];
+  },
+  includeCollaborators = true,
+): Record<string, unknown> {
   const payload: Record<string, unknown> = {
     title: params.title,
     content: params.content,
@@ -77,8 +80,10 @@ function buildBaseArticlePayload(params: {
     series_id: params.seriesId || null,
     episode_number: params.episodeNumber ? parseInt(params.episodeNumber, 10) : null,
     comments_enabled: params.commentsEnabled,
-    collaborator_ids: params.collaboratorIds ?? [],
   };
+  if (includeCollaborators) {
+    payload.collaborator_ids = params.collaboratorIds ?? [];
+  }
   if (params.scheduledAt !== undefined) {
     payload.scheduled_at = params.scheduledAt;
   }
@@ -88,15 +93,19 @@ function buildBaseArticlePayload(params: {
 async function updateArticleWithFallback(targetId: string, payload: Record<string, unknown>) {
   let { error } = await supabase.from("articles").update(payload).eq("id", targetId);
   if (error && isArticleOptionalColumnSchemaError(error)) {
+    const isFuture = isArticleScheduledFuture(
+      typeof payload.scheduled_at === "string" ? payload.scheduled_at : null,
+    );
+    if (payload.status === "scheduled" || isFuture) {
+      // 予約公開カラム未適用環境で未来日時の記事を即時公開へダウングレードしない
+      return { error };
+    }
     const {
       comments_enabled: _c,
       scheduled_at: _s,
       collaborator_ids: _collab,
       ...safePayload
     } = payload;
-    if (safePayload.status === "scheduled") {
-      safePayload.status = "published";
-    }
     const retryRes = await supabase.from("articles").update(safePayload).eq("id", targetId);
     error = retryRes.error;
   }
@@ -106,15 +115,19 @@ async function updateArticleWithFallback(targetId: string, payload: Record<strin
 async function insertArticleWithFallback(payload: Record<string, unknown>) {
   let { data, error } = await supabase.from("articles").insert(payload).select().single();
   if (error && isArticleOptionalColumnSchemaError(error)) {
+    const isFuture = isArticleScheduledFuture(
+      typeof payload.scheduled_at === "string" ? payload.scheduled_at : null,
+    );
+    if (payload.status === "scheduled" || isFuture) {
+      // 予約公開カラム未適用環境で未来日時の記事を即時公開へダウングレードしない
+      return { data: null, error };
+    }
     const {
       comments_enabled: _c,
       scheduled_at: _s,
       collaborator_ids: _collab,
       ...safePayload
     } = payload;
-    if (safePayload.status === "scheduled") {
-      safePayload.status = "published";
-    }
     const retryRes = await supabase.from("articles").insert(safePayload).select().single();
     data = retryRes.data;
     error = retryRes.error;
@@ -146,11 +159,10 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
   const editingArticle = editingId ? (articles.find((a) => a.id === editingId) ?? null) : null;
   const [loadedArticle, setLoadedArticle] = useState<typeof editingArticle>(null);
   const effectiveEditingArticle = editingArticle || loadedArticle;
-  const canManageCollaborators =
-    !effectiveEditingArticle ||
-    isEditor ||
-    !currentUserId ||
-    effectiveEditingArticle.writerId === currentUserId;
+  const canManageCollaborators = Boolean(
+    currentUserId &&
+    (!effectiveEditingArticle || isEditor || effectiveEditingArticle.writerId === currentUserId),
+  );
 
   useEffect(() => {
     updateMetaTags({
@@ -368,10 +380,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
           : "pending"
         : undefined;
 
-      const updatePayload = buildBaseArticlePayload(currentValues);
-      if (!canManageCollaborators) {
-        delete updatePayload.collaborator_ids;
-      }
+      const updatePayload = buildBaseArticlePayload(currentValues, canManageCollaborators);
       if (nextStatus) {
         updatePayload.status = nextStatus;
       }
@@ -612,11 +621,11 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
       };
 
       if (autoSaveIdRef.current) {
-        const updatePayload = buildBaseArticlePayload(currentValues);
+        const updatePayload = buildBaseArticlePayload(currentValues, canManageCollaborators);
         await updateArticleWithFallback(autoSaveIdRef.current, updatePayload);
         setLocalScheduledAt(autoSaveIdRef.current, scheduledIso);
       } else {
-        const insertPayload = buildBaseArticlePayload(currentValues);
+        const insertPayload = buildBaseArticlePayload(currentValues, canManageCollaborators);
         insertPayload.writer_id = currentUserId;
         insertPayload.status = "draft";
         insertPayload.views = 0;
@@ -673,6 +682,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
     formCommentsEnabled,
     formScheduledAt,
     collaboratorIds,
+    canManageCollaborators,
     isDirty,
     currentUserId,
     setArticles,

@@ -9,6 +9,7 @@ import { supabase } from "../supabase";
 import { createTestArticle, createTestProfile } from "../test/test-utils";
 import * as useFollowsModule from "../hooks/useFollows";
 import * as profileQueriesModule from "../utils/profileQueries";
+import { setInMemorySudoAuthorized } from "../components/RoleRoute";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -24,6 +25,7 @@ describe("ArticleView", () => {
   });
 
   afterEach(() => {
+    setInMemorySudoAuthorized(false);
     if (root) {
       act(() => {
         root!.unmount();
@@ -443,7 +445,8 @@ describe("ArticleView", () => {
       });
     }
 
-    // 著者として「申請取消」ボタンをクリック
+    // 著者として「申請取消」ボタンをクリック（Sudo 認可済み）
+    setInMemorySudoAuthorized(true);
     const withdrawBtn = container.querySelector(
       '[data-testid="preview-banner-withdraw-btn"]',
     ) as HTMLButtonElement;
@@ -909,7 +912,8 @@ describe("ArticleView", () => {
     expect(banner).toBeTruthy();
     expect(container.textContent).toContain("共同執筆の審査中記事");
 
-    // 共同執筆者にも申請取消ボタンが表示され、クリックでステータスが更新されること
+    // 共同執筆者にも申請取消ボタンが表示され、クリックでステータスが更新されること（Sudo 認可済み）
+    setInMemorySudoAuthorized(true);
     const withdrawBtn = container.querySelector(
       '[data-testid="preview-banner-withdraw-btn"]',
     ) as HTMLButtonElement;
@@ -1273,5 +1277,87 @@ describe("ArticleView", () => {
       await Promise.resolve();
     });
     expect(container.textContent).not.toContain("ライターページ");
+  });
+
+  it("requires Sudo confirmation before executing quick status change from preview banner (#137)", async () => {
+    const pendingArticle = {
+      id: "art-sudo-guard",
+      title: "Sudo保護テスト記事",
+      writer_id: "author-sudo",
+      status: "pending",
+      content: "<p>本文</p>",
+      created_at: "2026-10-24T12:00:00Z",
+    };
+
+    const updateMock = vi.fn().mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    });
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data: pendingArticle, error: null }),
+            }),
+          }),
+          update: updateMock,
+        } as any;
+      }
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            order: vi.fn().mockReturnValue({
+              order: vi.fn().mockResolvedValue({ data: [], error: null }),
+            }),
+            maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+          }),
+        }),
+      } as any;
+    });
+
+    vi.spyOn(useFollowsModule, "useFollows").mockReturnValue({
+      followedIds: [],
+      isFollowing: vi.fn(() => false),
+      toggleFollow: vi.fn(async () => true),
+      isAuthenticated: true,
+      currentUserId: "author-sudo",
+      loading: false,
+    });
+
+    // Sudo 未認可状態でレンダリング
+    setInMemorySudoAuthorized(false);
+
+    await act(async () => {
+      root!.render(
+        <MemoryRouter initialEntries={["/articles/art-sudo-guard"]}>
+          <AppProviders>
+            <Routes>
+              <Route path="/articles/:id" element={<ArticleView />} />
+            </Routes>
+          </AppProviders>
+        </MemoryRouter>,
+      );
+    });
+
+    for (let i = 0; i < 50; i++) {
+      if (container.textContent?.includes("Sudo保護テスト記事")) break;
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 20));
+      });
+    }
+
+    const withdrawBtn = container.querySelector(
+      '[data-testid="preview-banner-withdraw-btn"]',
+    ) as HTMLButtonElement;
+    expect(withdrawBtn).not.toBeNull();
+
+    await act(async () => {
+      withdrawBtn.click();
+      await Promise.resolve();
+    });
+
+    // Sudo 未認可時は Supabase update が実行されないこと
+    expect(updateMock).not.toHaveBeenCalled();
   });
 });

@@ -17,6 +17,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
 import { updateMetaTags } from "../../utils/seo";
+import { isArticleOptionalColumnSchemaError } from "../../utils/supabaseErrors";
 import { useFocusTrap } from "../../hooks/useFocusTrap";
 
 export const EDITOR_ARTICLE_LIST_FIELDS = `${ARTICLE_LIST_FIELDS}, comments_enabled, scheduled_at, collaborator_ids`;
@@ -155,7 +156,7 @@ export function EditorArticlesView() {
       .from("articles")
       .update({ status: nextStatus, scheduled_at: null })
       .eq("id", article.id);
-    if (error) {
+    if (error && isArticleOptionalColumnSchemaError(error)) {
       const retry = await supabase
         .from("articles")
         .update({ status: nextStatus })
@@ -204,11 +205,10 @@ export function EditorArticlesView() {
       : { status: effectiveStatus, scheduled_at: null };
 
     let { error } = await supabase.from("articles").update(updatePayload).eq("id", article.id);
-    if (error) {
-      const fallbackStatus = effectiveStatus === "scheduled" ? "published" : effectiveStatus;
+    if (error && isArticleOptionalColumnSchemaError(error) && !isFuture) {
       const retry = await supabase
         .from("articles")
-        .update({ status: fallbackStatus })
+        .update({ status: effectiveStatus })
         .eq("id", article.id);
       error = retry.error;
     }
@@ -239,6 +239,8 @@ export function EditorArticlesView() {
             ? `公開予約（${formatScheduledDateTime(scheduledIso)}）を設定しました`
             : "記事を公開しました",
       );
+    } else if (isFuture && isArticleOptionalColumnSchemaError(error)) {
+      showToast("データベース更新準備中のため、公開予約を設定できません");
     } else {
       showToast("ステータス変更に失敗しました");
     }

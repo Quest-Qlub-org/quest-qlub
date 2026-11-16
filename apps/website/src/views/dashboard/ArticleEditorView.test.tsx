@@ -927,4 +927,143 @@ describe("ArticleEditorView schema resilience", () => {
       true,
     );
   });
+
+  it("omits collaborator_ids during auto-save when current user is a non-owner collaborator (#137)", async () => {
+    vi.useFakeTimers();
+    const updatedPayloads: any[] = [];
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") {
+        return {
+          update: vi.fn((payload: any) => {
+            updatedPayloads.push(payload);
+            return { eq: vi.fn().mockResolvedValue({ error: null }) };
+          }),
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: {
+                  id: "art-collab-autosave",
+                  title: "共同編集記事",
+                  content: "<p>本文</p>",
+                  status: "draft",
+                  writer_id: "owner-writer",
+                  collaborator_ids: ["collab-user"],
+                },
+                error: null,
+              }),
+            }),
+          }),
+        } as any;
+      }
+      return {} as any;
+    });
+
+    const mockCoAuthor = createTestProfile({ id: "collab-user", role: "writer" });
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      profile: mockCoAuthor,
+      userRole: "writer",
+      articles: [],
+      setArticles: mockSetArticles,
+      seriesList: [],
+      showToast: mockShowToast,
+      navigate: mockNavigate,
+      getFontSizeClass: () => "text-base",
+      writers: [mockCoAuthor],
+    } as any);
+
+    await act(async () => {
+      root!.render(<ArticleEditorPage editingId="art-collab-autosave" />);
+      await Promise.resolve();
+    });
+
+    const titleInput = container.querySelector(
+      'input[placeholder="読者の目を引くタイトルを入力..."]',
+    ) as HTMLInputElement;
+    act(() => {
+      setNativeValue(titleInput, "共同編集者がタイトルを更新");
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(5000);
+      await Promise.resolve();
+    });
+
+    expect(updatedPayloads).toHaveLength(1);
+    expect("collaborator_ids" in updatedPayloads[0]).toBe(false);
+    vi.useRealTimers();
+  });
+
+  it("does not downgrade scheduled article to published on 42703 schema error (#137)", async () => {
+    const insertedPayloads: any[] = [];
+    const insertMock = vi.fn((payload: any) => {
+      insertedPayloads.push(payload);
+      return {
+        select: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({
+            data: null,
+            error: {
+              code: "42703",
+              message: "column articles.scheduled_at does not exist",
+            },
+          }),
+        }),
+      };
+    });
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") {
+        return {
+          insert: insertMock,
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+            }),
+          }),
+        } as any;
+      }
+      return {} as any;
+    });
+
+    const mockEditor = createTestProfile({ id: "ed-1", role: "editor" });
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      articles: [],
+      setArticles: mockSetArticles,
+      seriesList: [],
+      profile: mockEditor,
+      user: { id: "ed-1" } as any,
+      showToast: mockShowToast,
+      navigate: mockNavigate,
+      getFontSizeClass: () => "text-base",
+    } as any);
+
+    await act(async () => {
+      root!.render(<ArticleEditorPage editingId={null} />);
+    });
+
+    const titleInput = container.querySelector(
+      'input[placeholder="読者の目を引くタイトルを入力..."]',
+    ) as HTMLInputElement;
+    act(() => {
+      setNativeValue(titleInput, "予約公開エラーテスト");
+    });
+
+    const schedInput = container.querySelector(
+      '[data-testid="schedule-datetime-input"]',
+    ) as HTMLInputElement;
+    act(() => {
+      setNativeValue(schedInput, "2099-12-31T15:30");
+    });
+
+    const submitBtn = container.querySelector(
+      '[data-testid="editor-submit-btn"]',
+    ) as HTMLButtonElement;
+    await act(async () => {
+      submitBtn.click();
+    });
+
+    expect(insertedPayloads).toHaveLength(1);
+    expect(insertedPayloads[0].status).toBe("scheduled");
+    expect(insertedPayloads.some((p) => p.status === "published")).toBe(false);
+    expect(mockShowToast).toHaveBeenCalledWith("エラーが発生しました。もう一度お試しください。");
+  });
 });
