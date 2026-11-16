@@ -29,8 +29,6 @@ export interface AppContextType {
   // Global UI helpers
   showToast: (message: string) => void;
   navigate: (view: string, param?: string | null) => void;
-  /** @deprecated Removed from runtime return; kept optional until views-editor drops viewParam destructuring */
-  viewParam?: string | null;
 
   // Core Data
   writers: Profile[];
