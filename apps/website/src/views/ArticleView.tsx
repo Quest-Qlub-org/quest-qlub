@@ -51,7 +51,7 @@ type PendingSudoAction =
   | { type: "comments"; nextEnabled: boolean };
 
 export const ArticleView = () => {
-  const { id: paramId } = useParams<{ id: string }>();
+  const { id: articleId } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const {
     articles,
@@ -61,7 +61,6 @@ export const ArticleView = () => {
     toggleFavorite,
     showToast,
     getFontSizeClass,
-    viewParam,
     seriesList,
     userRole,
     profile,
@@ -69,8 +68,6 @@ export const ArticleView = () => {
     navigate: appNavigate,
   } = useApp();
   const { isFollowing, toggleFollow, isAuthenticated, currentUserId } = useFollows();
-
-  const articleId = paramId || viewParam;
 
   // キャッシュまたは個別フェッチした記事データ
   const cachedArticle = articles.find((a) => a.id === articleId);

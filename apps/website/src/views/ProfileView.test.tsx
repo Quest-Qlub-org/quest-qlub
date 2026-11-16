@@ -39,7 +39,6 @@ vi.mock("../context/AppContext", () => ({
     articles: mockGlobalArticles,
     favorites: [],
     navigate: mockNavigate,
-    viewParam: "writer-user",
     showToast: mockShowToast,
     profile: mockCurrentProfile,
     user: mockCurrentUser,

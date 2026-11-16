@@ -4,12 +4,9 @@ import { supabase } from "../supabase";
 import { useApp } from "../context/AppContext";
 import { PenTool, CheckCircle, Send, ArrowLeft, Sparkles, ListChecks } from "lucide-react";
 import { updateMetaTags } from "../utils/seo";
-import {
-  verifySpamCheck,
-  getRemainingCooldownSeconds,
-  recordSubmissionTimestamp,
-} from "../utils/antiSpam";
 import { validateContactForm } from "../utils/validation";
+import { useSubmissionCooldown } from "./shared/useSubmissionCooldown";
+import { HoneypotField } from "./shared/HoneypotField";
 
 export const WriterApplyView = () => {
   const navigate = useNavigate();
@@ -44,26 +41,11 @@ export const WriterApplyView = () => {
   const [genres, setGenres] = useState<string[]>([]);
   const [portfolio, setPortfolio] = useState("");
   const [motivation, setMotivation] = useState("");
-  const [honeypot, setHoneypot] = useState("");
-  const [loadedAt] = useState(() => Date.now());
-  const [cooldown, setCooldown] = useState(() => getRemainingCooldownSeconds());
+  const { honeypot, setHoneypot, cooldown, checkSubmissionGuard, markSubmitted } =
+    useSubmissionCooldown();
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
-
-  useEffect(() => {
-    if (cooldown <= 0) return;
-    const timer = setInterval(() => {
-      setCooldown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [cooldown]);
 
   const GENRE_OPTIONS = [
     "プログラミング・Web開発",
@@ -82,27 +64,20 @@ export const WriterApplyView = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (cooldown > 0) {
-      setError(`連続送信を防ぐため、あと${cooldown}秒お待ちください。`);
+    const guard = checkSubmissionGuard();
+    if (!guard.ok) {
+      if (guard.stealthSuccess) {
+        // ステルス防御: ボットには成功画面を表示し、サーバーへは保存しない
+        setSubmitted(true);
+      } else if (guard.errorMessage) {
+        setError(guard.errorMessage);
+      }
       return;
     }
 
     if (!name.trim() || !email.trim() || !motivation.trim()) {
       setError("お名前、メールアドレス、志望動機・メッセージは必須です。");
       return;
-    }
-
-    const spamCheck = verifySpamCheck({ honeypotValue: honeypot, loadedAt });
-    if (spamCheck.isSpam) {
-      if (spamCheck.reason === "honeypot") {
-        // ステルス防御: ボットには成功画面を表示し、サーバーへは保存しない
-        setSubmitted(true);
-        return;
-      }
-      if (spamCheck.reason === "too_fast") {
-        setError("送信が早すぎます。入力内容をご確認のうえ再度お試しください。");
-        return;
-      }
     }
 
     const subject = `【ライター応募】${name.trim()}様より`;
@@ -152,8 +127,7 @@ export const WriterApplyView = () => {
         return;
       }
 
-      recordSubmissionTimestamp();
-      setCooldown(getRemainingCooldownSeconds());
+      markSubmitted();
 
       // 2. send-contact-email Edge Function で運営者にメール通知
       try {
@@ -295,26 +269,7 @@ export const WriterApplyView = () => {
             className="md:col-span-7 bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-700 space-y-5"
           >
             {/* Honeypot field (hidden from real users, attractive to bots) */}
-            <div
-              style={{
-                position: "absolute",
-                left: "-9999px",
-                opacity: 0,
-                pointerEvents: "none",
-              }}
-              aria-hidden="true"
-            >
-              <label htmlFor="_website_hp">Leave this field empty</label>
-              <input
-                id="_website_hp"
-                type="text"
-                name="_hp"
-                tabIndex={-1}
-                autoComplete="off"
-                value={honeypot}
-                onChange={(e) => setHoneypot(e.target.value)}
-              />
-            </div>
+            <HoneypotField value={honeypot} onChange={setHoneypot} />
 
             {error && (
               <div

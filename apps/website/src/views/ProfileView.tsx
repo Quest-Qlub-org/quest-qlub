@@ -24,12 +24,11 @@ import { normalizeHandle, normalizeXAccount } from "../utils/validation";
 
 export const ProfileView = () => {
   const { username } = useParams<{ username: string }>();
-  const { writers, writersLoading, articles, navigate, viewParam, showToast, profile, user } =
-    useApp();
+  const { writers, writersLoading, articles, navigate, showToast, profile, user } = useApp();
   const { isFollowing, toggleFollow, isAuthenticated } = useFollows();
 
   const currentUserId = profile?.id || user?.id || null;
-  const targetIdentifier = username || viewParam;
+  const targetIdentifier = username;
   const cleanTarget = (targetIdentifier || "").replace(/^@/, "");
 
   // キャッシュまたは個別フェッチしたライター情報

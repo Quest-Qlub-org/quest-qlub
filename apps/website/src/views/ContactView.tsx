@@ -3,12 +3,9 @@ import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, CheckCircle, Clock, HelpCircle, Mail, Send, Shield } from "lucide-react";
 import { supabase } from "../supabase";
 import { validateContactForm } from "../utils/validation";
-import {
-  verifySpamCheck,
-  getRemainingCooldownSeconds,
-  recordSubmissionTimestamp,
-} from "../utils/antiSpam";
 import { updateMetaTags } from "../utils/seo";
+import { useSubmissionCooldown } from "./shared/useSubmissionCooldown";
+import { HoneypotField } from "./shared/HoneypotField";
 
 export function ContactView() {
   const nav = useNavigate();
@@ -16,9 +13,8 @@ export function ContactView() {
   const [email, setEmail] = useState("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
-  const [honeypot, setHoneypot] = useState("");
-  const [loadedAt] = useState(() => Date.now());
-  const [cooldown, setCooldown] = useState(() => getRemainingCooldownSeconds());
+  const { honeypot, setHoneypot, cooldown, checkSubmissionGuard, markSubmitted } =
+    useSubmissionCooldown();
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [err, setErr] = useState("");
@@ -31,37 +27,16 @@ export function ContactView() {
     });
   }, []);
 
-  useEffect(() => {
-    if (cooldown <= 0) return;
-    const timer = setInterval(() => {
-      setCooldown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [cooldown]);
-
   const handleSend = async () => {
-    if (cooldown > 0) {
-      setErr(`連続送信を防ぐため、あと${cooldown}秒お待ちください。`);
-      return;
-    }
-
-    const spamCheck = verifySpamCheck({ honeypotValue: honeypot, loadedAt });
-    if (spamCheck.isSpam) {
-      if (spamCheck.reason === "honeypot") {
+    const guard = checkSubmissionGuard();
+    if (!guard.ok) {
+      if (guard.stealthSuccess) {
         // ステルス防御: ボットには成功画面を表示し、サーバーへは保存しない
         setSent(true);
-        return;
+      } else if (guard.errorMessage) {
+        setErr(guard.errorMessage);
       }
-      if (spamCheck.reason === "too_fast") {
-        setErr("送信が早すぎます。入力内容をご確認のうえ再度お試しください。");
-        return;
-      }
+      return;
     }
 
     const validation = validateContactForm({ name, email, subject, body });
@@ -108,8 +83,7 @@ export function ContactView() {
       console.warn("send-contact-email invocation failed:", fnErr);
     }
 
-    recordSubmissionTimestamp();
-    setCooldown(getRemainingCooldownSeconds());
+    markSubmitted();
     setSending(false);
     setSent(true);
   };
@@ -323,30 +297,7 @@ export function ContactView() {
             </div>
 
             {/* ボット対策用ハニーポットフィールド（人間には不可視） */}
-            <div
-              style={{
-                opacity: 0,
-                position: "absolute",
-                top: 0,
-                left: "-9999px",
-                height: 0,
-                width: 0,
-                overflow: "hidden",
-                zIndex: -1,
-              }}
-              aria-hidden="true"
-            >
-              <label htmlFor="_website_hp">ウェブサイト</label>
-              <input
-                id="_website_hp"
-                type="text"
-                name="_hp"
-                tabIndex={-1}
-                autoComplete="off"
-                value={honeypot}
-                onChange={(e) => setHoneypot(e.target.value)}
-              />
-            </div>
+            <HoneypotField value={honeypot} onChange={setHoneypot} label="ウェブサイト" />
 
             <button
               type="submit"
