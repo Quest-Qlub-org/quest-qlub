@@ -1,4 +1,18 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vite-plus/test";
+import {
+  SUPABASE_FETCH_TIMEOUT_MS,
+  buildPublishedOrDueFilter,
+  escapeHtml,
+  escapeXml,
+  fetchWithTimeout,
+  getSiteUrl,
+  getSupabaseConfig,
+  isBotUserAgent,
+  isSafeImageUrl,
+  isUndefinedColumnResponse,
+  renderOgpHtml,
+  sendOgpHtmlResponse,
+} from "../../api/_shared";
 import sitemapHandler from "../../api/sitemap";
 import articleOgpHandler, { BOT_USER_AGENTS } from "../../api/article-ogp";
 import writerOgpHandler, { BOT_USER_AGENTS as WRITER_BOT_USER_AGENTS } from "../../api/writer-ogp";
@@ -119,7 +133,7 @@ describe("api/article-ogp", () => {
     expect(res.redirectUrl).toBe("https://quest-qlub.vercel.app/articles/article-123?direct=1");
   });
 
-  it("renders OGP HTML for bot crawlers like LINE or Twitter without refresh tag and with direct fallback link", async () => {
+  it("renders CSP-safe OGP HTML for bot crawlers with meta refresh and direct fallback link without inline script (#143)", async () => {
     const req: any = {
       query: { id: "article-123" },
       headers: {
@@ -148,6 +162,7 @@ describe("api/article-ogp", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.headers["content-type"]).toBe("text/html; charset=utf-8");
+    expect(res.headers["vary"]).toBe("User-Agent");
     expect(res.headers["cache-control"]).toBe(
       "public, s-maxage=3600, stale-while-revalidate=86400",
     );
@@ -158,14 +173,14 @@ describe("api/article-ogp", () => {
     expect(res.body).toContain(
       '<meta property="og:image" content="https://example.com/line-thumb.png">',
     );
-    expect(res.body).not.toContain('http-equiv="refresh"');
-    // Human fallback direct link and script
+    expect(res.body).toContain(
+      '<meta http-equiv="refresh" content="0;url=https://quest-qlub.vercel.app/articles/article-123?direct=1">',
+    );
+    // Human fallback direct link without inline script (CSP script-src 'self' compatible)
     expect(res.body).toContain(
       'href="https://quest-qlub.vercel.app/articles/article-123?direct=1"',
     );
-    expect(res.body).toContain(
-      'window.location.replace("https://quest-qlub.vercel.app/articles/article-123?direct=1")',
-    );
+    expect(res.body).not.toMatch(/<script\b/i);
   });
 
   it("normalizes SITE_URL with trailing slash in OGP output", async () => {
@@ -966,5 +981,556 @@ describe("vercel.json routing config", () => {
         value: "^quest-qlub\\.vercel\\.app$",
       },
     ]);
+  });
+
+  it("enforces CSP script-src 'self' without unsafe-inline and OGP HTML stays CSP-compliant (#143)", async () => {
+    const globalSecurityRule = vercelConfig.headers.find(
+      (rule: any) =>
+        rule.source === "/(.*)" &&
+        !rule.missing &&
+        Array.isArray(rule.headers) &&
+        rule.headers.some((h: any) => h.key === "Content-Security-Policy"),
+    );
+    const cspHeader = globalSecurityRule?.headers?.find(
+      (h: any) => h.key === "Content-Security-Policy",
+    )?.value;
+
+    expect(cspHeader).toBeDefined();
+    expect(cspHeader).toContain("script-src 'self'");
+    const scriptSrcDirective = cspHeader
+      ?.split(";")
+      .map((s: string) => s.trim())
+      .find((s: string) => s.startsWith("script-src"));
+    expect(scriptSrcDirective).toBe("script-src 'self'");
+    expect(scriptSrcDirective).not.toContain("'unsafe-inline'");
+
+    const originalEnv = process.env;
+    process.env = {
+      ...originalEnv,
+      SUPABASE_URL: "https://mock.supabase.co",
+      SUPABASE_ANON_KEY: "mock-key",
+      SITE_URL: "https://quest-qlub.vercel.app",
+    };
+
+    try {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({
+          ok: true,
+          json: async () => [],
+        }),
+      );
+
+      for (const [handler, query] of [
+        [articleOgpHandler, { id: "missing-article" }],
+        [writerOgpHandler, { username: "missing-writer" }],
+      ] as const) {
+        const res = createMockRes();
+        await handler({ query: { ...query }, headers: { "user-agent": "twitterbot/1.0" } }, res);
+        expect(res.body).not.toMatch(/<script\b/i);
+        expect(res.body).not.toMatch(/\son[a-z]+\s*=/i);
+        expect(res.body).toContain('<meta http-equiv="refresh"');
+      }
+    } finally {
+      process.env = originalEnv;
+      vi.restoreAllMocks();
+    }
+  });
+});
+
+describe("api/_shared utilities (#143)", () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    process.env = { ...originalEnv };
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it("normalizes SITE_URL and Supabase config from env variables with fallbacks", () => {
+    delete process.env.SITE_URL;
+    delete process.env.VITE_SITE_URL;
+    expect(getSiteUrl()).toBe("https://quest-qlub.vercel.app");
+
+    process.env.VITE_SITE_URL = "https://preview.example.com///";
+    expect(getSiteUrl()).toBe("https://preview.example.com");
+
+    process.env.SITE_URL = "https://custom.example.com/";
+    expect(getSiteUrl()).toBe("https://custom.example.com");
+
+    delete process.env.SUPABASE_URL;
+    delete process.env.SUPABASE_ANON_KEY;
+    process.env.VITE_SUPABASE_URL = "https://vite.supabase.co/";
+    process.env.VITE_SUPABASE_ANON_KEY = "vite-anon";
+    expect(getSupabaseConfig()).toEqual({
+      url: "https://vite.supabase.co",
+      key: "vite-anon",
+    });
+
+    process.env.SUPABASE_URL = "https://srv.supabase.co/";
+    process.env.SUPABASE_ANON_KEY = "srv-anon";
+    expect(getSupabaseConfig()).toEqual({
+      url: "https://srv.supabase.co",
+      key: "srv-anon",
+    });
+  });
+
+  it("escapes HTML and XML special characters", () => {
+    expect(escapeHtml(`<a title="x" data-x='y'>&</a>`)).toBe(
+      "&lt;a title=&quot;x&quot; data-x=&#39;y&#39;&gt;&amp;&lt;/a&gt;",
+    );
+    expect(escapeXml(`<url attr="a" single='b'>&</url>`)).toBe(
+      "&lt;url attr=&quot;a&quot; single=&apos;b&apos;&gt;&amp;&lt;/url&gt;",
+    );
+  });
+
+  it("validates safe image URLs and rejects unsafe schemes, protocol-relative URLs, and newlines", () => {
+    expect(isSafeImageUrl("https://cdn.example.com/a.png")).toBe(true);
+    expect(isSafeImageUrl("http://cdn.example.com/a.png")).toBe(true);
+    expect(isSafeImageUrl("/ogp.png")).toBe(true);
+    expect(isSafeImageUrl("  /images/cover.webp  ")).toBe(true);
+
+    expect(isSafeImageUrl(null)).toBe(false);
+    expect(isSafeImageUrl("")).toBe(false);
+    expect(isSafeImageUrl("   ")).toBe(false);
+    expect(isSafeImageUrl("//evil.example.com/x.png")).toBe(false);
+    expect(isSafeImageUrl("javascript:alert(1)")).toBe(false);
+    expect(isSafeImageUrl("data:image/svg+xml,<svg/>")).toBe(false);
+    expect(isSafeImageUrl("/ogp.png\nInjected: header")).toBe(false);
+  });
+
+  it("detects bot user agents case-insensitively without matching LINE WebView", () => {
+    expect(isBotUserAgent("Twitterbot/1.0")).toBe(true);
+    expect(isBotUserAgent("Line-Poker/1.0")).toBe(true);
+    expect(isBotUserAgent("Mozilla/5.0 ... Safari Line/14.1.0")).toBe(false);
+    expect(isBotUserAgent("Googlebot/2.1")).toBe(false);
+  });
+
+  it("builds PostgREST published-or-due filter with URI-encoded timestamp", () => {
+    expect(buildPublishedOrDueFilter("2026-11-16T10:00:00.000Z")).toBe(
+      "or=(status.eq.published,and(status.eq.scheduled,scheduled_at.lte.2026-11-16T10%3A00%3A00.000Z))",
+    );
+  });
+
+  it("identifies only HTTP 400 PostgREST undefined-column (42703) responses (#143)", async () => {
+    expect(await isUndefinedColumnResponse({ ok: true, status: 200 })).toBe(false);
+    expect(
+      await isUndefinedColumnResponse({
+        ok: false,
+        status: 500,
+        json: async () => ({ code: "42703", message: "column x does not exist" }),
+      }),
+    ).toBe(false);
+    expect(
+      await isUndefinedColumnResponse({
+        ok: false,
+        status: 429,
+        json: async () => ({ message: "Too many requests" }),
+      }),
+    ).toBe(false);
+    expect(
+      await isUndefinedColumnResponse({
+        ok: false,
+        status: 400,
+        json: async () => ({ code: "22P02", message: "invalid input syntax for type uuid" }),
+      }),
+    ).toBe(false);
+    expect(
+      await isUndefinedColumnResponse({
+        ok: false,
+        status: 400,
+        json: async () => {
+          throw new Error("Invalid JSON");
+        },
+      }),
+    ).toBe(false);
+    expect(
+      await isUndefinedColumnResponse({
+        ok: false,
+        status: 400,
+        json: async () => ({
+          code: "42703",
+          message: "column articles.scheduled_at does not exist",
+        }),
+      }),
+    ).toBe(true);
+    expect(
+      await isUndefinedColumnResponse({
+        ok: false,
+        status: 400,
+        json: async () => ({ message: "column profiles.roles does not exist" }),
+      }),
+    ).toBe(true);
+  });
+
+  it("attaches an AbortSignal timeout in fetchWithTimeout and respects caller-supplied signal (#143)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchWithTimeout("https://mock.supabase.co/rest/v1/articles", {
+      headers: { apikey: "k" },
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+    expect(init.headers).toEqual({ apikey: "k" });
+    expect(SUPABASE_FETCH_TIMEOUT_MS).toBe(5000);
+
+    const customController = new AbortController();
+    await fetchWithTimeout("https://mock.supabase.co/rest/v1/articles", {
+      signal: customController.signal,
+    });
+    expect(fetchMock.mock.calls[1][1].signal).toBe(customController.signal);
+  });
+
+  it("renders escaped CSP-safe OGP HTML and sends response with Vary: User-Agent (#143)", () => {
+    const html = renderOgpHtml({
+      title: 'Title <script>"xss"</script>',
+      description: "Desc & 'quote'",
+      ogType: "article",
+      twitterCard: "summary_large_image",
+      canonicalUrl: "https://quest-qlub.vercel.app/articles/a1",
+      directUrl: "https://quest-qlub.vercel.app/articles/a1?direct=1",
+      imageUrl: "https://quest-qlub.vercel.app/ogp.png",
+      found: true,
+      fallbackLinkLabel: "記事を読む",
+    });
+
+    expect(html).not.toMatch(/<script\b/i);
+    expect(html).toContain("&lt;script&gt;&quot;xss&quot;&lt;/script&gt;");
+    expect(html).toContain("Desc &amp; &#39;quote&#39;");
+    expect(html).toContain(
+      '<meta http-equiv="refresh" content="0;url=https://quest-qlub.vercel.app/articles/a1?direct=1">',
+    );
+
+    const resOk = createMockRes();
+    sendOgpHtmlResponse(resOk, html, true);
+    expect(resOk.statusCode).toBe(200);
+    expect(resOk.headers["vary"]).toBe("User-Agent");
+    expect(resOk.headers["cache-control"]).toBe(
+      "public, s-maxage=3600, stale-while-revalidate=86400",
+    );
+
+    const res404 = createMockRes();
+    sendOgpHtmlResponse(res404, html, false);
+    expect(res404.statusCode).toBe(404);
+    expect(res404.headers["vary"]).toBe("User-Agent");
+    expect(res404.headers["cache-control"]).toBe("no-cache, no-store, must-revalidate");
+  });
+});
+
+describe("api/article-ogp #143 hardening", () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    process.env = {
+      ...originalEnv,
+      SUPABASE_URL: "https://mock.supabase.co",
+      SUPABASE_ANON_KEY: "mock-key",
+      SITE_URL: "https://quest-qlub.vercel.app",
+    };
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it("sets Vary: User-Agent on 302 redirect and 404 bot responses (#143)", async () => {
+    const browserRes = createMockRes();
+    await articleOgpHandler(
+      {
+        query: { id: "article-1" },
+        headers: { "user-agent": "Mozilla/5.0 Chrome/120.0" },
+      },
+      browserRes,
+    );
+    expect(browserRes.statusCode).toBe(302);
+    expect(browserRes.headers["vary"]).toBe("User-Agent");
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => [],
+      }),
+    );
+
+    const bot404Res = createMockRes();
+    await articleOgpHandler(
+      {
+        query: { id: "missing" },
+        headers: { "user-agent": "twitterbot/1.0" },
+      },
+      bot404Res,
+    );
+    expect(bot404Res.statusCode).toBe(404);
+    expect(bot404Res.headers["vary"]).toBe("User-Agent");
+    expect(bot404Res.body).not.toMatch(/<script\b/i);
+  });
+
+  it("does NOT retry schema fallback on 5xx, 429, or non-42703 400 errors and passes AbortSignal (#143)", async () => {
+    for (const errorResponse of [
+      { ok: false, status: 500, json: async () => ({ message: "Internal error" }) },
+      { ok: false, status: 429, json: async () => ({ message: "Rate limit exceeded" }) },
+      { ok: false, status: 400, json: async () => ({ code: "22P02", message: "bad syntax" }) },
+    ]) {
+      const fetchMock = vi.fn().mockResolvedValue(errorResponse);
+      vi.stubGlobal("fetch", fetchMock);
+
+      const res = createMockRes();
+      await articleOgpHandler(
+        {
+          query: { id: "article-err" },
+          headers: { "user-agent": "twitterbot/1.0" },
+        },
+        res,
+      );
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock.mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal);
+      expect(res.statusCode).toBe(404);
+      expect(res.headers["cache-control"]).toBe("no-cache, no-store, must-revalidate");
+      expect(res.body).toContain('<meta name="robots" content="noindex">');
+    }
+  });
+
+  it("handles fetch timeout/rejection gracefully and escapes XSS in article fields (#143)", async () => {
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new DOMException("Timed out", "TimeoutError")),
+    );
+
+    const timeoutRes = createMockRes();
+    await articleOgpHandler(
+      {
+        query: { id: "article-timeout" },
+        headers: { "user-agent": "twitterbot/1.0" },
+      },
+      timeoutRes,
+    );
+
+    expect(timeoutRes.statusCode).toBe(404);
+    expect(consoleSpy).toHaveBeenCalled();
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => [
+          {
+            title: 'Quest Qlub <script>alert("x")</script>',
+            summary: 'Summary "quoted" & <b>bold</b>',
+            thumbnail_url: "/covers/1.png",
+          },
+        ],
+      }),
+    );
+
+    const xssRes = createMockRes();
+    await articleOgpHandler(
+      {
+        query: { id: "article-xss" },
+        headers: { "user-agent": "discordbot/2.0" },
+      },
+      xssRes,
+    );
+
+    expect(xssRes.statusCode).toBe(200);
+    expect(xssRes.body).toContain(
+      "<title>Quest Qlub &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;</title>",
+    );
+    expect(xssRes.body).not.toContain("Quest Qlub | Quest Qlub");
+    expect(xssRes.body).toContain(
+      '<meta property="og:image" content="https://quest-qlub.vercel.app/covers/1.png">',
+    );
+  });
+
+  it("redirects invalid article IDs (path traversal / CRLF) to site root", async () => {
+    const res = createMockRes();
+    await articleOgpHandler(
+      {
+        query: { id: "../secret" },
+        headers: { "user-agent": "twitterbot/1.0" },
+      },
+      res,
+    );
+    expect(res.statusCode).toBe(302);
+    expect(res.redirectUrl).toBe("https://quest-qlub.vercel.app");
+  });
+});
+
+describe("api/writer-ogp #143 hardening", () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    process.env = {
+      ...originalEnv,
+      SUPABASE_URL: "https://mock.supabase.co",
+      SUPABASE_ANON_KEY: "mock-key",
+      SITE_URL: "https://quest-qlub.vercel.app",
+    };
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it("sets Vary: User-Agent on 302 redirect and 200/404 bot responses without inline script (#143)", async () => {
+    const browserRes = createMockRes();
+    await writerOgpHandler(
+      {
+        query: { username: "alice" },
+        headers: { "user-agent": "Mozilla/5.0 Chrome/120.0" },
+      },
+      browserRes,
+    );
+    expect(browserRes.statusCode).toBe(302);
+    expect(browserRes.headers["vary"]).toBe("User-Agent");
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [
+        {
+          display_name: "",
+          username: "alice",
+          bio: "",
+          avatar_url: null,
+        },
+      ],
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const bot200Res = createMockRes();
+    await writerOgpHandler(
+      {
+        query: { username: "alice" },
+        headers: { "user-agent": "slackbot-linkexpanding/1.0" },
+      },
+      bot200Res,
+    );
+
+    expect(fetchMock.mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal);
+    expect(bot200Res.statusCode).toBe(200);
+    expect(bot200Res.headers["vary"]).toBe("User-Agent");
+    expect(bot200Res.body).toContain("<title>@aliceのプロフィール | Quest Qlub</title>");
+    expect(bot200Res.body).toContain('<meta name="twitter:card" content="summary_large_image">');
+    expect(bot200Res.body).toContain(
+      '<meta http-equiv="refresh" content="0;url=https://quest-qlub.vercel.app/writers/alice?direct=1">',
+    );
+    expect(bot200Res.body).toContain(
+      '<a href="https://quest-qlub.vercel.app/writers/alice?direct=1">プロフィールを見る</a>',
+    );
+    expect(bot200Res.body).not.toMatch(/<script\b/i);
+  });
+
+  it("supports UUID writer identifiers and handles fetch errors gracefully with Vary header (#143)", async () => {
+    const uuid = "123e4567-e89b-12d3-a456-426614174000";
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => ({ message: "DB error" }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = createMockRes();
+    await writerOgpHandler(
+      {
+        query: { username: uuid },
+        headers: { "user-agent": "twitterbot/1.0" },
+      },
+      res,
+    );
+
+    expect(fetchMock.mock.calls[0][0]).toContain(`id=eq.${uuid}`);
+    expect(res.statusCode).toBe(404);
+    expect(res.headers["vary"]).toBe("User-Agent");
+    expect(res.headers["cache-control"]).toBe("no-cache, no-store, must-revalidate");
+  });
+});
+
+describe("api/sitemap #143 hardening", () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    process.env = {
+      ...originalEnv,
+      SUPABASE_URL: "https://mock.supabase.co",
+      SUPABASE_ANON_KEY: "mock-key",
+      SITE_URL: "https://quest-qlub.vercel.app",
+    };
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it("does NOT trigger schema fallbacks on 500/429/non-42703 errors and passes AbortSignal (#143)", async () => {
+    for (const errorResponse of [
+      { ok: false, status: 500, json: async () => ({ message: "Server error" }) },
+      { ok: false, status: 429, json: async () => ({ message: "Too many requests" }) },
+      { ok: false, status: 400, json: async () => ({ code: "42501", message: "forbidden" }) },
+    ]) {
+      const fetchMock = vi.fn().mockResolvedValue(errorResponse);
+      vi.stubGlobal("fetch", fetchMock);
+
+      const res = createMockRes();
+      await sitemapHandler({ query: {}, headers: {} }, res);
+
+      // Exactly 1 fetch for articles + 1 fetch for profiles (no fallback retries)
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock.mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal);
+      expect(fetchMock.mock.calls[1][1]?.signal).toBeInstanceOf(AbortSignal);
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toContain("<loc>https://quest-qlub.vercel.app/</loc>");
+    }
+  });
+
+  it("supports legacy article fallback when both scheduled_at and updated_at are missing (42703)", async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.includes("/rest/v1/articles?") && url.includes("scheduled_at")) {
+        return Promise.resolve({
+          ok: false,
+          status: 400,
+          json: async () => ({
+            code: "42703",
+            message: "column articles.scheduled_at does not exist",
+          }),
+        });
+      }
+      if (url.includes("/rest/v1/articles?") && url.includes("updated_at")) {
+        return Promise.resolve({
+          ok: false,
+          status: 400,
+          json: async () => ({
+            code: "42703",
+            message: "column articles.updated_at does not exist",
+          }),
+        });
+      }
+      if (url.includes("/rest/v1/articles?")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => [{ id: "legacy-only", created_at: "2026-10-01T00:00:00Z" }],
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => [] });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = createMockRes();
+    await sitemapHandler({ query: {}, headers: {} }, res);
+
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain("<loc>https://quest-qlub.vercel.app/articles/legacy-only</loc>");
+    expect(res.body).toContain("<lastmod>2026-10-01</lastmod>");
   });
 });

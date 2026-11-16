@@ -1,10 +1,12 @@
 import {
   BOT_USER_AGENTS,
-  escapeHtml,
+  fetchWithTimeout,
   getSiteUrl,
   getSupabaseConfig,
   isBotUserAgent,
   isSafeImageUrl,
+  renderOgpHtml,
+  sendOgpHtmlResponse,
   type VercelRequest,
   type VercelResponse,
 } from "./_shared";
@@ -39,6 +41,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const writerUrl = `${siteUrl}/writers/${encodedTarget}`;
   const directWriterUrl = `${writerUrl}?direct=1`;
 
+  res.setHeader("Vary", "User-Agent");
+
   if (directParam || !isBotUserAgent(userAgent)) {
     return res.redirect(302, directWriterUrl);
   }
@@ -58,7 +62,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ? `id=eq.${encodedTarget}`
         : `or=(username.eq.${encodedTarget},username.eq.${encodedAtTarget})`;
 
-      const response = await fetch(
+      const response = await fetchWithTimeout(
         `${supabaseUrl}/rest/v1/profiles?${filter}&select=display_name,username,bio,avatar_url&limit=1`,
         {
           headers: {
@@ -93,49 +97,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  const robotsOrCanonicalTag = profileFound
-    ? `<link rel="canonical" href="${escapeHtml(writerUrl)}">`
-    : `<meta name="robots" content="noindex">`;
+  const html = renderOgpHtml({
+    title,
+    description,
+    ogType: "profile",
+    twitterCard,
+    canonicalUrl: writerUrl,
+    directUrl: directWriterUrl,
+    imageUrl,
+    found: profileFound,
+    fallbackLinkLabel: "プロフィールを見る",
+  });
 
-  const html = `<!DOCTYPE html>
-<html lang="ja">
-<head>
-  <meta charset="UTF-8">
-  <title>${escapeHtml(title)}</title>
-  <meta name="description" content="${escapeHtml(description)}">
-  ${robotsOrCanonicalTag}
-
-  <!-- Open Graph -->
-  <meta property="og:type" content="profile">
-  <meta property="og:title" content="${escapeHtml(title)}">
-  <meta property="og:description" content="${escapeHtml(description)}">
-  <meta property="og:url" content="${escapeHtml(writerUrl)}">
-  <meta property="og:image" content="${escapeHtml(imageUrl)}">
-  <meta property="og:site_name" content="Quest Qlub">
-
-  <!-- Twitter Card -->
-  <meta name="twitter:card" content="${twitterCard}">
-  <meta name="twitter:title" content="${escapeHtml(title)}">
-  <meta name="twitter:description" content="${escapeHtml(description)}">
-  <meta name="twitter:image" content="${escapeHtml(imageUrl)}">
-</head>
-<body>
-  <h1>${escapeHtml(title)}</h1>
-  <p>${escapeHtml(description)}</p>
-  <a href="${escapeHtml(directWriterUrl)}">プロフィールを見る</a>
-  <script>
-    if (typeof window !== "undefined" && !/(bot|spider|crawl|poker)/i.test(navigator.userAgent)) {
-      window.location.replace("${escapeHtml(directWriterUrl)}");
-    }
-  </script>
-</body>
-</html>`;
-
-  res.setHeader("Content-Type", "text/html; charset=utf-8");
-  if (profileFound) {
-    res.setHeader("Cache-Control", "public, s-maxage=3600, stale-while-revalidate=86400");
-    return res.status(200).send(html);
-  }
-  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-  return res.status(404).send(html);
+  return sendOgpHtmlResponse(res, html, profileFound);
 }

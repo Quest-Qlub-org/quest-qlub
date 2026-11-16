@@ -1,8 +1,10 @@
 import {
   buildPublishedOrDueFilter,
   escapeXml,
+  fetchWithTimeout,
   getSiteUrl,
   getSupabaseConfig,
+  isUndefinedColumnResponse,
   type VercelRequest,
   type VercelResponse,
 } from "./_shared";
@@ -85,22 +87,22 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
         Authorization: `Bearer ${supabaseAnonKey}`,
       };
       const publishedOrDueFilter = buildPublishedOrDueFilter(nowIso);
-      let articlesRes = await fetch(
+      let articlesRes = await fetchWithTimeout(
         `${supabaseUrl}/rest/v1/articles?${publishedOrDueFilter}&select=id,created_at,scheduled_at,updated_at&order=created_at.desc&limit=5000`,
         { headers: articleHeaders },
       );
 
-      // スキーマドリフト耐性: scheduled_at カラム未適用環境 (400 Bad Request / 42703) でも updated_at を維持してフォールバック
-      if (!articlesRes.ok) {
-        articlesRes = await fetch(
+      // スキーマドリフト耐性: scheduled_at カラム未適用環境 (HTTP 400 / 42703) でも updated_at を維持してフォールバック
+      if (await isUndefinedColumnResponse(articlesRes)) {
+        articlesRes = await fetchWithTimeout(
           `${supabaseUrl}/rest/v1/articles?status=eq.published&select=id,created_at,updated_at&order=created_at.desc&limit=5000`,
           { headers: articleHeaders },
         );
       }
 
       // さらにレガシーな環境（updated_at も未存在）へのフォールバック
-      if (!articlesRes.ok) {
-        articlesRes = await fetch(
+      if (await isUndefinedColumnResponse(articlesRes)) {
+        articlesRes = await fetchWithTimeout(
           `${supabaseUrl}/rest/v1/articles?status=eq.published&select=id,created_at&order=created_at.desc&limit=5000`,
           { headers: articleHeaders },
         );
@@ -132,14 +134,14 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
         apikey: supabaseAnonKey,
         Authorization: `Bearer ${supabaseAnonKey}`,
       };
-      let writersRes = await fetch(
+      let writersRes = await fetchWithTimeout(
         `${supabaseUrl}/rest/v1/profiles?or=(role.in.(writer,editor),roles.cs.%7Bwriter%7D,roles.cs.%7Beditor%7D)&username=not.is.null&select=username,created_at,role,roles&order=created_at.desc&limit=5000`,
         { headers: profileHeaders },
       );
 
-      // スキーマドリフト耐性: roles カラム未適用環境 (400 Bad Request / 42703) の自動フォールバック
-      if (!writersRes.ok) {
-        writersRes = await fetch(
+      // スキーマドリフト耐性: roles カラム未適用環境 (HTTP 400 / 42703) のみに限定して自動フォールバック
+      if (await isUndefinedColumnResponse(writersRes)) {
+        writersRes = await fetchWithTimeout(
           `${supabaseUrl}/rest/v1/profiles?role=in.(writer,editor)&username=not.is.null&select=username,created_at,role&order=created_at.desc&limit=5000`,
           { headers: profileHeaders },
         );
