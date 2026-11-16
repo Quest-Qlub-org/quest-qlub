@@ -2,20 +2,22 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useApp } from "../../context/AppContext";
 import { supabase } from "../../supabase";
 import { LogoIcon } from "../../components/icons/NavIcons";
-import { getThumbnailColor, ARTICLE_STATUS_CONFIG, mapDbArticleToArticle } from "../../types";
-import type { Article, ArticleStatus } from "../../types";
+import { getThumbnailColor, mapDbArticleToArticle } from "../../types";
+import type { Article } from "../../types";
 import { ARTICLE_LIST_FIELDS, WRITER_ARTICLE_LIST_FIELDS } from "../../context/DataContext";
-import { sanitizeHtml } from "../../utils/sanitize";
 import {
   formatScheduledDateTime,
   enrichArticleWithSchedule,
   setLocalScheduledAt,
 } from "../../utils/scheduledArticles";
-import { ChevronLeft, Plus, Edit3, Loader2, Eye, X, Clock, RotateCcw } from "lucide-react";
+import { ChevronLeft, Plus, Edit3, Loader2, Eye, Clock, RotateCcw } from "lucide-react";
 import { updateMetaTags } from "../../utils/seo";
 import { profileHasRole } from "../../utils/roles";
-import { isArticleOptionalColumnSchemaError } from "../../utils/supabaseErrors";
-import { useFocusTrap } from "../../hooks/useFocusTrap";
+import {
+  ArticleStatusBadge,
+  DashboardArticlePreviewModal,
+} from "./components/DashboardArticlePreviewModal";
+import { fetchArticlePreviewDetails, updateArticleStatusSafe } from "./utils/articleStatusHelpers";
 
 export const WriterDashboard = () => {
   const {
@@ -37,7 +39,6 @@ export const WriterDashboard = () => {
   articlesRef.current = articles;
 
   const closePreviewModal = useCallback(() => setPreviewArticle(null), []);
-  const previewModalRef = useFocusTrap<HTMLDivElement>(Boolean(previewArticle), closePreviewModal);
 
   useEffect(() => {
     updateMetaTags({
@@ -126,27 +127,10 @@ export const WriterDashboard = () => {
     if (!article.content) {
       setPreviewLoading(true);
       try {
-        const query = supabase.from("articles").select("*");
-        if (query && typeof (query as { eq?: unknown }).eq === "function") {
-          const eqQuery = query.eq("id", article.id);
-          if (eqQuery && typeof (eqQuery as { maybeSingle?: unknown }).maybeSingle === "function") {
-            const { data, error } = await eqQuery.maybeSingle();
-            if (!error && data) {
-              const row = data as Record<string, unknown>;
-              setPreviewArticle((prev) =>
-                prev
-                  ? enrichArticleWithSchedule({
-                      ...prev,
-                      content: typeof row.content === "string" ? row.content : prev.content,
-                      summary: typeof row.summary === "string" ? row.summary : prev.summary,
-                    })
-                  : null,
-              );
-            }
-          }
+        const detailed = await fetchArticlePreviewDetails(article, "*");
+        if (detailed) {
+          setPreviewArticle((prev) => (prev && prev.id === article.id ? detailed : prev));
         }
-      } catch {
-        // fallback to existing fields
       } finally {
         setPreviewLoading(false);
       }
@@ -175,17 +159,10 @@ export const WriterDashboard = () => {
   };
 
   const revertToDraft = async (article: Article, successMessage: string) => {
-    let { error } = await supabase
-      .from("articles")
-      .update({ status: "draft", scheduled_at: null })
-      .eq("id", article.id);
-    if (error && isArticleOptionalColumnSchemaError(error)) {
-      const retry = await supabase
-        .from("articles")
-        .update({ status: "draft" })
-        .eq("id", article.id);
-      error = retry.error;
-    }
+    const { error } = await updateArticleStatusSafe(article.id, {
+      status: "draft",
+      scheduled_at: null,
+    });
     if (!error) {
       setLocalScheduledAt(article.id, null);
       setWriterArticles((prev) =>
@@ -234,14 +211,9 @@ export const WriterDashboard = () => {
     }
   };
 
-  const statusLabel = (status: string) => {
-    const config = ARTICLE_STATUS_CONFIG[status as ArticleStatus] ?? ARTICLE_STATUS_CONFIG.draft;
-    return (
-      <span className={`text-xs ${config.badgeClass} px-2 py-1 rounded font-bold shrink-0`}>
-        {config.label}
-      </span>
-    );
-  };
+  const statusLabel = (status: string) => (
+    <ArticleStatusBadge status={status} className="text-xs px-2 py-1 rounded font-bold shrink-0" />
+  );
 
   return (
     <div className="max-w-5xl mx-auto p-4 md:p-6 space-y-6 animate-in slide-in-from-right-8 duration-300">
@@ -395,71 +367,29 @@ export const WriterDashboard = () => {
       </section>
 
       {/* その場で確認できるインラインプレビューモーダル (#54-12) */}
-      {previewArticle && (
-        <div
-          data-testid="writer-inline-preview-modal"
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4"
-          onClick={closePreviewModal}
-        >
-          <div
-            ref={previewModalRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="writer-preview-modal-title"
-            className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-2xl max-h-[88vh] flex flex-col overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80">
-              <div className="flex items-center gap-2 min-w-0">
-                {statusLabel(previewArticle.status)}
-                {formatScheduledDateTime(previewArticle.scheduledAt) && (
-                  <span className="text-xs text-purple-700 dark:text-purple-300 font-bold flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5" />
-                    {formatScheduledDateTime(previewArticle.scheduledAt)}
-                  </span>
-                )}
-              </div>
-              <button
-                type="button"
-                aria-label="閉じる"
-                onClick={closePreviewModal}
-                className="p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
-              <h2
-                id="writer-preview-modal-title"
-                className="text-xl font-bold text-gray-900 dark:text-gray-100 break-words"
-              >
-                {previewArticle.title}
-              </h2>
-              {previewArticle.summary && (
-                <div className="bg-blue-50 dark:bg-blue-950/40 p-3 rounded-xl text-sm text-gray-700 dark:text-gray-300 border border-blue-100 dark:border-blue-800/50">
-                  {previewArticle.summary}
-                </div>
+      <DashboardArticlePreviewModal
+        article={previewArticle}
+        loading={previewLoading}
+        onClose={closePreviewModal}
+        getFontSizeClass={getFontSizeClass}
+        testId="writer-inline-preview-modal"
+        titleId="writer-preview-modal-title"
+        headerMeta={
+          previewArticle && (
+            <>
+              {statusLabel(previewArticle.status)}
+              {formatScheduledDateTime(previewArticle.scheduledAt) && (
+                <span className="text-xs text-purple-700 dark:text-purple-300 font-bold flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5" />
+                  {formatScheduledDateTime(previewArticle.scheduledAt)}
+                </span>
               )}
-              <div className="border-t border-gray-100 dark:border-gray-700 pt-4">
-                {previewLoading ? (
-                  <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-8">
-                    本文を読み込み中...
-                  </p>
-                ) : previewArticle.content ? (
-                  <div
-                    className={`article-content ${typeof getFontSizeClass === "function" ? getFontSizeClass() : "text-base"}`}
-                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(previewArticle.content) }}
-                  />
-                ) : (
-                  <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-8">
-                    本文が設定されていません
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div className="p-4 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80 flex flex-wrap items-center justify-end gap-2">
+            </>
+          )
+        }
+        footer={
+          previewArticle && (
+            <div className="flex flex-wrap items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={() => {
@@ -490,9 +420,9 @@ export const WriterDashboard = () => {
                 </button>
               )}
             </div>
-          </div>
-        </div>
-      )}
+          )
+        }
+      />
     </div>
   );
 };

@@ -1,14 +1,12 @@
-import { sanitizeHtml } from "../../utils/sanitize";
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../../supabase";
-import { ChevronLeft, X, MessageSquare, EyeOff, Clock, Check, Loader2 } from "lucide-react";
+import { ChevronLeft, X, MessageSquare, EyeOff, Clock, Check } from "lucide-react";
 import type { Article, ArticleStatus } from "../../types";
-import { mapDbArticleToArticle, ARTICLE_STATUS_CONFIG } from "../../types";
+import { mapDbArticleToArticle } from "../../types";
 import { ARTICLE_LIST_FIELDS } from "../../context/DataContext";
 import {
+  enrichArticleWithSchedule,
   formatScheduledDateTime,
-  getEffectiveArticleStatus,
-  getLocalScheduledAt,
   isArticleScheduledFuture,
   setLocalScheduledAt,
   toDatetimeLocalValue,
@@ -18,20 +16,13 @@ import { useNavigate } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
 import { updateMetaTags } from "../../utils/seo";
 import { isArticleOptionalColumnSchemaError } from "../../utils/supabaseErrors";
-import { useFocusTrap } from "../../hooks/useFocusTrap";
+import {
+  ArticleStatusBadge,
+  DashboardArticlePreviewModal,
+} from "./components/DashboardArticlePreviewModal";
+import { fetchArticlePreviewDetails, updateArticleStatusSafe } from "./utils/articleStatusHelpers";
 
 export const EDITOR_ARTICLE_LIST_FIELDS = `${ARTICLE_LIST_FIELDS}, comments_enabled, scheduled_at, collaborator_ids`;
-
-function enrichEditorArticle(article: Article): Article {
-  const localSched = getLocalScheduledAt(article.id);
-  const scheduledAt = article.scheduledAt ?? localSched ?? null;
-  const effectiveStatus = getEffectiveArticleStatus({ ...article, scheduledAt });
-  return {
-    ...article,
-    scheduledAt,
-    status: effectiveStatus,
-  };
-}
 
 export function EditorArticlesView() {
   const { getFontSizeClass, showToast, setArticles: setGlobalArticles } = useApp();
@@ -43,7 +34,6 @@ export function EditorArticlesView() {
   const nav = useNavigate();
 
   const closePreviewModal = useCallback(() => setPreviewArticle(null), []);
-  const previewModalRef = useFocusTrap<HTMLDivElement>(Boolean(previewArticle), closePreviewModal);
 
   useEffect(() => {
     updateMetaTags({
@@ -69,7 +59,7 @@ export function EditorArticlesView() {
         : primaryRes.data;
 
       if (data) {
-        setArticles(data.map((row) => enrichEditorArticle(mapDbArticleToArticle(row))));
+        setArticles(data.map((row) => enrichArticleWithSchedule(mapDbArticleToArticle(row))));
       }
       setLoading(false);
     };
@@ -83,25 +73,10 @@ export function EditorArticlesView() {
     if (!article.content) {
       setPreviewLoading(true);
       try {
-        const { data, error } = await supabase
-          .from("articles")
-          .select("content, summary")
-          .eq("id", article.id)
-          .maybeSingle();
-        if (!error && data) {
-          const row = data as { content?: string; summary?: string };
-          setPreviewArticle((prev) =>
-            prev && prev.id === article.id
-              ? {
-                  ...prev,
-                  content: typeof row.content === "string" ? row.content : prev.content,
-                  summary: typeof row.summary === "string" ? row.summary : prev.summary,
-                }
-              : prev,
-          );
+        const detailed = await fetchArticlePreviewDetails(article, "content, summary");
+        if (detailed) {
+          setPreviewArticle((prev) => (prev && prev.id === article.id ? detailed : prev));
         }
-      } catch (err) {
-        console.error("プレビュー本文の取得に失敗しました:", err);
       } finally {
         setPreviewLoading(false);
       }
@@ -152,17 +127,10 @@ export function EditorArticlesView() {
         : `「${article.title}」を公開しますか？`;
     if (!confirm(promptMsg)) return;
 
-    let { error } = await supabase
-      .from("articles")
-      .update({ status: nextStatus, scheduled_at: null })
-      .eq("id", article.id);
-    if (error && isArticleOptionalColumnSchemaError(error)) {
-      const retry = await supabase
-        .from("articles")
-        .update({ status: nextStatus })
-        .eq("id", article.id);
-      error = retry.error;
-    }
+    const { error } = await updateArticleStatusSafe(article.id, {
+      status: nextStatus,
+      scheduled_at: null,
+    });
 
     if (!error) {
       setLocalScheduledAt(article.id, null);
@@ -204,14 +172,9 @@ export function EditorArticlesView() {
       ? { status: effectiveStatus, scheduled_at: scheduledIso }
       : { status: effectiveStatus, scheduled_at: null };
 
-    let { error } = await supabase.from("articles").update(updatePayload).eq("id", article.id);
-    if (error && isArticleOptionalColumnSchemaError(error) && !isFuture) {
-      const retry = await supabase
-        .from("articles")
-        .update({ status: effectiveStatus })
-        .eq("id", article.id);
-      error = retry.error;
-    }
+    const { error } = await updateArticleStatusSafe(article.id, updatePayload, {
+      isFutureSchedule: isFuture,
+    });
 
     if (!error) {
       setLocalScheduledAt(article.id, isFuture ? scheduledIso : null);
@@ -245,9 +208,6 @@ export function EditorArticlesView() {
       showToast("ステータス変更に失敗しました");
     }
   };
-
-  const getStatusConfig = (s: string) =>
-    ARTICLE_STATUS_CONFIG[s as ArticleStatus] ?? ARTICLE_STATUS_CONFIG.draft;
 
   return (
     <div className="max-w-5xl mx-auto p-4 md:p-6 space-y-4 animate-in slide-in-from-right-8 duration-300">
@@ -291,11 +251,10 @@ export function EditorArticlesView() {
                         {a.title}
                       </p>
                       <div className="flex items-center gap-2 flex-wrap mt-1">
-                        <span
-                          className={`text-xs font-bold px-2 py-0.5 rounded-full inline-block ${getStatusConfig(a.status).badgeClass}`}
-                        >
-                          {getStatusConfig(a.status).label}
-                        </span>
+                        <ArticleStatusBadge
+                          status={a.status}
+                          className="text-xs font-bold px-2 py-0.5 rounded-full inline-block"
+                        />
                         {schedLabel && (
                           <span className="text-[11px] font-bold text-purple-700 dark:text-purple-300 inline-flex items-center gap-1">
                             <Clock className="w-3 h-3" /> {schedLabel}
@@ -354,56 +313,23 @@ export function EditorArticlesView() {
           )}
         </div>
       )}
-      {previewArticle && (
-        <div
-          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4"
-          onClick={closePreviewModal}
-        >
-          <div
-            ref={previewModalRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="editor-articles-preview-title"
-            className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-gray-700">
-              <div className="flex-1 min-w-0">
-                <p
-                  id="editor-articles-preview-title"
-                  className="font-bold text-gray-900 dark:text-gray-100 text-base truncate"
-                >
-                  {previewArticle.title}
-                </p>
-                <span
-                  className={`text-xs font-bold px-2 py-0.5 rounded-full mt-1 inline-block ${getStatusConfig(previewArticle.status).badgeClass}`}
-                >
-                  {getStatusConfig(previewArticle.status).label}
-                </span>
-              </div>
-              <button
-                type="button"
-                aria-label="閉じる"
-                onClick={closePreviewModal}
-                className="ml-3 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full text-gray-500 dark:text-gray-400"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className={`flex-1 overflow-y-auto p-5 article-content ${getFontSizeClass()}`}>
-              {previewLoading ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="w-6 h-6 animate-spin text-purple-600 dark:text-purple-400" />
-                </div>
-              ) : previewArticle.content ? (
-                <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(previewArticle.content) }} />
-              ) : (
-                <p className="text-gray-500 dark:text-gray-400 text-sm text-center py-8">
-                  本文がありません
-                </p>
-              )}
-            </div>
-            <div className="p-4 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <DashboardArticlePreviewModal
+        article={previewArticle}
+        loading={previewLoading}
+        onClose={closePreviewModal}
+        getFontSizeClass={getFontSizeClass}
+        titleId="editor-articles-preview-title"
+        headerMeta={
+          previewArticle && (
+            <ArticleStatusBadge
+              status={previewArticle.status}
+              className="text-xs font-bold px-2 py-0.5 rounded-full inline-block"
+            />
+          )
+        }
+        footer={
+          previewArticle && (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-2 flex-wrap">
                 <label
                   htmlFor="editor-schedule-datetime-input"
@@ -458,9 +384,9 @@ export function EditorArticlesView() {
                 })()}
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          )
+        }
+      />
     </div>
   );
 }
