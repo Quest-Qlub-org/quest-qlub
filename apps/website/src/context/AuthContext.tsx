@@ -63,6 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [mfaChallengeRequired, setMfaChallengeRequired] = useState(false);
   const lastLoadedUserKeyRef = React.useRef<string | null>(null);
   const prevUserIdRef = React.useRef<string | null>(null);
+  const loadedProfileUserIdRef = React.useRef<string | null>(null);
   const authLoading = authBaseLoading || profileLoading;
 
   const fetchProfileData = async (
@@ -234,12 +235,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (!user?.id) {
       lastLoadedUserKeyRef.current = null;
+      loadedProfileUserIdRef.current = null;
       setProfile(null);
       setUserRole("guest");
       setProfileLoading(false);
       return;
     }
 
+    const isSameUser = loadedProfileUserIdRef.current === user.id;
+    loadedProfileUserIdRef.current = user.id;
     lastLoadedUserKeyRef.current = `${user.id}:${user.email ?? ""}`;
     setProfileLoading(true);
 
@@ -264,7 +268,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     setProfile((prev) => (prev?.id === user.id ? prev : initialFallback));
-    setUserRole((prev) => (prev !== "guest" ? prev : fallbackRole));
+    if (!isSameUser) {
+      setUserRole(fallbackRole);
+    }
 
     // DBから最新プロファイルと正式ロールを取得
     const loadProfile = async () => {

@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../supabase";
 import type { Profile } from "../supabase";
+import { fetchProfilesListWithFallback } from "../utils/profileQueries";
 
 export interface FollowCounts {
   followingCount: number;
@@ -99,29 +100,30 @@ export async function fetchFollowDetails(
       followingIds = getLocalFollows(targetUserId);
     }
 
-    const [followingProfilesRes, followerProfilesRes] = await Promise.all([
+    const [followingProfiles, followerProfiles] = await Promise.all([
       followingIds.length > 0
-        ? supabase
-            .from("profiles")
-            .select("id, role, display_name, username, x_account, avatar_url, bio, created_at")
-            .in("id", followingIds)
-        : Promise.resolve({ data: [] as Profile[], error: null }),
+        ? fetchProfilesListWithFallback({ inIds: followingIds })
+        : Promise.resolve([] as Profile[]),
       followerIds.length > 0
-        ? supabase
-            .from("profiles")
-            .select("id, role, display_name, username, x_account, avatar_url, bio, created_at")
-            .in("id", followerIds)
-        : Promise.resolve({ data: [] as Profile[], error: null }),
+        ? fetchProfilesListWithFallback({ inIds: followerIds })
+        : Promise.resolve([] as Profile[]),
     ]);
 
     return {
       allowed: true,
-      following: (followingProfilesRes.data as Profile[]) || [],
-      followers: (followerProfilesRes.data as Profile[]) || [],
+      following: followingProfiles || [],
+      followers: followerProfiles || [],
     };
   } catch {
     return { allowed: true, following: [], followers: [] };
   }
+}
+
+function applyFollowToggle(list: string[], writerId: string, shouldFollow: boolean): string[] {
+  if (shouldFollow) {
+    return list.includes(writerId) ? list : [...list, writerId];
+  }
+  return list.filter((id) => id !== writerId);
 }
 
 export function useFollows() {
@@ -131,31 +133,46 @@ export function useFollows() {
 
   const [followedIds, setFollowedIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const followedIdsRef = useRef<string[]>([]);
+  followedIdsRef.current = followedIds;
 
   useEffect(() => {
     let isMounted = true;
     if (!isAuthenticated || !currentUserId) {
+      followedIdsRef.current = [];
       setFollowedIds([]);
+      setLoading(false);
       return;
     }
 
     setLoading(true);
-    void supabase
-      .from("user_follows")
-      .select("following_id")
-      .eq("follower_id", currentUserId)
-      .then(({ data, error }) => {
+    const loadFollows = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("user_follows")
+          .select("following_id")
+          .eq("follower_id", currentUserId);
         if (!isMounted) return;
         if (!error && data) {
           const ids = data.map((r: any) => r.following_id);
+          followedIdsRef.current = ids;
           setFollowedIds(ids);
           setLocalFollows(currentUserId, ids);
         } else if (error && isUserFollowsSchemaError(error)) {
           const localIds = getLocalFollows(currentUserId);
+          followedIdsRef.current = localIds;
           setFollowedIds(localIds);
         }
-        setLoading(false);
-      });
+      } catch {
+        // ignore fetch errors; loading still cleared in finally
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void loadFollows();
 
     return () => {
       isMounted = false;
@@ -176,13 +193,13 @@ export function useFollows() {
         return false;
       }
 
-      const currentlyFollowing = followedIds.includes(writerId);
-      const nextFollowedIds = currentlyFollowing
-        ? followedIds.filter((id) => id !== writerId)
-        : [...followedIds, writerId];
+      const currentlyFollowing = followedIdsRef.current.includes(writerId);
+      const shouldFollow = !currentlyFollowing;
+
+      followedIdsRef.current = applyFollowToggle(followedIdsRef.current, writerId, shouldFollow);
+      setFollowedIds((prev) => applyFollowToggle(prev, writerId, shouldFollow));
 
       if (currentlyFollowing) {
-        setFollowedIds(nextFollowedIds);
         try {
           const { error } = await supabase
             .from("user_follows")
@@ -191,18 +208,27 @@ export function useFollows() {
             .eq("following_id", writerId);
           if (error) {
             if (isUserFollowsSchemaError(error)) {
-              setLocalFollows(currentUserId, nextFollowedIds);
+              setLocalFollows(currentUserId, followedIdsRef.current);
               return true;
             }
-            setFollowedIds(followedIds);
+            followedIdsRef.current = applyFollowToggle(
+              followedIdsRef.current,
+              writerId,
+              currentlyFollowing,
+            );
+            setFollowedIds((prev) => applyFollowToggle(prev, writerId, currentlyFollowing));
             return false;
           }
         } catch {
-          setFollowedIds(followedIds);
+          followedIdsRef.current = applyFollowToggle(
+            followedIdsRef.current,
+            writerId,
+            currentlyFollowing,
+          );
+          setFollowedIds((prev) => applyFollowToggle(prev, writerId, currentlyFollowing));
           return false;
         }
       } else {
-        setFollowedIds(nextFollowedIds);
         try {
           const { error } = await supabase.from("user_follows").insert({
             follower_id: currentUserId,
@@ -210,22 +236,32 @@ export function useFollows() {
           });
           if (error) {
             if (isUserFollowsSchemaError(error)) {
-              setLocalFollows(currentUserId, nextFollowedIds);
+              setLocalFollows(currentUserId, followedIdsRef.current);
               return true;
             }
-            setFollowedIds(followedIds);
+            followedIdsRef.current = applyFollowToggle(
+              followedIdsRef.current,
+              writerId,
+              currentlyFollowing,
+            );
+            setFollowedIds((prev) => applyFollowToggle(prev, writerId, currentlyFollowing));
             return false;
           }
         } catch {
-          setFollowedIds(followedIds);
+          followedIdsRef.current = applyFollowToggle(
+            followedIdsRef.current,
+            writerId,
+            currentlyFollowing,
+          );
+          setFollowedIds((prev) => applyFollowToggle(prev, writerId, currentlyFollowing));
           return false;
         }
       }
 
-      setLocalFollows(currentUserId, nextFollowedIds);
+      setLocalFollows(currentUserId, followedIdsRef.current);
       return true;
     },
-    [isAuthenticated, currentUserId, followedIds],
+    [isAuthenticated, currentUserId],
   );
 
   return {

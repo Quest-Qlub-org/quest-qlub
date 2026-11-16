@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { supabase, isTest } from "../supabase";
 import type { Profile } from "../supabase";
 import type { Article, Series } from "../types";
@@ -44,6 +44,9 @@ export interface DataContextType {
   teamMembersLoading: boolean;
   refreshTeamMembers: () => Promise<void>;
 
+  // Resolved profile cache for authors beyond paginated writers
+  knownProfiles?: Record<string, Profile>;
+
   // Series
   seriesList: Series[];
   setSeriesList: React.Dispatch<React.SetStateAction<Series[]>>;
@@ -76,6 +79,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const [teamMembers, setTeamMembers] = useState<Profile[]>([]);
   const [teamMembersLoading, setTeamMembersLoading] = useState(true);
+  const [knownProfiles, setKnownProfiles] = useState<Record<string, Profile>>({});
 
   const [seriesList, setSeriesList] = useState<Series[]>([]);
 
@@ -83,6 +87,17 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [favoritesLoading, setFavoritesLoading] = useState(false);
 
   const [dataLoaded, setDataLoaded] = useState(false);
+
+  const articlesOffsetRef = useRef(0);
+  const writersOffsetRef = useRef(0);
+  const loadingMoreArticlesRef = useRef(false);
+  const loadingMoreWritersRef = useRef(false);
+  const hasInitialLoadedRef = useRef(false);
+  const attemptedProfileIdsRef = useRef<Set<string>>(new Set());
+  const articlesRef = useRef<Article[]>(articles);
+  articlesRef.current = articles;
+  const favoritesRef = useRef<string[]>(favorites);
+  favoritesRef.current = favorites;
 
   // Issue #23 & Issue #24: 本文(content)を除外し、range(0, ARTICLE_PAGE_SIZE - 1) でページ単位取得
   const fetchArticles = useCallback(async () => {
@@ -123,6 +138,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (!res.error && res.data) {
+        articlesOffsetRef.current = res.data.length;
         const mapped = res.data
           .map((item) => mapDbArticleWithSchedule(item))
           .filter((article) => isArticlePubliclyVisible(article));
@@ -137,10 +153,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const loadMoreArticles = useCallback(async () => {
-    if (loadingMoreArticles || !hasMoreArticles) return;
+    if (loadingMoreArticlesRef.current || !hasMoreArticles) return;
+    loadingMoreArticlesRef.current = true;
     setLoadingMoreArticles(true);
     try {
-      const start = articles.length;
+      const start = articlesOffsetRef.current;
       const end = start + ARTICLE_PAGE_SIZE - 1;
       const { data, error } = await supabase
         .from("articles")
@@ -150,20 +167,26 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         .range(start, end);
 
       if (!error && data) {
+        articlesOffsetRef.current += data.length;
         if (data.length > 0) {
           const newArticles = data
             .map((item) => mapDbArticleWithSchedule(item))
             .filter((article) => isArticlePubliclyVisible(article));
-          setArticles((prev) => [...prev, ...newArticles]);
+          setArticles((prev) => {
+            const existingIds = new Set(prev.map((a) => a.id));
+            const uniqueNew = newArticles.filter((a) => !existingIds.has(a.id));
+            return uniqueNew.length > 0 ? [...prev, ...uniqueNew] : prev;
+          });
         }
         setHasMoreArticles(data.length === ARTICLE_PAGE_SIZE);
       }
     } catch (e) {
       console.error("Failed to load more articles", e);
     } finally {
+      loadingMoreArticlesRef.current = false;
       setLoadingMoreArticles(false);
     }
-  }, [articles.length, loadingMoreArticles, hasMoreArticles]);
+  }, [hasMoreArticles]);
 
   const fetchWriters = useCallback(async () => {
     setWritersLoading(true);
@@ -175,6 +198,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (writerRows) {
+        writersOffsetRef.current = writerRows.length;
         setWriters(writerRows);
         setHasMoreWriters(writerRows.length === WRITER_PAGE_SIZE);
       }
@@ -186,10 +210,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const loadMoreWriters = useCallback(async () => {
-    if (loadingMoreWriters || !hasMoreWriters) return;
+    if (loadingMoreWritersRef.current || !hasMoreWriters) return;
+    loadingMoreWritersRef.current = true;
     setLoadingMoreWriters(true);
     try {
-      const start = writers.length;
+      const start = writersOffsetRef.current;
       const end = start + WRITER_PAGE_SIZE - 1;
       const newRows = await fetchProfilesListWithFallback({
         inRole: ["writer", "editor"],
@@ -198,17 +223,23 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (newRows) {
+        writersOffsetRef.current += newRows.length;
         if (newRows.length > 0) {
-          setWriters((prev) => [...prev, ...newRows]);
+          setWriters((prev) => {
+            const existingIds = new Set(prev.map((w) => w.id));
+            const uniqueNew = newRows.filter((w) => !existingIds.has(w.id));
+            return uniqueNew.length > 0 ? [...prev, ...uniqueNew] : prev;
+          });
         }
         setHasMoreWriters(newRows.length === WRITER_PAGE_SIZE);
       }
     } catch (e) {
       console.error("Failed to load more writers", e);
     } finally {
+      loadingMoreWritersRef.current = false;
       setLoadingMoreWriters(false);
     }
-  }, [writers.length, loadingMoreWriters, hasMoreWriters]);
+  }, [hasMoreWriters]);
 
   const fetchTeamMembers = useCallback(async () => {
     setTeamMembersLoading(true);
@@ -274,8 +305,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // 初期データロード（初回マウント時および認証セッション確定完了時）
+  // 初期データロード（認証初期化完了後に1回だけ実行）
   useEffect(() => {
+    if (authLoading || hasInitialLoadedRef.current) return;
+    hasInitialLoadedRef.current = true;
     let isMounted = true;
     const init = async () => {
       await Promise.allSettled([
@@ -292,11 +325,72 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     };
   }, [fetchArticles, fetchWriters, fetchTeamMembers, fetchSeries, authLoading]);
 
+  // ページングされた writers / teamMembers に含まれない記事著者をまとめて解決
+  useEffect(() => {
+    if (articlesLoading || writersLoading || teamMembersLoading || articles.length === 0) return;
+
+    const knownIds = new Set<string>([
+      ...writers.map((w) => w.id),
+      ...teamMembers.map((m) => m.id),
+      ...Object.keys(knownProfiles),
+    ]);
+    const missingIds = Array.from(
+      new Set(
+        articles
+          .map((a) => a.writerId)
+          .filter(
+            (id) => Boolean(id) && !knownIds.has(id) && !attemptedProfileIdsRef.current.has(id),
+          ),
+      ),
+    );
+    if (missingIds.length === 0) return;
+
+    missingIds.forEach((id) => attemptedProfileIdsRef.current.add(id));
+    let isMounted = true;
+    void fetchProfilesListWithFallback({ inIds: missingIds }).then((rows) => {
+      if (!isMounted || !rows || rows.length === 0) return;
+      setKnownProfiles((prev) => {
+        const next = { ...prev };
+        for (const row of rows) {
+          next[row.id] = row;
+        }
+        return next;
+      });
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    articles,
+    articlesLoading,
+    writers,
+    writersLoading,
+    teamMembers,
+    teamMembersLoading,
+    knownProfiles,
+  ]);
+
   // プロフィール・ロール変更時の自動同期（Supabase Realtime & ブラウザカスタムイベント）
   useEffect(() => {
+    let isMounted = true;
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
     const handleRolesUpdated = () => {
+      if (!isMounted) return;
       void fetchTeamMembers();
       void fetchWriters();
+    };
+
+    const handleRealtimeProfileChange = () => {
+      if (!isMounted) return;
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        debounceTimer = null;
+        if (!isMounted) return;
+        void fetchTeamMembers();
+        void fetchWriters();
+      }, 300);
     };
 
     if (typeof window !== "undefined") {
@@ -304,27 +398,24 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
 
     let realtimeChannel: { unsubscribe?: () => void } | null = null;
-    try {
-      const sbAny = supabase as unknown as {
-        channel?: (name: string) => {
-          on?: (
-            type: string,
-            filter: Record<string, string>,
-            callback: () => void,
-          ) => { subscribe?: () => { unsubscribe?: () => void } };
-        };
-        removeChannel?: (ch: unknown) => void;
+    const sbAny = supabase as unknown as {
+      channel?: (name: string) => {
+        on?: (
+          type: string,
+          filter: Record<string, string>,
+          callback: () => void,
+        ) => { subscribe?: () => { unsubscribe?: () => void } };
       };
+      removeChannel?: (ch: unknown) => void;
+    };
+    try {
       if (typeof sbAny.channel === "function") {
         const ch = sbAny.channel("public:profiles:team_sync");
         if (ch && typeof ch.on === "function") {
           const sub = ch.on(
             "postgres_changes",
             { event: "*", schema: "public", table: "profiles" },
-            () => {
-              void fetchTeamMembers();
-              void fetchWriters();
-            },
+            handleRealtimeProfileChange,
           );
           if (sub && typeof sub.subscribe === "function") {
             realtimeChannel = sub.subscribe();
@@ -336,11 +427,19 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
 
     return () => {
+      isMounted = false;
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
       if (typeof window !== "undefined") {
         window.removeEventListener("quest_qlub_roles_updated", handleRolesUpdated);
       }
-      if (realtimeChannel && typeof realtimeChannel.unsubscribe === "function") {
-        realtimeChannel.unsubscribe();
+      if (realtimeChannel) {
+        if (typeof sbAny.removeChannel === "function") {
+          sbAny.removeChannel(realtimeChannel);
+        } else if (typeof realtimeChannel.unsubscribe === "function") {
+          realtimeChannel.unsubscribe();
+        }
       }
     };
   }, [fetchTeamMembers, fetchWriters]);
@@ -354,7 +453,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user?.id, fetchFavorites]);
 
-  // Issue #29 & #57: お気に入りトグルの楽観的更新 + エラー時の確実なロールバック
+  // Issue #29 & #57 & #144: お気に入りトグルの関数型楽観的更新 + 元値復元ロールバック
   const toggleFavorite = useCallback(
     async (articleId: string): Promise<boolean> => {
       if (!user?.id) {
@@ -362,19 +461,29 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
 
-      const isFav = favorites.includes(articleId);
-      const prevFavorites = [...favorites];
+      const wasFav = favoritesRef.current.includes(articleId);
+      const originalLikes = articlesRef.current.find((a) => a.id === articleId)?.likes;
+      const nextFavList = wasFav
+        ? favoritesRef.current.filter((id) => id !== articleId)
+        : [...favoritesRef.current, articleId];
+      favoritesRef.current = nextFavList;
 
-      // 楽観的UI更新: favoritesと該当記事のlikesを即時反映
-      setFavorites(isFav ? favorites.filter((id) => id !== articleId) : [...favorites, articleId]);
+      setFavorites((prev) =>
+        wasFav
+          ? prev.filter((id) => id !== articleId)
+          : prev.includes(articleId)
+            ? prev
+            : [...prev, articleId],
+      );
+
       setArticles((prev) =>
         prev.map((a) =>
-          a.id === articleId ? { ...a, likes: isFav ? Math.max(0, a.likes - 1) : a.likes + 1 } : a,
+          a.id === articleId ? { ...a, likes: wasFav ? Math.max(0, a.likes - 1) : a.likes + 1 } : a,
         ),
       );
 
       try {
-        if (isFav) {
+        if (wasFav) {
           const { error } = await supabase
             .from("favorites")
             .delete()
@@ -400,20 +509,29 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (e) {
         console.error("Error toggling favorite, rolling back:", e);
-        // ロールバック
-        setFavorites(prevFavorites);
-        setArticles((prev) =>
-          prev.map((a) =>
-            a.id === articleId
-              ? { ...a, likes: isFav ? a.likes + 1 : Math.max(0, a.likes - 1) }
-              : a,
-          ),
+        // 他の並行トグルを破壊しないよう、対象 ID のみロールバックし、元の likes 値をそのまま復元する
+        favoritesRef.current = wasFav
+          ? favoritesRef.current.includes(articleId)
+            ? favoritesRef.current
+            : [...favoritesRef.current, articleId]
+          : favoritesRef.current.filter((id) => id !== articleId);
+        setFavorites((prev) =>
+          wasFav
+            ? prev.includes(articleId)
+              ? prev
+              : [...prev, articleId]
+            : prev.filter((id) => id !== articleId),
         );
+        if (typeof originalLikes === "number") {
+          setArticles((prev) =>
+            prev.map((a) => (a.id === articleId ? { ...a, likes: originalLikes } : a)),
+          );
+        }
         showToast("お気に入りの更新に失敗しました。もう一度お試しください。");
         return false;
       }
     },
-    [user?.id, favorites, showToast],
+    [user?.id, showToast],
   );
 
   const value: DataContextType = {
@@ -435,6 +553,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setTeamMembers,
     teamMembersLoading,
     refreshTeamMembers: fetchTeamMembers,
+    knownProfiles,
     seriesList,
     setSeriesList,
     favorites,

@@ -1,6 +1,9 @@
-import React, { useId } from "react";
+import React, { useId, useState, useEffect, useMemo, useRef } from "react";
 import { Users, X } from "lucide-react";
 import { useApp } from "../context/AppContext";
+import type { Profile } from "../supabase";
+import { fetchProfilesListWithFallback } from "../utils/profileQueries";
+import { profileHasRole } from "../utils/roles";
 
 export interface CollaboratorSelectProps {
   value: string[];
@@ -21,17 +24,63 @@ export const CollaboratorSelect: React.FC<CollaboratorSelectProps> = ({
   className = "",
   disabled = false,
 }) => {
-  const { writers } = useApp();
+  const { writers, teamMembers, knownProfiles } = useApp();
   const selectId = useId();
+  const [extraProfiles, setExtraProfiles] = useState<Record<string, Profile>>({});
+  const attemptedIdsRef = useRef<Set<string>>(new Set());
 
-  const availableWriters = (writers ?? []).filter(
+  const mergedProfiles = useMemo(() => {
+    const byId = new Map<string, Profile>();
+    for (const w of writers ?? []) {
+      byId.set(w.id, w);
+    }
+    for (const m of teamMembers ?? []) {
+      if (!byId.has(m.id)) {
+        byId.set(m.id, m);
+      }
+    }
+    for (const p of Object.values(knownProfiles ?? {})) {
+      if (!byId.has(p.id)) {
+        byId.set(p.id, p);
+      }
+    }
+    for (const p of Object.values(extraProfiles)) {
+      if (!byId.has(p.id)) {
+        byId.set(p.id, p);
+      }
+    }
+    return byId;
+  }, [writers, teamMembers, knownProfiles, extraProfiles]);
+
+  useEffect(() => {
+    const missingIds = value.filter(
+      (id) => Boolean(id) && !mergedProfiles.has(id) && !attemptedIdsRef.current.has(id),
+    );
+    if (missingIds.length === 0) return;
+
+    missingIds.forEach((id) => attemptedIdsRef.current.add(id));
+    let isMounted = true;
+    void fetchProfilesListWithFallback({ inIds: missingIds }).then((rows) => {
+      if (!isMounted || !rows || rows.length === 0) return;
+      setExtraProfiles((prev) => {
+        const next = { ...prev };
+        for (const row of rows) {
+          next[row.id] = row;
+        }
+        return next;
+      });
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [value, mergedProfiles]);
+
+  const availableWriters = Array.from(mergedProfiles.values()).filter(
     (w) =>
       !excludeUserIds.includes(w.id) &&
       !value.includes(w.id) &&
-      (w.role === "writer" ||
-        w.role === "editor" ||
-        w.roles?.includes("writer") ||
-        w.roles?.includes("editor")),
+      (profileHasRole(w, "writer") || profileHasRole(w, "editor")),
   );
 
   const handleSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -64,7 +113,7 @@ export const CollaboratorSelect: React.FC<CollaboratorSelectProps> = ({
       {value.length > 0 && (
         <div className="flex flex-wrap gap-1.5" data-testid="selected-collaborators-list">
           {value.map((collabId) => {
-            const writerObj = (writers ?? []).find((w) => w.id === collabId);
+            const writerObj = mergedProfiles.get(collabId);
             const displayName =
               writerObj?.display_name ||
               (writerObj?.username ? `@${writerObj.username}` : collabId);

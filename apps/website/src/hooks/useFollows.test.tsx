@@ -329,4 +329,98 @@ describe("useFollows hook & follow privacy rules", () => {
 
     root2.unmount();
   });
+
+  it("resets loading to false on unauthenticated state and fetch failures, and preserves concurrent toggleFollow updates", async () => {
+    let rejectQuery!: (err: unknown) => void;
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "user_follows") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockImplementation(
+              () =>
+                new Promise((_resolve, reject) => {
+                  rejectQuery = reject;
+                }),
+            ),
+          }),
+          insert: vi.fn().mockImplementation(async (payload: any) => {
+            if (payload.following_id === "writer-fail") {
+              return { error: { message: "Insert failed" } };
+            }
+            return { error: null };
+          }),
+        } as any;
+      }
+      return {} as any;
+    });
+
+    const authSpy = vi.spyOn(AuthContextModule, "useAuth").mockReturnValue({
+      user: { id: "user-1", email: "u1@example.com" } as any,
+      profile: createTestProfile({ id: "user-1", role: "viewer" }),
+      setProfile: vi.fn(),
+      userRole: "viewer",
+      setUserRole: vi.fn(),
+      authLoading: false,
+      mfaChallengeRequired: false,
+      setMfaChallengeRequired: vi.fn(),
+      refreshProfile: vi.fn(),
+    });
+
+    const root = createRoot(container);
+    await act(async () => {
+      root.render(<HookTester />);
+    });
+    expect(currentHook.loading).toBe(true);
+
+    // 非ログイン状態に切り替わった場合でも loading が false に戻ること
+    authSpy.mockReturnValue({
+      user: null,
+      profile: null,
+      setProfile: vi.fn(),
+      userRole: "guest",
+      setUserRole: vi.fn(),
+      authLoading: false,
+      mfaChallengeRequired: false,
+      setMfaChallengeRequired: vi.fn(),
+      refreshProfile: vi.fn(),
+    });
+    await act(async () => {
+      root.render(<HookTester />);
+    });
+    expect(currentHook.loading).toBe(false);
+
+    // 再度ログインして初期クエリが reject した場合も finally で loading が false になること
+    authSpy.mockReturnValue({
+      user: { id: "user-1", email: "u1@example.com" } as any,
+      profile: createTestProfile({ id: "user-1", role: "viewer" }),
+      setProfile: vi.fn(),
+      userRole: "viewer",
+      setUserRole: vi.fn(),
+      authLoading: false,
+      mfaChallengeRequired: false,
+      setMfaChallengeRequired: vi.fn(),
+      refreshProfile: vi.fn(),
+    });
+    await act(async () => {
+      root.render(<HookTester />);
+    });
+    expect(currentHook.loading).toBe(true);
+    await act(async () => {
+      rejectQuery(new Error("Network failure"));
+      await Promise.resolve();
+    });
+    expect(currentHook.loading).toBe(false);
+
+    // 並行トグルで片方だけ失敗しても、成功した他方のフォロー状態が巻き戻らないこと
+    await act(async () => {
+      await Promise.all([
+        currentHook.toggleFollow("writer-ok"),
+        currentHook.toggleFollow("writer-fail"),
+      ]);
+    });
+    expect(currentHook.isFollowing("writer-ok")).toBe(true);
+    expect(currentHook.isFollowing("writer-fail")).toBe(false);
+
+    root.unmount();
+  });
 });

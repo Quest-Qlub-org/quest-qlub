@@ -37,12 +37,16 @@ describe("ArticleCard", () => {
   function setupAppMock(
     options: {
       writers?: ReturnType<typeof createTestProfile>[];
+      teamMembers?: ReturnType<typeof createTestProfile>[];
+      knownProfiles?: Record<string, ReturnType<typeof createTestProfile>>;
       favorites?: string[];
     } = {},
   ) {
-    const { writers = [], favorites = [] } = options;
+    const { writers = [], teamMembers, knownProfiles, favorites = [] } = options;
     vi.spyOn(AppContextModule, "useApp").mockReturnValue({
       writers,
+      teamMembers,
+      knownProfiles,
       favorites,
       navigate: mockNavigate,
     } as unknown as ReturnType<typeof AppContextModule.useApp>);
@@ -262,5 +266,41 @@ describe("ArticleCard", () => {
 
     expect(container.querySelector('[data-testid="collaborator-badge"]')).toBeNull();
     expect(container.textContent).not.toContain("共同執筆");
+  });
+
+  it("resolves 13th+ writer name from teamMembers or knownProfiles when absent from paginated writers", () => {
+    const writer13 = createTestProfile({
+      id: "writer-13",
+      display_name: "13人目のライター",
+      username: "writer13",
+    });
+    const mockArticle = createTestArticle({
+      id: "art-13",
+      title: "ページング外の著者記事",
+      writerId: "writer-13",
+    });
+
+    setupAppMock({ writers: [], teamMembers: [writer13] });
+    renderCard(<ArticleCard article={mockArticle} />);
+    expect(container.textContent).toContain("13人目のライター");
+
+    const demotedWriter = createTestProfile({
+      id: "writer-demoted",
+      role: "viewer",
+      display_name: "元ライター太郎",
+      username: "former",
+    });
+    const mockArticle2 = createTestArticle({
+      id: "art-demoted",
+      title: "元ライター記事",
+      writerId: "writer-demoted",
+    });
+    setupAppMock({
+      writers: [],
+      teamMembers: [],
+      knownProfiles: { "writer-demoted": demotedWriter },
+    });
+    renderCard(<ArticleCard article={mockArticle2} />);
+    expect(container.textContent).toContain("元ライター太郎");
   });
 });

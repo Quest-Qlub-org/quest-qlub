@@ -14,9 +14,12 @@ export const ArticleCard = ({
   layout?: "horizontal" | "vertical";
   isCollaborator?: boolean;
 }) => {
-  const { writers, favorites, navigate } = useApp();
+  const { writers, teamMembers, knownProfiles, favorites, navigate } = useApp();
   const inRouter = useInRouterContext();
-  const writer = writers.find((w) => w.id === article.writerId);
+  const writer =
+    writers?.find((w) => w.id === article.writerId) ??
+    teamMembers?.find((w) => w.id === article.writerId) ??
+    knownProfiles?.[article.writerId];
   const isFav = favorites?.includes(article.id) ?? false;
   const color = getThumbnailColor(article.thumbnailColor ?? null);
   const formattedDate = formatArticleDate(article.createdAt);

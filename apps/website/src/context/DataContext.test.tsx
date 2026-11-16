@@ -440,4 +440,234 @@ describe("DataContext", () => {
     expect(callOrder[0]).toBe("rpc:publish_due_scheduled_articles");
     expect(callOrder[1]).toBe("select:articles");
   });
+
+  it("restores exact original likes=0 on toggleFavorite rollback and avoids double initial fetch on authLoading transition", async () => {
+    let articlesFetchCount = 0;
+    const mockArticles = [
+      {
+        id: "art-zero-likes",
+        title: "いいね0の記事",
+        status: "published",
+        writer_id: "w-1",
+        views: 1,
+        likes: 0,
+        created_at: new Date().toISOString(),
+      },
+    ];
+
+    const createChain = (table: string) => {
+      const chain: any = {
+        select: vi.fn(() => chain),
+        eq: vi.fn(() => chain),
+        in: vi.fn(() => Promise.resolve({ data: [], error: null })),
+        order: vi.fn(() => chain),
+        range: vi.fn(() => {
+          if (table === "articles") {
+            articlesFetchCount += 1;
+            return Promise.resolve({ data: mockArticles, error: null });
+          }
+          return Promise.resolve({ data: [], error: null });
+        }),
+        delete: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            eq: vi.fn().mockResolvedValue({ error: { message: "Delete failed" } }),
+          })),
+        })),
+      };
+      if (table === "favorites") {
+        chain.eq = vi.fn(() =>
+          Promise.resolve({ data: [{ article_id: "art-zero-likes" }], error: null }),
+        );
+      }
+      return chain;
+    };
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => createChain(table));
+
+    let dataState!: ReturnType<typeof useData>;
+    const TestConsumer = () => {
+      dataState = useData();
+      return <div>Likes: {dataState.articles[0]?.likes}</div>;
+    };
+
+    const baseAuth = {
+      user: { id: "user-1", email: "u1@example.com" } as any,
+      profile: createTestProfile({ id: "user-1", role: "viewer" }),
+      setProfile: vi.fn(),
+      userRole: "viewer" as const,
+      setUserRole: vi.fn(),
+      mfaChallengeRequired: false,
+      setMfaChallengeRequired: vi.fn(),
+      refreshProfile: vi.fn(),
+    };
+
+    // authLoading: true の間は初回取得を行わない
+    await act(async () => {
+      root!.render(
+        <AuthContext.Provider value={{ ...baseAuth, authLoading: true }}>
+          <UIProvider>
+            <DataProvider>
+              <TestConsumer />
+            </DataProvider>
+          </UIProvider>
+        </AuthContext.Provider>,
+      );
+    });
+    expect(articlesFetchCount).toBe(0);
+
+    // authLoading: false への遷移で1回だけ取得する
+    await act(async () => {
+      root!.render(
+        <AuthContext.Provider value={{ ...baseAuth, authLoading: false }}>
+          <UIProvider>
+            <DataProvider>
+              <TestConsumer />
+            </DataProvider>
+          </UIProvider>
+        </AuthContext.Provider>,
+      );
+    });
+    expect(articlesFetchCount).toBe(1);
+    expect(dataState.favorites).toContain("art-zero-likes");
+    expect(dataState.articles[0]?.likes).toBe(0);
+
+    // likes=0 かつ既にお気に入りの状態で解除失敗した場合、0のまま復元されること（1にならない）
+    await act(async () => {
+      await dataState.toggleFavorite("art-zero-likes");
+    });
+    expect(dataState.articles[0]?.likes).toBe(0);
+    expect(dataState.favorites).toContain("art-zero-likes");
+  });
+
+  it("uses raw DB row count offset, deduplicates articles, locks concurrent loadMore, and removes Realtime channel", async () => {
+    const rangeCalls: Array<[number, number]> = [];
+    const removeChannelSpy = vi.fn();
+    const fakeChannel = { unsubscribe: vi.fn() };
+
+    (supabase as any).channel = vi.fn(() => ({
+      on: vi.fn(() => ({
+        subscribe: vi.fn(() => fakeChannel),
+      })),
+    }));
+    (supabase as any).removeChannel = removeChannelSpy;
+
+    const firstPage = Array.from({ length: 12 }, (_, idx) => ({
+      id: `art-${idx}`,
+      title: `記事${idx}`,
+      status: "published",
+      writer_id: "w-1",
+      views: 0,
+      likes: 0,
+      // 1件だけ未来の予約記事を混ぜ、filtered配列長(11)とDB行数(12)がずれるケースを作る
+      scheduled_at: idx === 0 ? "2099-01-01T00:00:00.000Z" : null,
+      created_at: new Date().toISOString(),
+    }));
+    const secondPage = [
+      {
+        id: "art-11", // 重複ID
+        title: "記事11重複",
+        status: "published",
+        writer_id: "w-1",
+        views: 0,
+        likes: 0,
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: "art-12",
+        title: "記事12",
+        status: "published",
+        writer_id: "w-1",
+        views: 0,
+        likes: 0,
+        created_at: new Date().toISOString(),
+      },
+    ];
+
+    let resolveSecondPage!: (v: any) => void;
+    let articleCall = 0;
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      const chain: any = {
+        select: vi.fn(() => chain),
+        eq: vi.fn(() => chain),
+        in: vi.fn(() => Promise.resolve({ data: [], error: null })),
+        order: vi.fn(() => chain),
+        range: vi.fn((from: number, to: number) => {
+          if (table === "articles") {
+            rangeCalls.push([from, to]);
+            articleCall += 1;
+            if (articleCall === 1) {
+              return Promise.resolve({ data: firstPage, error: null });
+            }
+            return new Promise((resolve) => {
+              resolveSecondPage = resolve;
+            });
+          }
+          return Promise.resolve({ data: [], error: null });
+        }),
+      };
+      return chain;
+    });
+
+    let dataState!: ReturnType<typeof useData>;
+    const TestConsumer = () => {
+      dataState = useData();
+      return <div>Count: {dataState.articles.length}</div>;
+    };
+
+    await act(async () => {
+      root!.render(
+        <AuthContext.Provider
+          value={{
+            user: null,
+            profile: null,
+            setProfile: vi.fn(),
+            userRole: "guest",
+            setUserRole: vi.fn(),
+            authLoading: false,
+            mfaChallengeRequired: false,
+            setMfaChallengeRequired: vi.fn(),
+            refreshProfile: vi.fn(),
+          }}
+        >
+          <UIProvider>
+            <DataProvider>
+              <TestConsumer />
+            </DataProvider>
+          </UIProvider>
+        </AuthContext.Provider>,
+      );
+    });
+
+    // 最初の12行取得後、1件除外され11件表示だが、次ページは raw offset=12 から開始されること
+    expect(dataState.articles.length).toBe(11);
+
+    // 同時に2回 loadMoreArticles を呼んでも、useRef ロックで1回しか実行されないこと
+    let p1!: Promise<void>;
+    let p2!: Promise<void>;
+    act(() => {
+      p1 = dataState.loadMoreArticles();
+      p2 = dataState.loadMoreArticles();
+    });
+    expect(rangeCalls).toEqual([
+      [0, 11],
+      [12, 23],
+    ]);
+
+    await act(async () => {
+      resolveSecondPage({ data: secondPage, error: null });
+      await Promise.all([p1, p2]);
+    });
+
+    // 重複ID(art-11)が排除され art-12 だけ追加されること
+    expect(dataState.articles.length).toBe(12);
+    expect(dataState.articles.filter((a) => a.id === "art-11")).toHaveLength(1);
+
+    // アンマウント時に removeChannel が呼ばれること
+    act(() => {
+      root!.unmount();
+      root = null;
+    });
+    expect(removeChannelSpy).toHaveBeenCalledWith(fakeChannel);
+  });
 });

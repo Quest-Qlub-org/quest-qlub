@@ -44,6 +44,7 @@ export interface AppContextType {
   setTeamMembers: React.Dispatch<React.SetStateAction<Profile[]>>;
   teamMembersLoading: boolean;
   refreshTeamMembers: () => Promise<void>;
+  knownProfiles?: Record<string, Profile>;
   articles: Article[];
   setArticles: React.Dispatch<React.SetStateAction<Article[]>>;
   articlesLoading: boolean;
@@ -161,6 +162,7 @@ export function useApp(): AppContextType {
     setTeamMembers: data.setTeamMembers,
     teamMembersLoading: data.teamMembersLoading,
     refreshTeamMembers: data.refreshTeamMembers,
+    knownProfiles: data.knownProfiles,
 
     articles: data.articles,
     setArticles: data.setArticles,
