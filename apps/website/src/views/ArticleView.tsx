@@ -86,7 +86,14 @@ export const ArticleView = () => {
 
   // Issue #23: 一覧から除外された本文(content)を詳細画面で個別取得
   useEffect(() => {
+    setNotFound(false);
+    setWriterFallback(null);
+    setCollaboratorFallbacks([]);
+    setSeriesFallback(null);
+    setPendingSudoAction(null);
+
     if (!articleId) {
+      setDetailedArticle(null);
       setNotFound(true);
       setLoading(false);
       return;
@@ -931,9 +938,16 @@ export const ArticleView = () => {
             <button
               type="button"
               aria-label="記事のリンクをコピー"
-              onClick={() => {
-                void navigator.clipboard.writeText(articleUrl);
-                showToast("リンクをコピーしました");
+              onClick={async () => {
+                try {
+                  if (!navigator.clipboard?.writeText) {
+                    throw new Error("Clipboard unavailable");
+                  }
+                  await navigator.clipboard.writeText(articleUrl);
+                  showToast("リンクをコピーしました");
+                } catch {
+                  showToast("リンクのコピーに失敗しました");
+                }
               }}
               className="w-14 h-14 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 rounded-full flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm cursor-pointer"
             >

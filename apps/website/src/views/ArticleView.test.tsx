@@ -2,9 +2,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vite-plus/test";
 import { createRoot } from "react-dom/client";
 import { act } from "react";
-import { MemoryRouter, Routes, Route } from "react-router-dom";
+import { MemoryRouter, Routes, Route, Link } from "react-router-dom";
 import { ArticleView } from "./ArticleView";
 import { AppProviders } from "../context/AppContext";
+import { useUI } from "../context/UIContext";
 import { supabase } from "../supabase";
 import { createTestArticle, createTestProfile } from "../test/test-utils";
 import * as useFollowsModule from "../hooks/useFollows";
@@ -1434,6 +1435,102 @@ describe("ArticleView", () => {
       expect.stringContaining("https://line.me/R/msg/text/"),
       "_blank",
       "noopener,noreferrer",
+    );
+  });
+
+  it("resets notFound state when navigating from 404 article to valid article and handles clipboard errors (#145)", async () => {
+    const validArticle = {
+      id: "art-valid-nav",
+      title: "遷移後の有効記事",
+      content: "<p>有効本文</p>",
+      status: "published",
+      writer_id: "writer-1",
+      created_at: "2026-11-01T08:00:00Z",
+    };
+
+    const createQueryChain = (id?: string) => {
+      const data = id === "art-valid-nav" ? validArticle : null;
+      const promise = Promise.resolve({ data: data ? [data] : [], error: null });
+      const chain: any = Object.assign(promise, {
+        select: vi.fn(() => chain),
+        eq: vi.fn((_col: string, val: string) => createQueryChain(val)),
+        in: vi.fn(() => chain),
+        order: vi.fn(() => chain),
+        range: vi.fn(() => Promise.resolve({ data: [], error: null })),
+        maybeSingle: vi.fn(() => Promise.resolve({ data, error: null })),
+        single: vi.fn(() => Promise.resolve({ data, error: null })),
+      });
+      return chain;
+    };
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") return createQueryChain();
+      return createQueryChain();
+    });
+
+    const ToastProbe = () => {
+      const { toastMessage } = useUI();
+      return <div data-testid="toast-probe">{toastMessage}</div>;
+    };
+
+    await act(async () => {
+      root!.render(
+        <MemoryRouter initialEntries={["/articles/missing-404"]}>
+          <AppProviders>
+            <ToastProbe />
+            <Link to="/articles/art-valid-nav" data-testid="nav-to-valid">
+              有効記事へ
+            </Link>
+            <Routes>
+              <Route path="/articles/:id" element={<ArticleView />} />
+            </Routes>
+          </AppProviders>
+        </MemoryRouter>,
+      );
+    });
+
+    for (let i = 0; i < 50; i++) {
+      if (container.textContent?.includes("記事が見つかりません")) break;
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 20));
+      });
+    }
+    expect(container.textContent).toContain("記事が見つかりません");
+
+    // クリップボード失敗時のエラー処理も検証
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: vi.fn().mockRejectedValue(new Error("Clipboard denied")),
+      },
+    });
+
+    // 同じマウントを維持したまま有効な記事へルート遷移
+    const navLink = container.querySelector('[data-testid="nav-to-valid"]') as HTMLAnchorElement;
+    await act(async () => {
+      navLink.click();
+      await Promise.resolve();
+    });
+
+    for (let i = 0; i < 50; i++) {
+      if (container.textContent?.includes("遷移後の有効記事")) break;
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 20));
+      });
+    }
+
+    expect(container.textContent).toContain("遷移後の有効記事");
+    expect(container.textContent).not.toContain("記事が見つかりません");
+
+    const copyBtn = container.querySelector(
+      'button[aria-label="記事のリンクをコピー"]',
+    ) as HTMLButtonElement;
+    await act(async () => {
+      copyBtn.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(container.querySelector('[data-testid="toast-probe"]')?.textContent).toBe(
+      "リンクのコピーに失敗しました",
     );
   });
 });

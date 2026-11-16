@@ -114,10 +114,13 @@ export function EditorWritersView() {
       return;
     }
 
+    const nextPrimary = getPrimaryRole(nextRoles);
     const ok = await persistRolesToBackend(id, nextRoles, role);
     if (!ok) return;
 
-    setAllProfiles(allProfiles.map((w) => (w.id === id ? { ...w, role, roles: nextRoles } : w)));
+    setAllProfiles((prev) =>
+      prev.map((w) => (w.id === id ? { ...w, role: nextPrimary, roles: nextRoles } : w)),
+    );
     notifyRolesUpdated();
     showToast("ロールを変更しました");
   };
@@ -179,9 +182,9 @@ export function EditorWritersView() {
     showToast(`ロール（${getRoleLabel(rawRole)}）を追加しました`);
   };
 
-  const promoteWriter = async (email: string) => {
+  const promoteWriter = async (email: string): Promise<boolean> => {
     const targetEmail = email.trim();
-    if (!targetEmail) return;
+    if (!targetEmail) return false;
 
     // セキュアな管理者専用RPC関数を実行
     const { data: rpcData, error: rpcError } = await supabase.rpc("admin_promote_writer", {
@@ -190,7 +193,7 @@ export function EditorWritersView() {
 
     if (rpcError) {
       showToast("ライターの昇格に失敗しました: " + rpcError.message);
-      return;
+      return false;
     }
 
     if (rpcData) {
@@ -201,6 +204,7 @@ export function EditorWritersView() {
           [...(existing ? getProfileRoles(existing) : []), "writer"].filter((r) => r !== "viewer"),
         ),
       );
+      const nextPrimary = getPrimaryRole(nextRoles);
       setLocalRolesOverride(updated.id, nextRoles);
       setAllProfiles((prev) =>
         prev.find((w) => w.id === updated.id)
@@ -209,18 +213,20 @@ export function EditorWritersView() {
                 ? {
                     ...w,
                     ...updated,
-                    role: "writer",
+                    role: nextPrimary,
                     roles: nextRoles,
                   }
                 : w,
             )
-          : [...prev, { ...updated, role: "writer", roles: nextRoles }],
+          : [...prev, { ...updated, role: nextPrimary, roles: nextRoles }],
       );
       notifyRolesUpdated();
       showToast(
         `${updated.display_name ?? (updated.username ? `@${updated.username}` : (updated.email ?? updated.id))} をライターに昇格しました`,
       );
+      return true;
     }
+    return false;
   };
 
   const [newEmail, setNewEmail] = useState("");
@@ -282,9 +288,11 @@ export function EditorWritersView() {
           />
           <button
             type="button"
-            onClick={() => {
-              void promoteWriter(newEmail);
-              setNewEmail("");
+            onClick={async () => {
+              const ok = await promoteWriter(newEmail);
+              if (ok) {
+                setNewEmail("");
+              }
             }}
             className="px-4 py-2 bg-purple-600 text-white text-sm font-bold rounded-lg hover:bg-purple-700 cursor-pointer shrink-0"
           >

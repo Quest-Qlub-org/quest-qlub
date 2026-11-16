@@ -62,10 +62,16 @@ export const SearchView = () => {
 
     void (async () => {
       try {
-        const { data, error } = await supabase
-          .from("articles")
-          .select("tags")
-          .eq("status", "published");
+        const baseTagsQuery = supabase.from("articles").select("tags").eq("status", "published");
+        const orderedTagsQuery =
+          typeof (baseTagsQuery as { order?: unknown }).order === "function"
+            ? baseTagsQuery.order("created_at", { ascending: false })
+            : baseTagsQuery;
+        const limitedTagsQuery =
+          typeof (orderedTagsQuery as { limit?: unknown }).limit === "function"
+            ? (orderedTagsQuery as { limit: (n: number) => typeof orderedTagsQuery }).limit(200)
+            : orderedTagsQuery;
+        const { data, error } = await limitedTagsQuery;
         if (!isMounted || error || !data) return;
         const tags = Array.from(
           new Set(data.flatMap((row) => (row.tags as string[]) ?? [])),
@@ -103,6 +109,8 @@ export const SearchView = () => {
   const effectiveWriters = useMemo(() => {
     return serverWriters.length > 0 ? serverWriters : writers;
   }, [serverWriters, writers]);
+  const effectiveWritersRef = useRef(effectiveWriters);
+  effectiveWritersRef.current = effectiveWriters;
 
   const queryKeywords = useMemo(() => parseSearchKeywords(keyword), [keyword]);
   const hasFilter = Boolean(keyword || selectedTags.length > 0 || selectedWriterIds.length > 0);
@@ -171,7 +179,7 @@ export const SearchView = () => {
 
           if (queryKeywords.length > 0) {
             mapped = mapped.filter((a: Article) => {
-              const writer = effectiveWriters.find((w) => w.id === a.writerId);
+              const writer = effectiveWritersRef.current.find((w) => w.id === a.writerId);
               const searchTargets = [
                 a.title,
                 a.summary,
@@ -199,7 +207,7 @@ export const SearchView = () => {
       isMounted = false;
       clearTimeout(timer);
     };
-  }, [hasFilter, keyword, selectedTags, selectedWriterIds, queryKeywords, effectiveWriters]);
+  }, [hasFilter, keyword, selectedTags, selectedWriterIds, queryKeywords]);
 
   const results = useMemo(() => {
     if (serverResults !== null) {
@@ -239,17 +247,18 @@ export const SearchView = () => {
     return results.slice(0, visibleCount);
   }, [results, visibleCount]);
 
-  const toggleTag = (tag: string) =>
-    setSelectedTags((prev) => {
-      const next = prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag];
-      if (searchParams.get("tag") === tag && !next.includes(tag)) {
-        skipUrlTagResetRef.current = true;
-        const nextParams = new URLSearchParams(searchParams);
-        nextParams.delete("tag");
-        setSearchParams(nextParams, { replace: true });
-      }
-      return next;
-    });
+  const toggleTag = (tag: string) => {
+    const next = selectedTags.includes(tag)
+      ? selectedTags.filter((t) => t !== tag)
+      : [...selectedTags, tag];
+    setSelectedTags(next);
+    if (searchParams.get("tag") === tag && !next.includes(tag)) {
+      skipUrlTagResetRef.current = true;
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete("tag");
+      setSearchParams(nextParams, { replace: true });
+    }
+  };
 
   const toggleWriter = (id: string) =>
     setSelectedWriterIds((prev) =>

@@ -45,6 +45,7 @@ export const WriterSeriesPage = () => {
   const [editCollaboratorIds, setEditCollaboratorIds] = useState<string[]>([]);
   const [updating, setUpdating] = useState(false);
   const [addingArticleBySeries, setAddingArticleBySeries] = useState<Record<string, string>>({});
+  const [episodeInputs, setEpisodeInputs] = useState<Record<string, string>>({});
 
   const fetchMySeries = useCallback(async () => {
     if (!profile?.id) return;
@@ -340,6 +341,13 @@ export const WriterSeriesPage = () => {
       }
     } catch {
       showToast("話数の更新に失敗しました");
+    } finally {
+      setEpisodeInputs((prev) => {
+        if (!(articleId in prev)) return prev;
+        const next = { ...prev };
+        delete next[articleId];
+        return next;
+      });
     }
   };
 
@@ -365,10 +373,10 @@ export const WriterSeriesPage = () => {
     }
   };
 
-  const handleAddArticleToSeries = async (seriesId: string, currentCount: number) => {
+  const handleAddArticleToSeries = async (seriesId: string, maxEpisodeNumber: number) => {
     const targetArticleId = addingArticleBySeries[seriesId];
     if (!targetArticleId) return;
-    const nextEp = currentCount + 1;
+    const nextEp = maxEpisodeNumber + 1;
     try {
       const { error } = await supabase
         .from("articles")
@@ -641,7 +649,13 @@ export const WriterSeriesPage = () => {
                                 min={1}
                                 aria-label={`${a.title}の話数`}
                                 data-testid={`episode-input-${a.id}`}
-                                defaultValue={a.episodeNumber ?? ""}
+                                value={
+                                  episodeInputs[a.id] ??
+                                  (a.episodeNumber != null ? String(a.episodeNumber) : "")
+                                }
+                                onChange={(e) =>
+                                  setEpisodeInputs((prev) => ({ ...prev, [a.id]: e.target.value }))
+                                }
                                 onKeyDown={(e) => {
                                   if (e.key === "Enter") {
                                     (e.currentTarget as HTMLInputElement).blur();
@@ -653,6 +667,12 @@ export const WriterSeriesPage = () => {
                                     a.episodeNumber != null ? String(a.episodeNumber) : "";
                                   if (nextVal !== currentVal) {
                                     void handleUpdateEpisodeNumber(a.id, nextVal);
+                                  } else if (a.id in episodeInputs) {
+                                    setEpisodeInputs((prev) => {
+                                      const next = { ...prev };
+                                      delete next[a.id];
+                                      return next;
+                                    });
                                   }
                                 }}
                                 className="w-12 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 rounded px-1.5 py-0.5 text-xs text-center text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400"
@@ -719,9 +739,13 @@ export const WriterSeriesPage = () => {
                             type="button"
                             data-testid={`add-article-btn-${s.id}`}
                             disabled={!addingArticleBySeries[s.id]}
-                            onClick={() =>
-                              void handleAddArticleToSeries(s.id, seriesArticles.length)
-                            }
+                            onClick={() => {
+                              const maxEp = seriesArticles.reduce(
+                                (max, item) => Math.max(max, item.episodeNumber ?? 0),
+                                0,
+                              );
+                              void handleAddArticleToSeries(s.id, maxEp);
+                            }}
                             className="px-3 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 disabled:opacity-40 inline-flex items-center justify-center gap-1 shrink-0"
                           >
                             <Plus className="w-3.5 h-3.5" /> 追加

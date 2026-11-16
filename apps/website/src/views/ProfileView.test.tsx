@@ -19,11 +19,13 @@ let mockCurrentProfile: Profile | null = null;
 let mockIsAuthenticated = true;
 let mockGlobalArticles: any[] = [];
 
+let mockUsernameParam = "writer-user";
+
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
   return {
     ...actual,
-    useParams: () => ({ username: "writer-user" }),
+    useParams: () => ({ username: mockUsernameParam }),
   };
 });
 
@@ -98,6 +100,7 @@ describe("ProfileView (Follow counts and owner-only detailed lists)", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUsernameParam = "writer-user";
     mockIsAuthenticated = true;
     mockGlobalArticles = [];
     lastArticlesSelectFields = "";
@@ -552,5 +555,53 @@ describe("ProfileView (Follow counts and owner-only detailed lists)", () => {
       document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     });
     expect(container.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it("resets notFound on username param change and hides future-scheduled articles via isArticlePubliclyVisible (#145)", async () => {
+    mockCurrentUser = null;
+    mockCurrentProfile = null;
+    mockUsernameParam = "unknown-user";
+    mockArticlesData = [
+      {
+        id: "art-visible",
+        title: "公開済み表示記事",
+        writer_id: "writer-1",
+        status: "published",
+        scheduled_at: null,
+        created_at: "2026-11-01T00:00:00Z",
+      },
+      {
+        id: "art-future-sched",
+        title: "未来予約非表示記事",
+        writer_id: "writer-1",
+        status: "published",
+        scheduled_at: "2099-12-31T00:00:00Z",
+        created_at: "2026-11-02T00:00:00Z",
+      },
+    ];
+
+    const { container, rerender, unmount } = renderWithRouter(<ProfileView />);
+    unmountFn = unmount;
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("プロフィールが見つかりません");
+
+    // 存在するキャッシュ済みユーザーへ遷移
+    mockUsernameParam = "writer-user";
+    rerender(<ProfileView />);
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).not.toContain("プロフィールが見つかりません");
+    expect(container.textContent).toContain("テストライター");
+    expect(container.textContent).toContain("公開済み表示記事");
+    expect(container.textContent).not.toContain("未来予約非表示記事");
   });
 });

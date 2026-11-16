@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useApp } from "../../context/AppContext";
 import { supabase } from "../../supabase";
 import { LogoIcon } from "../../components/icons/NavIcons";
@@ -14,6 +14,7 @@ import {
 import { ChevronLeft, Plus, Edit3, Loader2, Eye, X, Clock, RotateCcw } from "lucide-react";
 import { updateMetaTags } from "../../utils/seo";
 import { profileHasRole } from "../../utils/roles";
+import { isArticleOptionalColumnSchemaError } from "../../utils/supabaseErrors";
 import { useFocusTrap } from "../../hooks/useFocusTrap";
 
 export const WriterDashboard = () => {
@@ -28,9 +29,12 @@ export const WriterDashboard = () => {
     userRole,
   } = useApp();
   const [writerArticles, setWriterArticles] = useState<Article[]>([]);
+  const [hasFetched, setHasFetched] = useState(false);
   const [loading, setLoading] = useState(true);
   const [previewArticle, setPreviewArticle] = useState<Article | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const articlesRef = useRef(articles);
+  articlesRef.current = articles;
 
   const closePreviewModal = useCallback(() => setPreviewArticle(null), []);
   const previewModalRef = useFocusTrap<HTMLDivElement>(Boolean(previewArticle), closePreviewModal);
@@ -74,9 +78,10 @@ export const WriterDashboard = () => {
 
       if (!error && data) {
         setWriterArticles(data.map((row) => enrichArticleWithSchedule(mapDbArticleToArticle(row))));
+        setHasFetched(true);
       } else {
         setWriterArticles(
-          articles
+          articlesRef.current
             .filter((a) => a.writerId === profile.id || a.collaboratorIds?.includes(profile.id))
             .map(enrichArticleWithSchedule),
         );
@@ -84,14 +89,14 @@ export const WriterDashboard = () => {
     } catch (e) {
       console.error("Failed to load writer articles", e);
       setWriterArticles(
-        articles
+        articlesRef.current
           .filter((a) => a.writerId === profile.id || a.collaboratorIds?.includes(profile.id))
           .map(enrichArticleWithSchedule),
       );
     } finally {
       setLoading(false);
     }
-  }, [profile?.id, articles, authLoading]);
+  }, [profile?.id, authLoading]);
 
   useEffect(() => {
     if (!authLoading) {
@@ -99,14 +104,11 @@ export const WriterDashboard = () => {
     }
   }, [fetchMyArticles, authLoading]);
 
-  const myArticles =
-    writerArticles.length > 0
-      ? writerArticles
-      : articles
-          .filter(
-            (a) => a.writerId === profile?.id || a.collaboratorIds?.includes(profile?.id ?? ""),
-          )
-          .map(enrichArticleWithSchedule);
+  const myArticles = hasFetched
+    ? writerArticles
+    : articles
+        .filter((a) => a.writerId === profile?.id || a.collaboratorIds?.includes(profile?.id ?? ""))
+        .map(enrichArticleWithSchedule);
 
   const openCreate = () => {
     navigate("writerNew");
@@ -160,7 +162,9 @@ export const WriterDashboard = () => {
       setWriterArticles((prev) =>
         prev.map((a) => (a.id === article.id ? { ...a, status: "pending" } : a)),
       );
-      setArticles(articles.map((a) => (a.id === article.id ? { ...a, status: "pending" } : a)));
+      setArticles((prev) =>
+        prev.map((a) => (a.id === article.id ? { ...a, status: "pending" } : a)),
+      );
       setPreviewArticle((prev) =>
         prev && prev.id === article.id ? { ...prev, status: "pending" } : prev,
       );
@@ -175,7 +179,7 @@ export const WriterDashboard = () => {
       .from("articles")
       .update({ status: "draft", scheduled_at: null })
       .eq("id", article.id);
-    if (error) {
+    if (error && isArticleOptionalColumnSchemaError(error)) {
       const retry = await supabase
         .from("articles")
         .update({ status: "draft" })
@@ -187,10 +191,8 @@ export const WriterDashboard = () => {
       setWriterArticles((prev) =>
         prev.map((a) => (a.id === article.id ? { ...a, status: "draft", scheduledAt: null } : a)),
       );
-      setArticles(
-        articles.map((a) =>
-          a.id === article.id ? { ...a, status: "draft", scheduledAt: null } : a,
-        ),
+      setArticles((prev) =>
+        prev.map((a) => (a.id === article.id ? { ...a, status: "draft", scheduledAt: null } : a)),
       );
       setPreviewArticle((prev) =>
         prev && prev.id === article.id ? { ...prev, status: "draft", scheduledAt: null } : prev,
@@ -222,7 +224,7 @@ export const WriterDashboard = () => {
     const { error } = await supabase.from("articles").delete().eq("id", article.id);
     if (!error) {
       setWriterArticles((prev) => prev.filter((a) => a.id !== article.id));
-      setArticles(articles.filter((a) => a.id !== article.id));
+      setArticles((prev) => prev.filter((a) => a.id !== article.id));
       if (previewArticle?.id === article.id) {
         setPreviewArticle(null);
       }

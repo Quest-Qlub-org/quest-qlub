@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { LogoIcon, CustomUserIcon } from "../components/icons/NavIcons";
@@ -16,10 +16,10 @@ import {
 import { supabase } from "../supabase";
 import type { Profile } from "../supabase";
 import type { Article } from "../types";
-import { mapDbArticleToArticle } from "../types";
 import { ARTICLE_LIST_FIELDS } from "../context/DataContext";
 import { getProfileRoles, getRoleLabel } from "../utils/roles";
 import { fetchSingleProfileWithFallback } from "../utils/profileQueries";
+import { mapDbArticleWithSchedule, isArticlePubliclyVisible } from "../utils/scheduledArticles";
 import { normalizeHandle, normalizeXAccount } from "../utils/validation";
 
 export const ProfileView = () => {
@@ -44,6 +44,8 @@ export const ProfileView = () => {
   const [writerArticles, setWriterArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(!cachedWriter);
   const [notFound, setNotFound] = useState(false);
+  const articlesRef = useRef(articles);
+  articlesRef.current = articles;
 
   // フォロワー数（誰でも閲覧可能）
   const [followersCount, setFollowersCount] = useState(0);
@@ -60,7 +62,12 @@ export const ProfileView = () => {
   }, []);
 
   useEffect(() => {
+    setNotFound(false);
+    setWriterArticles([]);
+    setFollowersCount(0);
+
     if (!targetIdentifier) {
+      setWriter(null);
       setNotFound(true);
       setLoading(false);
       return;
@@ -72,6 +79,9 @@ export const ProfileView = () => {
     if (cachedWriter) {
       setWriter(cachedWriter);
       setLoading(false);
+    } else {
+      setWriter(null);
+      setLoading(true);
     }
 
     const fetchWriterData = async () => {
@@ -135,13 +145,17 @@ export const ProfileView = () => {
           if (!isMounted) return;
 
           if (!artsError && artsData && artsData.length > 0) {
-            setWriterArticles(artsData.map((item) => mapDbArticleToArticle(item)));
+            setWriterArticles(
+              artsData
+                .map((item) => mapDbArticleWithSchedule(item))
+                .filter((a) => isArticlePubliclyVisible(a)),
+            );
           } else {
             // グローバルarticlesからフォールバック（主執筆および共同執筆記事を含む）
-            const fallback = articles.filter(
+            const fallback = articlesRef.current.filter(
               (a) =>
                 (a.writerId === profileData?.id || a.collaboratorIds?.includes(profileData?.id)) &&
-                a.status === "published",
+                isArticlePubliclyVisible(a),
             );
             setWriterArticles(fallback);
           }

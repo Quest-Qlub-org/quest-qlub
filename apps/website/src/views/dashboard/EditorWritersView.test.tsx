@@ -410,4 +410,69 @@ describe("EditorWritersView", () => {
 
     unmount();
   });
+
+  it("preserves email input when promoteWriter fails and sets local primary role via getPrimaryRole on demotion (#145)", async () => {
+    const mockProfiles = [
+      createTestProfile({
+        id: "usr-multi-demote",
+        display_name: "エンジニア兼ライター",
+        username: "eng_writer",
+        email: "engwriter@example.com",
+        role: "writer",
+        roles: ["writer", "engineer"],
+      }),
+    ];
+
+    vi.spyOn(supabase, "rpc").mockImplementation(((fn: string) => {
+      if (fn === "admin_get_all_profiles") {
+        return Promise.resolve({ data: mockProfiles, error: null });
+      }
+      if (fn === "admin_promote_writer") {
+        return Promise.resolve({ data: null, error: { message: "User not found" } });
+      }
+      if (fn === "admin_set_user_roles") {
+        return Promise.resolve({ data: null, error: null });
+      }
+      return Promise.resolve({ data: null, error: null });
+    }) as any);
+
+    let renderResult!: ReturnType<typeof renderWithRouter>;
+    await act(async () => {
+      renderResult = renderWithRouter(<EditorWritersView />);
+    });
+    const { container, unmount } = renderResult;
+
+    const emailInput = container.querySelector(
+      'input[placeholder="メールアドレス"]',
+    ) as HTMLInputElement;
+    act(() => {
+      setNativeValue(emailInput, "missing@example.com");
+    });
+
+    const promoteBtn = Array.from(container.querySelectorAll("button")).find(
+      (b) => b.textContent?.trim() === "昇格",
+    );
+    await act(async () => {
+      promoteBtn!.click();
+    });
+
+    // RPC 失敗時は入力メールが消えないこと
+    expect(emailInput.value).toBe("missing@example.com");
+
+    // 複数ロールユーザーを viewer 降格するとローカル primary role が engineer になること
+    const select = container.querySelector(
+      '[data-testid="role-select-usr-multi-demote"]',
+    ) as HTMLSelectElement;
+    await act(async () => {
+      select.value = "viewer";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    // engineer が primary role のため、select の値は "viewer" ではなく "engineer" 等（options に無い場合は先頭 fallback になる前に state 上 w.role が "engineer"）になっていること
+    // バッジで「エンジニア」が残り「閲覧者」にならないことを確認
+    expect(container.textContent).toContain("✓ エンジニア");
+    expect(container.textContent).not.toContain("✓ 閲覧者");
+
+    unmount();
+  });
 });
