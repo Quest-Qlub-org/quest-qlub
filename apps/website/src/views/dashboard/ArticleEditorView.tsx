@@ -202,66 +202,32 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
   const [editorLoading, setEditorLoading] = useState(
     Boolean(editingId && !editingArticle?.content),
   );
+  const [notFound, setNotFound] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
+  const isDirtyRef = useRef(isDirty);
+  isDirtyRef.current = isDirty;
+  const savingRef = useRef(saving);
+  savingRef.current = saving;
+  const editVersionRef = useRef(0);
+  const autoSaveIdRef = useRef<string | null>(editingId);
+  const skipNextFetchForIdRef = useRef<string | null>(null);
+  const saveInFlightRef = useRef<Promise<void> | null>(null);
+  const hasPushedGuardRef = useRef(false);
+  const editorContainerRef = useRef<HTMLDivElement>(null);
+
+  const markDirty = () => {
+    editVersionRef.current += 1;
+    setIsDirty(true);
+  };
 
   useEffect(() => {
     if (!editingId) {
+      autoSaveIdRef.current = null;
+      skipNextFetchForIdRef.current = null;
+      setNotFound(false);
+      setIsDirty(false);
       setEditorLoading(false);
-      return;
-    }
-
-    let isMounted = true;
-    const fetchArticleForEdit = async () => {
-      try {
-        const { data, error } = await supabase
-          .from("articles")
-          .select("*")
-          .eq("id", editingId)
-          .maybeSingle();
-
-        if (isMounted && data && !error) {
-          const mapped = mapDbArticleToArticle(data);
-          const hasEditAccess =
-            isEditor ||
-            !currentUserId ||
-            mapped.writerId === currentUserId ||
-            (mapped.collaboratorIds ?? []).includes(currentUserId);
-          if (!hasEditAccess) {
-            showToast("この記事を編集する権限がありません");
-            navigate("writerDash");
-            return;
-          }
-          setLoadedArticle(mapped);
-          setFormTitle(mapped.title ?? "");
-          setFormContent(mapped.content ?? "");
-          setFormColor(mapped.thumbnailColor ?? "blue");
-          setTags(mapped.tags ?? []);
-          setFormSeriesId(mapped.seriesId ?? "");
-          setFormEpisodeNumber(mapped.episodeNumber?.toString() ?? "");
-          setThumbnailUrl(mapped.thumbnailUrl ?? null);
-          setFormSummary(mapped.summary ?? "");
-          setCollaboratorIds(mapped.collaboratorIds ?? []);
-          setFormCommentsEnabled(mapped.commentsEnabled !== false);
-          setFormScheduledAt(
-            toDatetimeLocalValue(mapped.scheduledAt ?? getLocalScheduledAt(mapped.id)),
-          );
-          setIsDirty(false);
-        }
-      } catch (e) {
-        console.error("Failed to load article for editing", e);
-      } finally {
-        if (isMounted) setEditorLoading(false);
-      }
-    };
-
-    void fetchArticleForEdit();
-    return () => {
-      isMounted = false;
-    };
-  }, [editingId]);
-
-  useEffect(() => {
-    if (!editingId) {
       setLoadedArticle(null);
       setFormTitle("");
       setFormContent("");
@@ -279,7 +245,80 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
       setShowPreview(false);
       setThumbnailUploading(false);
       setLastSavedAt(null);
+      return;
     }
+
+    if (skipNextFetchForIdRef.current === editingId) {
+      skipNextFetchForIdRef.current = null;
+      setNotFound(false);
+      setEditorLoading(false);
+      return;
+    }
+
+    autoSaveIdRef.current = editingId;
+    setNotFound(false);
+    setIsDirty(false);
+    setEditorLoading(!editingArticle?.content);
+
+    let isMounted = true;
+    const fetchArticleForEdit = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("articles")
+          .select("*")
+          .eq("id", editingId)
+          .maybeSingle();
+
+        if (!isMounted) return;
+
+        if (error || !data) {
+          if (!editingArticle) {
+            setNotFound(true);
+          }
+          return;
+        }
+
+        const mapped = mapDbArticleToArticle(data);
+        const hasEditAccess =
+          isEditor ||
+          !currentUserId ||
+          mapped.writerId === currentUserId ||
+          (mapped.collaboratorIds ?? []).includes(currentUserId);
+        if (!hasEditAccess) {
+          showToast("この記事を編集する権限がありません");
+          navigate("writerDash");
+          return;
+        }
+        setLoadedArticle(mapped);
+        setFormTitle(mapped.title ?? "");
+        setFormContent(mapped.content ?? "");
+        setFormColor(mapped.thumbnailColor ?? "blue");
+        setTags(mapped.tags ?? []);
+        setFormSeriesId(mapped.seriesId ?? "");
+        setFormEpisodeNumber(mapped.episodeNumber?.toString() ?? "");
+        setThumbnailUrl(mapped.thumbnailUrl ?? null);
+        setFormSummary(mapped.summary ?? "");
+        setCollaboratorIds(mapped.collaboratorIds ?? []);
+        setFormCommentsEnabled(mapped.commentsEnabled !== false);
+        setFormScheduledAt(
+          toDatetimeLocalValue(mapped.scheduledAt ?? getLocalScheduledAt(mapped.id)),
+        );
+        setNotFound(false);
+        setIsDirty(false);
+      } catch (e) {
+        console.error("Failed to load article for editing", e);
+        if (isMounted && !editingArticle) {
+          setNotFound(true);
+        }
+      } finally {
+        if (isMounted) setEditorLoading(false);
+      }
+    };
+
+    void fetchArticleForEdit();
+    return () => {
+      isMounted = false;
+    };
   }, [editingId]);
 
   const uploadImageToStorage = async (file: File, prefix = "thumb"): Promise<string | null> => {
@@ -311,7 +350,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
     const url = await uploadImageToStorage(file, "thumb");
     if (url) {
       setThumbnailUrl(url);
-      setIsDirty(true);
+      markDirty();
       showToast("サムネイル画像をアップロードしました");
     }
     setThumbnailUploading(false);
@@ -332,14 +371,14 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
       .filter((t) => t && !tags.includes(t));
     if (newTags.length) {
       setTags([...tags, ...newTags]);
-      setIsDirty(true);
+      markDirty();
     }
     setTagInput("");
   };
 
   const removeTag = (tag: string) => {
     setTags(tags.filter((t) => t !== tag));
-    setIsDirty(true);
+    markDirty();
   };
 
   const handleSave = async (submitForReview = false) => {
@@ -347,14 +386,22 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
       showToast("タイトルを入力してください");
       return;
     }
-    setSaving(true);
-    const targetId = editingId || effectiveEditingArticle?.id || autoSaveIdRef.current;
     const scheduledIso = toSafeIsoString(formScheduledAt);
     if (formScheduledAt.trim() && !scheduledIso) {
       showToast("有効な公開予約日時を入力してください");
-      setSaving(false);
       return;
     }
+    setSaving(true);
+    if (saveInFlightRef.current) {
+      try {
+        await saveInFlightRef.current;
+      } catch {
+        // ignore prior autosave error
+      }
+    }
+
+    const versionAtStart = editVersionRef.current;
+    const targetId = editingId || effectiveEditingArticle?.id || autoSaveIdRef.current;
     const isFutureSchedule = isArticleScheduledFuture(scheduledIso);
 
     const currentValues = {
@@ -371,169 +418,187 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
       collaboratorIds,
     };
 
-    if (targetId) {
-      const nextStatus: ArticleStatus | undefined = submitForReview
-        ? isEditor
-          ? isFutureSchedule
-            ? "scheduled"
-            : "published"
-          : "pending"
-        : undefined;
+    const runSave = (async () => {
+      if (targetId) {
+        const nextStatus: ArticleStatus | undefined = submitForReview
+          ? isEditor
+            ? isFutureSchedule
+              ? "scheduled"
+              : "published"
+            : "pending"
+          : undefined;
 
-      const updatePayload = buildBaseArticlePayload(currentValues, canManageCollaborators);
-      if (nextStatus) {
-        updatePayload.status = nextStatus;
-      }
-
-      const { error } = await updateArticleWithFallback(targetId, updatePayload);
-
-      if (!error) {
-        setLocalScheduledAt(targetId, scheduledIso);
-        const currentStatus = effectiveEditingArticle?.status ?? "draft";
-        const resolvedStatus: ArticleStatus =
-          nextStatus ??
-          (isFutureSchedule && currentStatus === "published" ? "scheduled" : currentStatus);
-
-        const updatedArticleItem: Article = {
-          id: targetId,
-          title: formTitle,
-          thumbnail: effectiveEditingArticle?.thumbnail ?? "",
-          content: formContent,
-          summary: formSummary || undefined,
-          tags,
-          thumbnailColor: formColor,
-          thumbnailUrl: thumbnailUrl,
-          seriesId: formSeriesId || null,
-          episodeNumber: formEpisodeNumber ? parseInt(formEpisodeNumber, 10) : null,
-          commentsEnabled: formCommentsEnabled,
-          collaboratorIds,
-          scheduledAt: scheduledIso,
-          status: resolvedStatus,
-          writerId: effectiveEditingArticle?.writerId ?? currentUserId ?? "",
-          views: effectiveEditingArticle?.views ?? 0,
-          likes: effectiveEditingArticle?.likes ?? 0,
-          isRecommended: effectiveEditingArticle?.isRecommended ?? false,
-          isPopular: effectiveEditingArticle?.isPopular ?? false,
-          createdAt: effectiveEditingArticle?.createdAt,
-        };
-
-        setLoadedArticle((prev) =>
-          prev ? { ...prev, ...updatedArticleItem } : updatedArticleItem,
-        );
-
-        setArticles((prev) => {
-          const exists = prev.some((a) => a.id === targetId);
-          if (exists) {
-            return prev.map((a) => (a.id === targetId ? { ...a, ...updatedArticleItem } : a));
-          }
-          if (resolvedStatus === "published") {
-            return [updatedArticleItem, ...prev];
-          }
-          return prev;
-        });
-        setIsDirty(false);
-        setLastSavedAt(
-          new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }),
-        );
-        const isCollaborator = Boolean(
-          effectiveEditingArticle?.collaboratorIds?.includes(currentUserId ?? ""),
-        );
-        const isEditingOtherArticle =
-          isEditor &&
-          !isCollaborator &&
-          Boolean(effectiveEditingArticle && effectiveEditingArticle.writerId !== currentUserId);
-        const destination = isEditingOtherArticle ? "editorArticles" : "writerDash";
-
-        if (submitForReview) {
-          showToast(
-            nextStatus === "published"
-              ? "記事を公開しました"
-              : scheduledIso
-                ? `公開予約（${formatScheduledDateTime(scheduledIso)}）で申請しました`
-                : "投稿申請しました",
-          );
-          navigate(destination);
-        } else {
-          showToast(effectiveEditingArticle ? "記事を更新しました" : "下書きを保存しました");
-          if (effectiveEditingArticle) {
-            navigate(destination);
-          }
+        const updatePayload = buildBaseArticlePayload(currentValues, canManageCollaborators);
+        if (nextStatus) {
+          updatePayload.status = nextStatus;
         }
-      } else {
-        console.error("記事更新エラー:", error);
-        showToast("エラーが発生しました。もう一度お試しください。");
-      }
-    } else {
-      const initialStatus: ArticleStatus = submitForReview
-        ? isEditor && isFutureSchedule
-          ? "scheduled"
-          : "pending"
-        : "draft";
 
-      const insertPayload = buildBaseArticlePayload(currentValues);
-      insertPayload.writer_id = currentUserId;
-      insertPayload.status = initialStatus;
-      insertPayload.views = 0;
-      insertPayload.likes = 0;
-      insertPayload.is_recommended = false;
-      insertPayload.is_popular = false;
-      if (scheduledIso) {
-        insertPayload.scheduled_at = scheduledIso;
-      }
+        const { error } = await updateArticleWithFallback(targetId, updatePayload);
 
-      const { data, error } = await insertArticleWithFallback(insertPayload);
-      if (!error && data) {
-        autoSaveIdRef.current = data.id;
-        setLocalScheduledAt(data.id, scheduledIso);
-        setArticles((prev) => [
-          {
-            id: data.id,
-            title: data.title,
-            thumbnail: "",
-            thumbnailColor: formColor,
-            thumbnailUrl: thumbnailUrl,
-            writerId: data.writer_id,
-            views: 0,
-            likes: 0,
-            tags,
-            isRecommended: false,
-            isPopular: false,
-            status: initialStatus,
+        if (!error) {
+          setLocalScheduledAt(targetId, scheduledIso);
+          const currentStatus = effectiveEditingArticle?.status ?? "draft";
+          const resolvedStatus: ArticleStatus =
+            nextStatus ??
+            (isFutureSchedule && currentStatus === "published" ? "scheduled" : currentStatus);
+
+          const updatedArticleItem: Article = {
+            id: targetId,
+            title: formTitle,
+            thumbnail: effectiveEditingArticle?.thumbnail ?? "",
             content: formContent,
             summary: formSummary || undefined,
+            tags,
+            thumbnailColor: formColor,
+            thumbnailUrl: thumbnailUrl,
             seriesId: formSeriesId || null,
             episodeNumber: formEpisodeNumber ? parseInt(formEpisodeNumber, 10) : null,
             commentsEnabled: formCommentsEnabled,
-            collaboratorIds: data.collaborator_ids ?? collaboratorIds,
+            collaboratorIds,
             scheduledAt: scheduledIso,
-          },
-          ...prev,
-        ]);
-        setIsDirty(false);
-        setLastSavedAt(
-          new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }),
-        );
-        if (submitForReview) {
-          showToast(
-            scheduledIso
-              ? `公開予約（${formatScheduledDateTime(scheduledIso)}）で申請しました`
-              : "投稿申請しました",
+            status: resolvedStatus,
+            writerId: effectiveEditingArticle?.writerId ?? currentUserId ?? "",
+            views: effectiveEditingArticle?.views ?? 0,
+            likes: effectiveEditingArticle?.likes ?? 0,
+            isRecommended: effectiveEditingArticle?.isRecommended ?? false,
+            isPopular: effectiveEditingArticle?.isPopular ?? false,
+            createdAt: effectiveEditingArticle?.createdAt,
+          };
+
+          setLoadedArticle((prev) =>
+            prev ? { ...prev, ...updatedArticleItem } : updatedArticleItem,
           );
-          navigate("writerDash");
+
+          setArticles((prev) => {
+            const exists = prev.some((a) => a.id === targetId);
+            if (exists) {
+              return prev.map((a) => (a.id === targetId ? { ...a, ...updatedArticleItem } : a));
+            }
+            if (resolvedStatus === "published") {
+              return [updatedArticleItem, ...prev];
+            }
+            return prev;
+          });
+          if (editVersionRef.current === versionAtStart) {
+            setIsDirty(false);
+          }
+          setLastSavedAt(
+            new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }),
+          );
+          const isCollaborator = Boolean(
+            effectiveEditingArticle?.collaboratorIds?.includes(currentUserId ?? ""),
+          );
+          const isEditingOtherArticle =
+            isEditor &&
+            !isCollaborator &&
+            Boolean(effectiveEditingArticle && effectiveEditingArticle.writerId !== currentUserId);
+          const destination = isEditingOtherArticle ? "editorArticles" : "writerDash";
+
+          if (submitForReview) {
+            showToast(
+              nextStatus === "published"
+                ? "記事を公開しました"
+                : scheduledIso
+                  ? `公開予約（${formatScheduledDateTime(scheduledIso)}）で申請しました`
+                  : "投稿申請しました",
+            );
+            hasPushedGuardRef.current = false;
+            navigate(destination);
+          } else {
+            showToast(effectiveEditingArticle ? "記事を更新しました" : "下書きを保存しました");
+            if (effectiveEditingArticle) {
+              hasPushedGuardRef.current = false;
+              navigate(destination);
+            }
+          }
         } else {
-          showToast("下書きを保存しました");
+          console.error("記事更新エラー:", error);
+          showToast("エラーが発生しました。もう一度お試しください。");
         }
       } else {
-        console.error("下書き保存エラー:", error);
-        showToast("エラーが発生しました。もう一度お試しください。");
-      }
-    }
-    setSaving(false);
-  };
+        const initialStatus: ArticleStatus = submitForReview
+          ? isEditor
+            ? isFutureSchedule
+              ? "scheduled"
+              : "published"
+            : "pending"
+          : "draft";
 
-  const [isDirty, setIsDirty] = useState(false);
-  const autoSaveIdRef = useRef<string | null>(editingId);
-  const editorContainerRef = useRef<HTMLDivElement>(null);
+        const insertPayload = buildBaseArticlePayload(currentValues, canManageCollaborators);
+        insertPayload.writer_id = currentUserId;
+        insertPayload.status = initialStatus;
+        insertPayload.views = 0;
+        insertPayload.likes = 0;
+        insertPayload.is_recommended = false;
+        insertPayload.is_popular = false;
+        if (scheduledIso) {
+          insertPayload.scheduled_at = scheduledIso;
+        }
+
+        const { data, error } = await insertArticleWithFallback(insertPayload);
+        if (!error && data) {
+          autoSaveIdRef.current = data.id;
+          setLocalScheduledAt(data.id, scheduledIso);
+          setArticles((prev) => [
+            {
+              id: data.id,
+              title: data.title,
+              thumbnail: "",
+              thumbnailColor: formColor,
+              thumbnailUrl: thumbnailUrl,
+              writerId: data.writer_id,
+              views: 0,
+              likes: 0,
+              tags,
+              isRecommended: false,
+              isPopular: false,
+              status: initialStatus,
+              content: formContent,
+              summary: formSummary || undefined,
+              seriesId: formSeriesId || null,
+              episodeNumber: formEpisodeNumber ? parseInt(formEpisodeNumber, 10) : null,
+              commentsEnabled: formCommentsEnabled,
+              collaboratorIds: data.collaborator_ids ?? collaboratorIds,
+              scheduledAt: scheduledIso,
+            },
+            ...prev,
+          ]);
+          if (editVersionRef.current === versionAtStart) {
+            setIsDirty(false);
+          }
+          setLastSavedAt(
+            new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }),
+          );
+          if (submitForReview) {
+            showToast(
+              initialStatus === "published"
+                ? "記事を公開しました"
+                : scheduledIso
+                  ? `公開予約（${formatScheduledDateTime(scheduledIso)}）で申請しました`
+                  : "投稿申請しました",
+            );
+            hasPushedGuardRef.current = false;
+            navigate("writerDash");
+          } else {
+            showToast("下書きを保存しました");
+          }
+        } else {
+          console.error("下書き保存エラー:", error);
+          showToast("エラーが発生しました。もう一度お試しください。");
+        }
+      }
+    })();
+
+    saveInFlightRef.current = runSave;
+    try {
+      await runSave;
+    } finally {
+      if (saveInFlightRef.current === runSave) {
+        saveInFlightRef.current = null;
+      }
+      setSaving(false);
+    }
+  };
 
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
@@ -563,6 +628,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
             return;
           } else {
             setIsDirty(false);
+            hasPushedGuardRef.current = false;
             return;
           }
         }
@@ -582,6 +648,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
             e.stopPropagation();
           } else {
             setIsDirty(false);
+            hasPushedGuardRef.current = false;
           }
         }
       }
@@ -591,20 +658,38 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
   }, [isDirty]);
 
   useEffect(() => {
-    if (!isDirty) return;
-    const handlePopState = () => {
-      if (!window.confirm("保存されていない変更があります。ページを離れますか？")) {
-        window.history.pushState(null, "", window.location.href);
-      }
-    };
-    window.history.pushState(null, "", window.location.href);
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
+    if (isDirty && !hasPushedGuardRef.current) {
+      window.history.pushState({ __editorGuard: true }, "", window.location.href);
+      hasPushedGuardRef.current = true;
+    }
   }, [isDirty]);
 
   useEffect(() => {
-    if (!isDirty || !formTitle.trim() || !currentUserId) return;
+    const handlePopState = () => {
+      if (!hasPushedGuardRef.current) return;
+      if (isDirtyRef.current) {
+        if (!window.confirm("保存されていない変更があります。ページを離れますか？")) {
+          window.history.pushState({ __editorGuard: true }, "", window.location.href);
+        } else {
+          hasPushedGuardRef.current = false;
+          isDirtyRef.current = false;
+          setIsDirty(false);
+          window.history.back();
+        }
+      } else {
+        hasPushedGuardRef.current = false;
+        window.history.back();
+      }
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  useEffect(() => {
+    if (!isDirty || !formTitle.trim() || !currentUserId || saving) return;
     const timer = setTimeout(async () => {
+      if (savingRef.current || saveInFlightRef.current) return;
+      const versionAtStart = editVersionRef.current;
       const scheduledIso = toSafeIsoString(formScheduledAt);
       const currentValues = {
         title: formTitle,
@@ -620,22 +705,25 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
         collaboratorIds,
       };
 
-      if (autoSaveIdRef.current) {
-        const updatePayload = buildBaseArticlePayload(currentValues, canManageCollaborators);
-        await updateArticleWithFallback(autoSaveIdRef.current, updatePayload);
-        setLocalScheduledAt(autoSaveIdRef.current, scheduledIso);
-      } else {
-        const insertPayload = buildBaseArticlePayload(currentValues, canManageCollaborators);
-        insertPayload.writer_id = currentUserId;
-        insertPayload.status = "draft";
-        insertPayload.views = 0;
-        insertPayload.likes = 0;
-        insertPayload.is_recommended = false;
-        insertPayload.is_popular = false;
+      const runAutoSave = (async () => {
+        if (autoSaveIdRef.current) {
+          const updatePayload = buildBaseArticlePayload(currentValues, canManageCollaborators);
+          const { error } = await updateArticleWithFallback(autoSaveIdRef.current, updatePayload);
+          if (error) return;
+          setLocalScheduledAt(autoSaveIdRef.current, scheduledIso);
+        } else {
+          const insertPayload = buildBaseArticlePayload(currentValues, canManageCollaborators);
+          insertPayload.writer_id = currentUserId;
+          insertPayload.status = "draft";
+          insertPayload.views = 0;
+          insertPayload.likes = 0;
+          insertPayload.is_recommended = false;
+          insertPayload.is_popular = false;
 
-        const { data } = await insertArticleWithFallback(insertPayload);
-        if (data) {
+          const { data, error } = await insertArticleWithFallback(insertPayload);
+          if (error || !data) return;
           autoSaveIdRef.current = data.id;
+          skipNextFetchForIdRef.current = data.id;
           setLocalScheduledAt(data.id, scheduledIso);
           void routerNavigate(`/writer-dash/edit/${data.id}`, { replace: true });
           const newArticle: Article = {
@@ -662,12 +750,23 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
           setLoadedArticle(newArticle);
           setArticles((prev) => [newArticle, ...prev]);
         }
+        if (editVersionRef.current === versionAtStart) {
+          setIsDirty(false);
+        }
+        setLastSavedAt(
+          new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }),
+        );
+        showToast("自動保存しました");
+      })();
+
+      saveInFlightRef.current = runAutoSave;
+      try {
+        await runAutoSave;
+      } finally {
+        if (saveInFlightRef.current === runAutoSave) {
+          saveInFlightRef.current = null;
+        }
       }
-      setIsDirty(false);
-      setLastSavedAt(
-        new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }),
-      );
-      showToast("自動保存しました");
     }, 5000);
     return () => clearTimeout(timer);
   }, [
@@ -684,6 +783,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
     collaboratorIds,
     canManageCollaborators,
     isDirty,
+    saving,
     currentUserId,
     setArticles,
     showToast,
@@ -694,6 +794,21 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
         <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
         <p className="text-sm text-gray-500 font-medium">記事データを読み込んでいます...</p>
+      </div>
+    );
+  }
+
+  if (notFound) {
+    return (
+      <div className="p-12 text-center space-y-4">
+        <p className="text-gray-500 dark:text-gray-400 text-base font-bold">記事が見つかりません</p>
+        <button
+          type="button"
+          onClick={() => navigate("writerDash")}
+          className="px-5 py-2.5 bg-gray-900 text-white text-xs font-bold rounded-xl hover:bg-gray-800 transition-colors"
+        >
+          ダッシュボードへ戻る
+        </button>
       </div>
     );
   }
@@ -714,7 +829,12 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
               )
                 return;
               setIsDirty(false);
-              window.history.back();
+              if (hasPushedGuardRef.current) {
+                hasPushedGuardRef.current = false;
+                window.history.go(-2);
+              } else {
+                window.history.back();
+              }
             }}
             className="p-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full transition-colors shrink-0"
             aria-label="戻る"
@@ -903,7 +1023,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                       value={formTitle}
                       onChange={(e) => {
                         setFormTitle(e.target.value);
-                        setIsDirty(true);
+                        markDirty();
                       }}
                     />
                   </div>
@@ -926,7 +1046,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                       value={formSummary}
                       onChange={(e) => {
                         setFormSummary(e.target.value);
-                        setIsDirty(true);
+                        markDirty();
                       }}
                     />
                   </div>
@@ -1012,7 +1132,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                                 type="button"
                                 onClick={() => {
                                   setThumbnailUrl(null);
-                                  setIsDirty(true);
+                                  markDirty();
                                 }}
                                 className="px-3 py-2 text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-xl transition-colors"
                               >
@@ -1047,7 +1167,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                                   key={color.id}
                                   onClick={() => {
                                     setFormColor(color.id);
-                                    setIsDirty(true);
+                                    markDirty();
                                   }}
                                   className={`w-8 h-8 rounded-full ${color.bg} border-2 transition-all ${
                                     formColor === color.id
@@ -1067,7 +1187,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                               value={collaboratorIds}
                               onChange={(ids) => {
                                 setCollaboratorIds(ids);
-                                setIsDirty(true);
+                                markDirty();
                               }}
                               excludeUserIds={Array.from(
                                 new Set([
@@ -1156,7 +1276,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                               value={formSeriesId}
                               onChange={(e) => {
                                 setFormSeriesId(e.target.value);
-                                setIsDirty(true);
+                                markDirty();
                               }}
                             >
                               <option value="">連載なし（単発記事）</option>
@@ -1193,7 +1313,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                                 value={formEpisodeNumber}
                                 onChange={(e) => {
                                   setFormEpisodeNumber(e.target.value);
-                                  setIsDirty(true);
+                                  markDirty();
                                 }}
                               />
                             </div>
@@ -1218,7 +1338,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                               checked={formCommentsEnabled}
                               onChange={(e) => {
                                 setFormCommentsEnabled(e.target.checked);
-                                setIsDirty(true);
+                                markDirty();
                               }}
                               className="w-4 h-4 accent-blue-600 rounded cursor-pointer"
                             />
@@ -1241,7 +1361,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                                   type="button"
                                   onClick={() => {
                                     setFormScheduledAt("");
-                                    setIsDirty(true);
+                                    markDirty();
                                   }}
                                   className="text-[11px] text-purple-600 dark:text-purple-400 hover:underline font-bold"
                                 >
@@ -1256,7 +1376,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                               value={formScheduledAt}
                               onChange={(e) => {
                                 setFormScheduledAt(e.target.value);
-                                setIsDirty(true);
+                                markDirty();
                               }}
                               className="w-full border border-purple-200 dark:border-purple-800/60 rounded-lg px-3 py-1.5 text-xs bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-400"
                             />
@@ -1277,7 +1397,7 @@ export const ArticleEditorPage = ({ editingId }: ArticleEditorPageProps) => {
                   content={formContent}
                   onChange={(html) => {
                     setFormContent(html);
-                    setIsDirty(true);
+                    markDirty();
                   }}
                   placeholder="ここから記事の本文を書き始めましょう..."
                   onUploadImage={handleInlineImageUpload}
