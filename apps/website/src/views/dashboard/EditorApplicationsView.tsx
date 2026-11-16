@@ -15,6 +15,12 @@ export interface ContactMessage {
   created_at: string;
 }
 
+export function isWriterApplicationMessage(msg: ContactMessage): boolean {
+  const subject = typeof msg.subject === "string" ? msg.subject.trim() : "";
+  const body = typeof msg.body === "string" ? msg.body : "";
+  return subject.startsWith("【ライター応募】") && body.includes("【志望動機・自己PR】:");
+}
+
 export function EditorApplicationsView() {
   const { showToast, refreshTeamMembers, refreshWriters } = useApp();
   const [messages, setMessages] = useState<ContactMessage[]>([]);
@@ -85,7 +91,7 @@ export function EditorApplicationsView() {
 
   const filteredMessages = messages.filter((m) => {
     if (filterMode === "applications") {
-      if (!m.subject?.includes("ライター応募")) return false;
+      if (!isWriterApplicationMessage(m)) return false;
     }
     if (keyword.trim()) {
       const lower = keyword.toLowerCase();
@@ -98,7 +104,7 @@ export function EditorApplicationsView() {
     return true;
   });
 
-  const applicationCount = messages.filter((m) => m.subject?.includes("ライター応募")).length;
+  const applicationCount = messages.filter((m) => isWriterApplicationMessage(m)).length;
 
   return (
     <div className="max-w-5xl mx-auto p-4 md:p-6 space-y-4 animate-in slide-in-from-right-8 duration-300">
@@ -180,7 +186,7 @@ export function EditorApplicationsView() {
       ) : (
         <div className="space-y-4">
           {filteredMessages.map((msg) => {
-            const isWriterApp = Boolean(msg.subject?.includes("ライター応募"));
+            const isWriterApp = isWriterApplicationMessage(msg);
             const isPromoting = promotingEmail === msg.email;
 
             return (

@@ -905,6 +905,7 @@ export const ArticleView = () => {
                     `${article.title} | ${writer?.display_name ?? "Quest Qlub"} From Quest Qlub`,
                   )}&url=${encodeURIComponent(articleUrl)}&via=QuestQlub`,
                   "_blank",
+                  "noopener,noreferrer",
                 )
               }
               className="w-14 h-14 bg-black text-white rounded-full flex items-center justify-center hover:opacity-80 shadow-md cursor-pointer"
@@ -920,6 +921,7 @@ export const ArticleView = () => {
                     `${article.title} | ${writer?.display_name ?? "Quest Qlub"} From Quest Qlub\n${articleUrl}`,
                   )}`,
                   "_blank",
+                  "noopener,noreferrer",
                 )
               }
               className="w-14 h-14 bg-green-500 text-white rounded-full flex items-center justify-center hover:opacity-80 shadow-md cursor-pointer"

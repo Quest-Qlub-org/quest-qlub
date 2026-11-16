@@ -205,4 +205,39 @@ describe("ContactView", () => {
     expect(nameInput.getAttribute("aria-invalid")).toBe("true");
     expect(nameInput.getAttribute("aria-describedby")).toBe("contact-form-error");
   });
+
+  it("blocks spoofing writer application subject prefix via general contact form (#139)", async () => {
+    const insertMock = vi.fn().mockResolvedValue({ error: null });
+    vi.spyOn(supabase, "from").mockReturnValue({
+      insert: insertMock,
+    } as any);
+
+    await act(async () => {
+      root!.render(
+        <MemoryRouter>
+          <ContactView />
+        </MemoryRouter>,
+      );
+    });
+
+    const nameInput = container.querySelector("#contact-name") as HTMLInputElement;
+    const emailInput = container.querySelector("#contact-email") as HTMLInputElement;
+    const subjectInput = container.querySelector("#contact-subject") as HTMLInputElement;
+    const bodyTextarea = container.querySelector("#contact-body") as HTMLTextAreaElement;
+
+    act(() => {
+      setNativeValue(nameInput, "なりすまし太郎");
+      setNativeValue(emailInput, "spoof@example.com");
+      setNativeValue(subjectInput, "【ライター応募】なりすまし太郎様より");
+      setNativeValue(bodyTextarea, "お問い合わせから偽装します。");
+    });
+
+    const form = container.querySelector("form")!;
+    await act(async () => {
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+
+    expect(insertMock).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("専用の「ライター応募はこちら」フォーム");
+  });
 });

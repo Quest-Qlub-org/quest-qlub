@@ -69,6 +69,10 @@ export function ContactView() {
       setErr(validation.error ?? "入力内容に誤りがあります");
       return;
     }
+    if (subject.trim().startsWith("【ライター応募】")) {
+      setErr("ライター応募は専用の「ライター応募はこちら」フォームからお送りください。");
+      return;
+    }
     setSending(true);
     setErr("");
 

@@ -1360,4 +1360,80 @@ describe("ArticleView", () => {
     // Sudo 未認可時は Supabase update が実行されないこと
     expect(updateMock).not.toHaveBeenCalled();
   });
+
+  it("opens X and LINE share links with noopener,noreferrer (#139)", async () => {
+    const articleData = {
+      id: "art-share-sec",
+      title: "シェアセキュリティテスト",
+      content: "<p>本文</p>",
+      status: "published",
+      writer_id: "writer-share",
+      created_at: "2026-11-01T08:00:00Z",
+    };
+
+    const createQueryChain = (data: any = null) => {
+      const arr = data ? (Array.isArray(data) ? data : [data]) : [];
+      const promise = Promise.resolve({ data: arr, error: null });
+      const chain: any = Object.assign(promise, {
+        select: vi.fn(() => chain),
+        eq: vi.fn(() => chain),
+        in: vi.fn(() => chain),
+        order: vi.fn(() => chain),
+        range: vi.fn(() => Promise.resolve({ data: [], error: null })),
+        maybeSingle: vi.fn(() => Promise.resolve({ data: arr[0] ?? null, error: null })),
+        single: vi.fn(() => Promise.resolve({ data: arr[0] ?? null, error: null })),
+      });
+      return chain;
+    };
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "articles") return createQueryChain(articleData);
+      return createQueryChain(null);
+    });
+
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+
+    await act(async () => {
+      root!.render(
+        <MemoryRouter initialEntries={["/articles/art-share-sec"]}>
+          <AppProviders>
+            <Routes>
+              <Route path="/articles/:id" element={<ArticleView />} />
+            </Routes>
+          </AppProviders>
+        </MemoryRouter>,
+      );
+    });
+
+    for (let i = 0; i < 50; i++) {
+      if (container.textContent?.includes("シェアセキュリティテスト")) break;
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 20));
+      });
+    }
+
+    const xBtn = container.querySelector('button[aria-label="Xで共有"]') as HTMLButtonElement;
+    const lineBtn = container.querySelector('button[aria-label="LINEで共有"]') as HTMLButtonElement;
+    expect(xBtn).not.toBeNull();
+    expect(lineBtn).not.toBeNull();
+
+    act(() => {
+      xBtn.click();
+      lineBtn.click();
+    });
+
+    expect(openSpy).toHaveBeenCalledTimes(2);
+    expect(openSpy).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining("https://twitter.com/intent/tweet"),
+      "_blank",
+      "noopener,noreferrer",
+    );
+    expect(openSpy).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining("https://line.me/R/msg/text/"),
+      "_blank",
+      "noopener,noreferrer",
+    );
+  });
 });
