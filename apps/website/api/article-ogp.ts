@@ -1,11 +1,14 @@
 import {
   BOT_USER_AGENTS,
   buildPublishedOrDueFilter,
-  escapeHtml,
+  fetchWithTimeout,
   getSiteUrl,
   getSupabaseConfig,
   isBotUserAgent,
   isSafeImageUrl,
+  isUndefinedColumnResponse,
+  renderOgpHtml,
+  sendOgpHtmlResponse,
   type VercelRequest,
   type VercelResponse,
 } from "./_shared";
@@ -37,6 +40,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const articleUrl = `${siteUrl}/articles/${encodedArticleId}`;
   const directArticleUrl = `${articleUrl}?direct=1`;
 
+  res.setHeader("Vary", "User-Agent");
+
   // 通常ブラウザや direct=1 クエリ付きアクセスは、即座に SPA 本体へ誘導
   if (directParam || !isBotUserAgent(userAgent)) {
     return res.redirect(302, directArticleUrl);
@@ -55,26 +60,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       // 1. 公開記事または公開予約時刻到来済み記事を取得 (scheduled_at カラムが存在する場合)
       const publishedOrDueFilter = buildPublishedOrDueFilter(nowIso);
-      let response = await fetch(
+      const authHeaders = {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`,
+      };
+      let response = await fetchWithTimeout(
         `${supabaseUrl}/rest/v1/articles?id=eq.${encodedArticleId}&${publishedOrDueFilter}&select=title,summary,thumbnail_url,scheduled_at`,
-        {
-          headers: {
-            apikey: supabaseAnonKey,
-            Authorization: `Bearer ${supabaseAnonKey}`,
-          },
-        },
+        { headers: authHeaders },
       );
 
-      // スキーマドリフト耐性: scheduled_at カラム未適用環境 (400 Bad Request / 42703) の自動フォールバック
-      if (!response.ok) {
-        response = await fetch(
+      // スキーマドリフト耐性: scheduled_at カラム未適用環境 (HTTP 400 / 42703) に限定して自動フォールバック
+      if (await isUndefinedColumnResponse(response)) {
+        response = await fetchWithTimeout(
           `${supabaseUrl}/rest/v1/articles?id=eq.${encodedArticleId}&status=eq.published&select=title,summary,thumbnail_url`,
-          {
-            headers: {
-              apikey: supabaseAnonKey,
-              Authorization: `Bearer ${supabaseAnonKey}`,
-            },
-          },
+          { headers: authHeaders },
         );
       }
 
@@ -112,49 +111,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  const robotsOrCanonicalTag = articleFound
-    ? `<link rel="canonical" href="${escapeHtml(articleUrl)}">`
-    : `<meta name="robots" content="noindex">`;
+  const html = renderOgpHtml({
+    title,
+    description,
+    ogType: "article",
+    twitterCard: "summary_large_image",
+    canonicalUrl: articleUrl,
+    directUrl: directArticleUrl,
+    imageUrl,
+    found: articleFound,
+    fallbackLinkLabel: "記事を読む",
+  });
 
-  const html = `<!DOCTYPE html>
-<html lang="ja">
-<head>
-  <meta charset="UTF-8">
-  <title>${escapeHtml(title)}</title>
-  <meta name="description" content="${escapeHtml(description)}">
-  ${robotsOrCanonicalTag}
-
-  <!-- Open Graph -->
-  <meta property="og:type" content="article">
-  <meta property="og:title" content="${escapeHtml(title)}">
-  <meta property="og:description" content="${escapeHtml(description)}">
-  <meta property="og:url" content="${escapeHtml(articleUrl)}">
-  <meta property="og:image" content="${escapeHtml(imageUrl)}">
-  <meta property="og:site_name" content="Quest Qlub">
-
-  <!-- Twitter Card -->
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="${escapeHtml(title)}">
-  <meta name="twitter:description" content="${escapeHtml(description)}">
-  <meta name="twitter:image" content="${escapeHtml(imageUrl)}">
-</head>
-<body>
-  <h1>${escapeHtml(title)}</h1>
-  <p>${escapeHtml(description)}</p>
-  <a href="${escapeHtml(directArticleUrl)}">記事を読む</a>
-  <script>
-    if (typeof window !== "undefined" && !/(bot|spider|crawl|poker)/i.test(navigator.userAgent)) {
-      window.location.replace("${escapeHtml(directArticleUrl)}");
-    }
-  </script>
-</body>
-</html>`;
-
-  res.setHeader("Content-Type", "text/html; charset=utf-8");
-  if (articleFound) {
-    res.setHeader("Cache-Control", "public, s-maxage=3600, stale-while-revalidate=86400");
-    return res.status(200).send(html);
-  }
-  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-  return res.status(404).send(html);
+  return sendOgpHtmlResponse(res, html, articleFound);
 }
