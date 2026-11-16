@@ -67,18 +67,29 @@ export function setLocalComments(articleId: string, comments: CommentItem[]): vo
 export function isCommentsSchemaError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
   const err = error as { code?: string; message?: string };
+  const msg = typeof err.message === "string" ? err.message : "";
+  const lowerMsg = msg.toLowerCase();
+
+  // 正規の RLS / 権限拒否（42501, permission denied, row-level security）は絶対にスキーマドリフトとみなさない
+  if (
+    err.code === "42501" ||
+    lowerMsg.includes("permission denied") ||
+    lowerMsg.includes("row-level security")
+  ) {
+    return false;
+  }
+
   return (
     err.code === "PGRST205" ||
     err.code === "42P01" ||
     err.code === "42703" ||
-    err.code === "42501" ||
-    (typeof err.message === "string" &&
-      (err.message.includes("article_comments") ||
-        err.message.includes("comments_enabled") ||
-        err.message.includes("check_is_editor") ||
-        err.message.includes("Could not find the table") ||
-        err.message.includes("schema cache") ||
-        err.message.includes("permission denied")))
+    err.code === "42883" ||
+    msg.includes("Could not find the table") ||
+    msg.includes("schema cache") ||
+    (lowerMsg.includes("does not exist") &&
+      (msg.includes("article_comments") ||
+        msg.includes("comments_enabled") ||
+        msg.includes("check_is_editor")))
   );
 }
 
