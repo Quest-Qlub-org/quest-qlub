@@ -19,12 +19,26 @@ describe("profileQueries", () => {
   });
 
   describe("applyProfileRoleOverrides", () => {
-    it("applies local override when exists", () => {
+    it("does not overwrite authoritative DB roles array when present", () => {
       setLocalRolesOverride("u-1", ["editor", "writer"]);
       const p = {
         id: "u-1",
         role: "viewer" as const,
         roles: ["viewer"],
+        display_name: "Test",
+        username: "test",
+        avatar_url: null,
+      };
+      const res = applyProfileRoleOverrides(p);
+      expect(res.roles).toEqual(["viewer"]);
+    });
+
+    it("applies local override only when DB roles array is missing or empty", () => {
+      setLocalRolesOverride("u-1", ["editor", "writer"]);
+      const p = {
+        id: "u-1",
+        role: "viewer" as const,
+        roles: [],
         display_name: "Test",
         username: "test",
         avatar_url: null,
@@ -183,7 +197,7 @@ describe("profileQueries", () => {
       expect(res).toHaveLength(1);
     });
 
-    it("applies local role overrides to fetched profiles", async () => {
+    it("preserves DB roles over local role overrides when DB returns roles", async () => {
       setLocalRolesOverride("u-1", ["editor", "writer"]);
       const mockData = [
         {
@@ -206,7 +220,7 @@ describe("profileQueries", () => {
         inIds: ["u-1"],
       });
 
-      expect(res?.[0].roles).toEqual(["editor", "writer"]);
+      expect(res?.[0].roles).toEqual(["viewer"]);
     });
   });
 

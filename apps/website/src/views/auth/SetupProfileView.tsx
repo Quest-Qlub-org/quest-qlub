@@ -1,14 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../supabase";
 import { useApp } from "../../context/AppContext";
 import { updateMetaTags } from "../../utils/seo";
 
 export const SetupProfileView = () => {
-  const { profile, setProfile, showToast, navigate } = useApp();
+  const { user, profile, setProfile, authLoading, showToast, navigate } = useApp();
   const [displayName, setDisplayName] = useState(profile?.display_name ?? "");
   const [username, setUsername] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const hasSyncedDisplayNameRef = useRef(Boolean(profile?.display_name));
 
   useEffect(() => {
     updateMetaTags({
@@ -16,6 +17,21 @@ export const SetupProfileView = () => {
       noindex: true,
     });
   }, []);
+
+  useEffect(() => {
+    if (!authLoading && profile?.display_name && !hasSyncedDisplayNameRef.current) {
+      hasSyncedDisplayNameRef.current = true;
+      setDisplayName((prev) => prev || profile.display_name || "");
+    }
+  }, [authLoading, profile?.display_name]);
+
+  const isUnauthenticated = !authLoading && !user && !profile;
+
+  useEffect(() => {
+    if (isUnauthenticated) {
+      navigate("login");
+    }
+  }, [isUnauthenticated, navigate]);
 
   const handleSave = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -95,8 +111,26 @@ export const SetupProfileView = () => {
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // ignore signOut errors before navigation
+    } finally {
+      navigate("login");
+    }
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center transition-colors">
+        <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (isUnauthenticated) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center p-4 transition-colors">

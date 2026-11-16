@@ -224,20 +224,95 @@ describe("ArticleComments (DB-backed, Auth-required, Role permissions, Pinning &
     unmount();
   });
 
-  it("handles 42501 check_is_editor permission error with graceful fallback in isCommentsSchemaError", async () => {
+  it("does not treat 42501 or RLS permission errors as schema drift in isCommentsSchemaError", async () => {
     const { isCommentsSchemaError } = await import("./ArticleComments");
     expect(
       isCommentsSchemaError({
         code: "42501",
         message: "permission denied for function check_is_editor",
       }),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       isCommentsSchemaError({
         code: "42501",
         message: "permission denied for table article_comments",
       }),
+    ).toBe(false);
+    expect(
+      isCommentsSchemaError({
+        code: "42501",
+        message: 'new row violates row-level security policy for table "article_comments"',
+      }),
+    ).toBe(false);
+    expect(
+      isCommentsSchemaError({
+        code: "PGRST205",
+        message: "Could not find the table 'public.article_comments' in the schema cache",
+      }),
     ).toBe(true);
+    expect(
+      isCommentsSchemaError({
+        code: "42P01",
+        message: 'relation "article_comments" does not exist',
+      }),
+    ).toBe(true);
+  });
+
+  it("shows an error instead of falling back to localStorage when insert receives 42501 permission denied", async () => {
+    mockAuth("viewer", "viewer-rls-1", "権限拒否テスト読者");
+
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      if (table === "article_comments") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              order: vi.fn().mockReturnValue({
+                order: vi.fn().mockResolvedValue({ data: [], error: null }),
+              }),
+            }),
+          }),
+          insert: vi.fn().mockReturnValue({
+            select: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: null,
+                error: {
+                  code: "42501",
+                  message: "permission denied for table article_comments",
+                },
+              }),
+            }),
+          }),
+        } as any;
+      }
+      return {} as any;
+    });
+
+    const { container, unmount } = renderWithRouter(
+      <ArticleComments articleId="art-rls-42501" writerId={writerId} commentsEnabled={true} />,
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const textarea = container.querySelector("textarea") as HTMLTextAreaElement;
+    setNativeValue(textarea, "未認可コメント");
+
+    const submitBtn = container.querySelector('button[type="submit"]') as HTMLButtonElement;
+    await act(async () => {
+      submitBtn.click();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("コメントの送信に失敗しました");
+    expect(container.textContent).toContain("感想・コメント (0)");
+    expect(container.textContent).toContain("まだコメントはありません");
+    expect(container.textContent).not.toContain("ローカル保存モード");
+    expect(localStorage.getItem("quest_qlub_comments_art-rls-42501") || "").not.toContain(
+      "未認可コメント",
+    );
+
+    unmount();
   });
 
   it("completely hides all comments (including past comments) from regular viewers and guests when commentsEnabled is false", async () => {
@@ -734,6 +809,33 @@ describe("ArticleComments (DB-backed, Auth-required, Role permissions, Pinning &
 
     expect(container.textContent).toContain("コメントの連続投稿は制限されています。");
     expect(container.textContent).not.toContain("ローカル保存モード");
+
+    unmount();
+  });
+
+  it("does not render NaN dates when comment timestamps are invalid", async () => {
+    mockCommentsDb.push({
+      id: "c-bad-date",
+      article_id: articleId,
+      author_id: "viewer-bad-date",
+      author_name: "不正日付読者",
+      content: "日時パーステスト",
+      is_pinned: false,
+      created_at: "not-a-valid-date",
+      updated_at: "not-a-valid-date",
+    });
+    mockAuth("viewer", "viewer-1", "一般読者");
+
+    const { container, unmount } = renderWithRouter(
+      <ArticleComments articleId={articleId} writerId={writerId} commentsEnabled={true} />,
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("日時パーステスト");
+    expect(container.textContent).not.toContain("NaN");
 
     unmount();
   });

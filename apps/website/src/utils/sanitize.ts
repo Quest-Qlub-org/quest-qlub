@@ -119,6 +119,33 @@ function filterSafeStyles(rawStyle: string): string {
   return safeDeclarations.join("; ");
 }
 
+const ALLOWED_CLASSES = new Set([
+  // TipTap CustomFrame
+  "custom-frame",
+  "custom-frame-theme",
+  "custom-frame-verification",
+  "custom-frame-summary",
+  "custom-frame-note",
+  "custom-frame-title",
+  "custom-frame-body",
+  "frame-title",
+  "frame-content",
+  "rounded-r-xl",
+  "my-4",
+  // TipTap Link / Image
+  "text-blue-600",
+  "underline",
+  "cursor-pointer",
+  "max-w-full",
+  "rounded-lg",
+  "my-3",
+  "mx-auto",
+]);
+
+function isAllowedClassName(cls: string): boolean {
+  return ALLOWED_CLASSES.has(cls) || /^language-[a-z0-9_-]+$/i.test(cls);
+}
+
 const INTERNAL_HOSTNAMES = new Set<string>(["quest-qlub.vercel.app"]);
 
 try {
@@ -143,9 +170,12 @@ function isExternalHttpLink(href: string): boolean {
   }
 }
 
-// 外部リンクへの rel="ugc noopener noreferrer" 付与・リバースタブナビング防止 & style属性のプロパティ制限
-if (typeof DOMPurify?.addHook === "function") {
-  DOMPurify.addHook("afterSanitizeAttributes", (node) => {
+// グローバル DOMPurify シングルトンを汚染しない専用インスタンスを生成
+const purifier = typeof window !== "undefined" ? DOMPurify(window) : DOMPurify;
+
+// 外部リンクへの rel="ugc noopener noreferrer" 付与・リバースタブナビング防止・class/style制限
+if (typeof purifier?.addHook === "function") {
+  purifier.addHook("afterSanitizeAttributes", (node) => {
     if (node.tagName === "A") {
       const href = node.getAttribute("href") || "";
       if (isExternalHttpLink(href)) {
@@ -158,6 +188,19 @@ if (typeof DOMPurify?.addHook === "function") {
     if (node.hasAttribute("contenteditable")) {
       if (node.getAttribute("contenteditable")?.toLowerCase() !== "false") {
         node.removeAttribute("contenteditable");
+      }
+    }
+
+    if (node.hasAttribute("class")) {
+      const rawClass = node.getAttribute("class") || "";
+      const filteredClasses = rawClass
+        .split(/\s+/)
+        .map((c) => c.trim())
+        .filter((c) => Boolean(c) && isAllowedClassName(c));
+      if (filteredClasses.length > 0) {
+        node.setAttribute("class", filteredClasses.join(" "));
+      } else {
+        node.removeAttribute("class");
       }
     }
 
@@ -174,7 +217,7 @@ if (typeof DOMPurify?.addHook === "function") {
 }
 
 export function sanitizeHtml(html: string): string {
-  return DOMPurify.sanitize(html, {
+  return purifier.sanitize(html, {
     ALLOWED_TAGS,
     ALLOWED_ATTR,
     ALLOW_DATA_ATTR: false,

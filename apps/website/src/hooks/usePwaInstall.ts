@@ -104,19 +104,6 @@ export function usePwaInstall(): UsePwaInstallResult {
       setIsInstalled(true);
     }
 
-    const handleBeforeInstallPrompt = (e: Event) => {
-      e.preventDefault();
-      globalDeferredPrompt = e as BeforeInstallPromptEvent;
-      setDeferredPrompt(globalDeferredPrompt);
-    };
-
-    const handleAppInstalled = () => {
-      globalDeferredPrompt = null;
-      globalIsInstalled = true;
-      setDeferredPrompt(null);
-      setIsInstalled(true);
-    };
-
     const handleGlobalSync = () => {
       setDeferredPrompt(globalDeferredPrompt);
       if (globalIsInstalled) {
@@ -124,8 +111,7 @@ export function usePwaInstall(): UsePwaInstallResult {
       }
     };
 
-    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
-    window.addEventListener("appinstalled", handleAppInstalled);
+    // beforeinstallprompt / appinstalled はモジュールレベルで単一登録し、各フックからは globalListeners のみ購読する
     globalListeners.add(handleGlobalSync);
 
     let mediaQuery: MediaQueryList | null = null;
@@ -159,8 +145,6 @@ export function usePwaInstall(): UsePwaInstallResult {
     }
 
     return () => {
-      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
-      window.removeEventListener("appinstalled", handleAppInstalled);
       globalListeners.delete(handleGlobalSync);
       if (mediaQuery && handleMediaChange) {
         if (mediaQuery.removeEventListener) {

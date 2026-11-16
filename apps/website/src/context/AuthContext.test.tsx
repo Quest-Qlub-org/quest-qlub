@@ -4,6 +4,8 @@ import { createRoot } from "react-dom/client";
 import { act } from "react";
 import { AuthProvider, useAuth } from "./AuthContext";
 import { supabase } from "../supabase";
+import { checkIsSudoActive, setInMemorySudoAuthorized } from "../utils/sudoState";
+import { setLocalRolesOverride } from "../utils/roles";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -269,9 +271,12 @@ describe("AuthContext security & MFA", () => {
 
     localStorage.setItem("quest_qlub_comments_art1", "[]");
     localStorage.setItem("quest_qlub_follows_u1", "[]");
+    localStorage.setItem("quest_qlub_user_follows_u1", "[]");
+    localStorage.setItem("quest_qlub_profile_roles_v1", JSON.stringify({ u1: ["editor"] }));
     localStorage.setItem("quest_qlub_scheduled_articles_v1", "{}");
     localStorage.setItem("preferred_theme", "dark");
     sessionStorage.setItem("quest_qlub_sudo_at", "12345");
+    setInMemorySudoAuthorized(true);
 
     await act(async () => {
       root!.render(
@@ -287,8 +292,171 @@ describe("AuthContext security & MFA", () => {
 
     expect(localStorage.getItem("quest_qlub_comments_art1")).toBeNull();
     expect(localStorage.getItem("quest_qlub_follows_u1")).toBeNull();
+    expect(localStorage.getItem("quest_qlub_user_follows_u1")).toBeNull();
+    expect(localStorage.getItem("quest_qlub_profile_roles_v1")).toBeNull();
     expect(localStorage.getItem("quest_qlub_scheduled_articles_v1")).toBeNull();
     expect(sessionStorage.getItem("quest_qlub_sudo_at")).toBeNull();
+    expect(checkIsSudoActive()).toBe(false);
     expect(localStorage.getItem("preferred_theme")).toBe("dark");
+  });
+
+  it("ignores localStorage role overrides for authorization in AuthContext", async () => {
+    const viewerUser = {
+      id: "viewer-user-1",
+      email: "viewer@example.com",
+      user_metadata: {},
+    };
+    setLocalRolesOverride(viewerUser.id, ["editor", "writer"]);
+
+    vi.spyOn(supabase.auth, "getSession").mockResolvedValue({
+      data: {
+        session: {
+          user: viewerUser as any,
+          access_token: "token",
+          token_type: "bearer",
+          expires_in: 3600,
+          expires_at: 1800000000,
+          refresh_token: "ref",
+        },
+      },
+      error: null,
+    });
+    vi.spyOn(supabase.auth, "onAuthStateChange").mockReturnValue({
+      data: {
+        subscription: { unsubscribe: vi.fn(), id: "sub-override", callback: vi.fn() },
+      },
+    });
+    vi.spyOn(supabase.auth.mfa, "getAuthenticatorAssuranceLevel").mockResolvedValue({
+      data: { currentLevel: "aal1", nextLevel: "aal1", currentAuthenticationMethods: [] },
+      error: null,
+    });
+
+    const mockSelect = vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        maybeSingle: vi.fn().mockResolvedValue({
+          data: {
+            id: viewerUser.id,
+            role: "viewer",
+            roles: ["viewer"],
+            display_name: "Viewer",
+            username: "viewer1",
+            avatar_url: null,
+            bio: null,
+          },
+          error: null,
+        }),
+      }),
+    });
+    vi.spyOn(supabase, "from").mockReturnValue({ select: mockSelect } as any);
+
+    let authState!: ReturnType<typeof useAuth>;
+    const TestConsumer = () => {
+      authState = useAuth();
+      return <div>Role: {authState.userRole}</div>;
+    };
+
+    await act(async () => {
+      root!.render(
+        <AuthProvider>
+          <TestConsumer />
+        </AuthProvider>,
+      );
+    });
+
+    expect(authState.userRole).toBe("viewer");
+    expect(authState.profile?.roles).toEqual(["viewer"]);
+  });
+
+  it("immediately resets userRole to viewer when switching users without SIGNED_OUT", async () => {
+    let authCallback: ((event: string, session: unknown) => void) | null = null;
+    const editorUser = { id: "user-editor-a", email: "a@example.com", user_metadata: {} };
+    const viewerUser = { id: "user-viewer-b", email: "b@example.com", user_metadata: {} };
+
+    vi.spyOn(supabase.auth, "getSession").mockResolvedValue({
+      data: {
+        session: {
+          user: editorUser as any,
+          access_token: "token",
+          token_type: "bearer",
+          expires_in: 3600,
+          expires_at: 1800000000,
+          refresh_token: "ref",
+        },
+      },
+      error: null,
+    });
+    vi.spyOn(supabase.auth, "onAuthStateChange").mockImplementation((cb: any) => {
+      authCallback = cb;
+      return {
+        data: { subscription: { unsubscribe: vi.fn(), id: "sub-switch", callback: vi.fn() } },
+      };
+    });
+    vi.spyOn(supabase.auth.mfa, "getAuthenticatorAssuranceLevel").mockResolvedValue({
+      data: { currentLevel: "aal1", nextLevel: "aal1", currentAuthenticationMethods: [] },
+      error: null,
+    });
+
+    let resolveUserBProfile!: (val: unknown) => void;
+    vi.spyOn(supabase, "from").mockImplementation((() => ({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn((_col: string, id: string) => ({
+          maybeSingle: vi.fn(() => {
+            if (id === editorUser.id) {
+              return Promise.resolve({
+                data: {
+                  id: editorUser.id,
+                  role: "editor",
+                  roles: ["editor"],
+                  display_name: "Editor A",
+                  username: "ed_a",
+                },
+                error: null,
+              });
+            }
+            return new Promise((resolve) => {
+              resolveUserBProfile = resolve;
+            });
+          }),
+        })),
+      }),
+    })) as any);
+
+    let authState!: ReturnType<typeof useAuth>;
+    const TestConsumer = () => {
+      authState = useAuth();
+      return <div>Role: {authState.userRole}</div>;
+    };
+
+    await act(async () => {
+      root!.render(
+        <AuthProvider>
+          <TestConsumer />
+        </AuthProvider>,
+      );
+    });
+    expect(authState.userRole).toBe("editor");
+
+    // ユーザーBへ切り替え（プロファイル取得は未完了の状態で即座に viewer へリセットされること）
+    await act(async () => {
+      authCallback?.("SIGNED_IN", { user: viewerUser });
+      await Promise.resolve();
+    });
+    expect(authState.userRole).toBe("viewer");
+
+    // 非同期取得完了後も viewer のまま
+    await act(async () => {
+      resolveUserBProfile({
+        data: {
+          id: viewerUser.id,
+          role: "viewer",
+          roles: ["viewer"],
+          display_name: "Viewer B",
+          username: "vw_b",
+        },
+        error: null,
+      });
+      await Promise.resolve();
+    });
+    expect(authState.userRole).toBe("viewer");
   });
 });

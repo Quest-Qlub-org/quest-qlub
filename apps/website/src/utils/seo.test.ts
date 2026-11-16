@@ -272,4 +272,21 @@ describe("seo utility", () => {
     expect(orgSchema.name).toBe("Quest Qlub");
     expect(orgSchema.logo).toContain("/brand_logo.jpg");
   });
+
+  it("uses getSiteUrl() for WebSite/Organization JSON-LD and DEFAULT_META when VITE_SITE_URL is configured", () => {
+    vi.stubEnv("VITE_SITE_URL", "https://custom.questqlub.example/");
+
+    const siteSchema = generateWebSiteJsonLd();
+    expect(siteSchema.url).toBe("https://custom.questqlub.example/");
+    expect(siteSchema.potentialAction.target.urlTemplate).toBe(
+      "https://custom.questqlub.example/search?q={search_term}",
+    );
+
+    const orgSchema = generateOrganizationJsonLd();
+    expect(orgSchema.url).toBe("https://custom.questqlub.example/");
+    expect(orgSchema.logo).toBe("https://custom.questqlub.example/brand_logo.jpg");
+
+    expect(DEFAULT_META.url).toBe("https://custom.questqlub.example/");
+    expect(DEFAULT_META.image).toBe("https://custom.questqlub.example/ogp.png");
+  });
 });

@@ -51,8 +51,12 @@ export const DEFAULT_META = {
   title: "Quest Qlub | 学びの「楽しい！」をつなげる",
   description:
     "Quest Qlubは、学びの「楽しい！」をつなげる記事プラットフォームです。ライターと読者をつなぎ、知識と好奇心を共有します。",
-  url: "https://quest-qlub.vercel.app/",
-  image: "https://quest-qlub.vercel.app/ogp.png",
+  get url() {
+    return `${getSiteUrl()}/`;
+  },
+  get image() {
+    return `${getSiteUrl()}/ogp.png`;
+  },
   type: "website" as const,
   twitterCard: "summary_large_image" as const,
 };
@@ -184,17 +188,18 @@ export function resetMetaTags(): void {
  * サイト内検索 (SearchAction) を含む WebSite 構造化データ
  */
 export function generateWebSiteJsonLd() {
+  const siteUrl = getSiteUrl();
   return {
     "@context": "https://schema.org",
     "@type": "WebSite",
     name: "Quest Qlub",
-    url: "https://quest-qlub.vercel.app/",
+    url: `${siteUrl}/`,
     description: "学びの「楽しい！」をつなげる記事プラットフォーム",
     potentialAction: {
       "@type": "SearchAction",
       target: {
         "@type": "EntryPoint",
-        urlTemplate: "https://quest-qlub.vercel.app/search?q={search_term}",
+        urlTemplate: `${siteUrl}/search?q={search_term}`,
       },
       "query-input": "required name=search_term",
     },
@@ -205,12 +210,13 @@ export function generateWebSiteJsonLd() {
  * 組織情報 (Organization) 構造化データ
  */
 export function generateOrganizationJsonLd() {
+  const siteUrl = getSiteUrl();
   return {
     "@context": "https://schema.org",
     "@type": "Organization",
     name: "Quest Qlub",
-    url: "https://quest-qlub.vercel.app/",
-    logo: "https://quest-qlub.vercel.app/brand_logo.jpg",
+    url: `${siteUrl}/`,
+    logo: `${siteUrl}/brand_logo.jpg`,
     description: "学びの「楽しい！」をつなげる記事プラットフォーム",
   };
 }

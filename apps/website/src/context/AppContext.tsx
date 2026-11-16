@@ -1,5 +1,5 @@
-import React from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import React, { useCallback, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import type { User } from "@supabase/supabase-js";
 import type { Profile } from "../supabase";
 import type { Article, Series } from "../types";
@@ -29,8 +29,8 @@ export interface AppContextType {
   // Global UI helpers
   showToast: (message: string) => void;
   navigate: (view: string, param?: string | null) => void;
-  currentView: string;
-  viewParam: string | null;
+  /** @deprecated Removed from runtime return; kept optional until views-editor drops viewParam destructuring */
+  viewParam?: string | null;
 
   // Core Data
   writers: Profile[];
@@ -44,6 +44,7 @@ export interface AppContextType {
   setTeamMembers: React.Dispatch<React.SetStateAction<Profile[]>>;
   teamMembersLoading: boolean;
   refreshTeamMembers: () => Promise<void>;
+  knownProfiles?: Record<string, Profile>;
   articles: Article[];
   setArticles: React.Dispatch<React.SetStateAction<Article[]>>;
   articlesLoading: boolean;
@@ -119,73 +120,77 @@ export function useApp(): AppContextType {
   const ui = useUI();
   const data = useData();
   const routerNavigate = useNavigate();
-  const location = useLocation();
 
-  const navigate = (view: string, param?: string | null) => {
-    if (view.startsWith("/")) {
-      void routerNavigate(view);
-      return;
-    }
-    const mapper = VIEW_TO_PATH_MAP[view];
-    if (mapper) {
-      void routerNavigate(mapper(param));
-    } else {
-      void routerNavigate(`/${view}`);
-    }
-  };
+  const navigate = useCallback(
+    (view: string, param?: string | null) => {
+      if (view.startsWith("/")) {
+        void routerNavigate(view);
+        return;
+      }
+      const mapper = VIEW_TO_PATH_MAP[view];
+      if (mapper) {
+        void routerNavigate(mapper(param));
+      } else {
+        void routerNavigate(`/${view}`);
+      }
+    },
+    [routerNavigate],
+  );
 
-  return {
-    user: auth.user,
-    profile: auth.profile,
-    setProfile: auth.setProfile,
-    userRole: auth.userRole,
-    setUserRole: auth.setUserRole,
-    authLoading: auth.authLoading,
-    mfaChallengeRequired: auth.mfaChallengeRequired,
-    setMfaChallengeRequired: auth.setMfaChallengeRequired,
-    refreshProfile: auth.refreshProfile,
+  return useMemo<AppContextType>(
+    () => ({
+      user: auth.user,
+      profile: auth.profile,
+      setProfile: auth.setProfile,
+      userRole: auth.userRole,
+      setUserRole: auth.setUserRole,
+      authLoading: auth.authLoading,
+      mfaChallengeRequired: auth.mfaChallengeRequired,
+      setMfaChallengeRequired: auth.setMfaChallengeRequired,
+      refreshProfile: auth.refreshProfile,
 
-    showToast: ui.showToast,
-    navigate,
-    currentView: location.pathname,
-    viewParam: null,
+      showToast: ui.showToast,
+      navigate,
 
-    writers: data.writers,
-    setWriters: data.setWriters,
-    writersLoading: data.writersLoading,
-    refreshWriters: data.refreshWriters,
-    hasMoreWriters: data.hasMoreWriters,
-    loadingMoreWriters: data.loadingMoreWriters,
-    loadMoreWriters: data.loadMoreWriters,
-    teamMembers: data.teamMembers,
-    setTeamMembers: data.setTeamMembers,
-    teamMembersLoading: data.teamMembersLoading,
-    refreshTeamMembers: data.refreshTeamMembers,
+      writers: data.writers,
+      setWriters: data.setWriters,
+      writersLoading: data.writersLoading,
+      refreshWriters: data.refreshWriters,
+      hasMoreWriters: data.hasMoreWriters,
+      loadingMoreWriters: data.loadingMoreWriters,
+      loadMoreWriters: data.loadMoreWriters,
+      teamMembers: data.teamMembers,
+      setTeamMembers: data.setTeamMembers,
+      teamMembersLoading: data.teamMembersLoading,
+      refreshTeamMembers: data.refreshTeamMembers,
+      knownProfiles: data.knownProfiles,
 
-    articles: data.articles,
-    setArticles: data.setArticles,
-    articlesLoading: data.articlesLoading,
-    refreshArticles: data.refreshArticles,
-    hasMoreArticles: data.hasMoreArticles,
-    loadingMoreArticles: data.loadingMoreArticles,
-    loadMoreArticles: data.loadMoreArticles,
+      articles: data.articles,
+      setArticles: data.setArticles,
+      articlesLoading: data.articlesLoading,
+      refreshArticles: data.refreshArticles,
+      hasMoreArticles: data.hasMoreArticles,
+      loadingMoreArticles: data.loadingMoreArticles,
+      loadMoreArticles: data.loadMoreArticles,
 
-    seriesList: data.seriesList,
-    setSeriesList: data.setSeriesList,
+      seriesList: data.seriesList,
+      setSeriesList: data.setSeriesList,
 
-    favorites: data.favorites,
-    setFavorites: data.setFavorites,
-    toggleFavorite: data.toggleFavorite,
+      favorites: data.favorites,
+      setFavorites: data.setFavorites,
+      toggleFavorite: data.toggleFavorite,
 
-    fontSize: ui.fontSize,
-    setFontSize: ui.setFontSize,
-    getFontSizeClass: ui.getFontSizeClass,
+      fontSize: ui.fontSize,
+      setFontSize: ui.setFontSize,
+      getFontSizeClass: ui.getFontSizeClass,
 
-    theme: ui.theme,
-    setTheme: ui.setTheme,
-    effectiveTheme: ui.effectiveTheme,
-    toggleTheme: ui.toggleTheme,
+      theme: ui.theme,
+      setTheme: ui.setTheme,
+      effectiveTheme: ui.effectiveTheme,
+      toggleTheme: ui.toggleTheme,
 
-    dataLoaded: data.dataLoaded,
-  };
+      dataLoaded: data.dataLoaded,
+    }),
+    [auth, ui, data, navigate],
+  );
 }

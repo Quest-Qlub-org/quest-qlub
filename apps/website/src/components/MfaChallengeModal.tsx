@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "../supabase";
 import { ShieldCheck, AlertCircle, LogOut, KeyRound } from "lucide-react";
 import { useFocusTrap } from "../hooks/useFocusTrap";
+import { findVerifiedTotpFactor, verifyTotpCode, verifyBackupCode } from "../utils/mfa";
 
 interface MfaChallengeModalProps {
   isOpen?: boolean;
@@ -21,6 +22,14 @@ export const MfaChallengeModal = ({
   const [loading, setLoading] = useState(false);
   const [factorId, setFactorId] = useState<string | null>(null);
   const [fetchingFactor, setFetchingFactor] = useState(true);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const modalRef = useFocusTrap<HTMLDivElement>(isOpen, () => {
     if (onCancel) {
@@ -29,31 +38,35 @@ export const MfaChallengeModal = ({
   });
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      setMode("totp");
+      setVerifyCode("");
+      setBackupCode("");
+      setError("");
+      setLoading(false);
+      setFactorId(null);
+      return;
+    }
 
     let isMounted = true;
+    setMode("totp");
     setFetchingFactor(true);
     setError("");
     setVerifyCode("");
+    setBackupCode("");
+    setLoading(false);
+    setFactorId(null);
 
     const fetchFactors = async () => {
       try {
-        const { data, error: factorsErr } = await supabase.auth.mfa.listFactors();
+        const result = await findVerifiedTotpFactor();
         if (!isMounted) return;
 
-        if (factorsErr) {
-          setError("2要素認証情報の取得に失敗しました");
-          return;
-        }
-
-        const verifiedTotp = data.totp.find((f) => f.status === "verified") ?? data.totp[0];
-        if (verifiedTotp) {
-          setFactorId(verifiedTotp.id);
+        if (result.factorId) {
+          setFactorId(result.factorId);
         } else {
-          setError("有効な2要素認証ファクターが見つかりませんでした");
+          setError(result.errorMessage ?? "有効な2要素認証ファクターが見つかりませんでした");
         }
-      } catch {
-        if (isMounted) setError("通信エラーが発生しました");
       } finally {
         if (isMounted) setFetchingFactor(false);
       }
@@ -76,29 +89,19 @@ export const MfaChallengeModal = ({
     setError("");
 
     try {
-      const challenge = await supabase.auth.mfa.challenge({ factorId });
-      if (challenge.error) {
-        setError(challenge.error.message || "認証チャレンジの作成に失敗しました");
-        setLoading(false);
-        return;
-      }
-
-      const verify = await supabase.auth.mfa.verify({
-        factorId,
-        challengeId: challenge.data.id,
-        code: verifyCode.trim(),
-      });
-
-      if (verify.error) {
-        setError("認証コードが正しくありません。最新の6桁コードを入力してください。");
-        setLoading(false);
+      const result = await verifyTotpCode(factorId, verifyCode);
+      if (!result.success) {
+        setError(result.errorMessage ?? "認証に失敗しました");
         return;
       }
 
       onSuccess();
     } catch {
       setError("認証処理中にエラーが発生しました");
-      setLoading(false);
+    } finally {
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -110,25 +113,19 @@ export const MfaChallengeModal = ({
     setError("");
 
     try {
-      const { data: isValid, error: rpcErr } = await supabase.rpc(
-        "verify_and_consume_backup_code",
-        {
-          p_code: backupCode.trim(),
-        },
-      );
-
-      if (rpcErr || !isValid) {
-        setError("バックアップコードが正しくないか、すでに使用されています。");
-        setLoading(false);
+      const result = await verifyBackupCode(backupCode);
+      if (!result.success) {
+        setError(result.errorMessage ?? "バックアップコードの検証に失敗しました");
         return;
       }
 
-      // 成功: 2FAはリセットされたのでセッションをリフレッシュして最新化
-      await supabase.auth.refreshSession().catch(() => {});
       onSuccess();
     } catch {
       setError("認証処理中にエラーが発生しました");
-      setLoading(false);
+    } finally {
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 

@@ -330,9 +330,14 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
   }, [editor, imageUrl, imageAlt]);
 
   const handleImageFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !editor || !onUploadImage) return;
+    const inputEl = e.target;
+    const file = inputEl.files?.[0];
+    if (!file || !editor || !onUploadImage) {
+      inputEl.value = "";
+      return;
+    }
     setImageUploading(true);
+    setImageError("");
     try {
       const uploadedUrl = await onUploadImage(file);
       if (uploadedUrl) {
@@ -345,8 +350,13 @@ export default function RichTextEditor({ content, onChange, placeholder, onUploa
         setShowImageInput(false);
         setImageUrl("");
         setImageAlt("");
+      } else {
+        setImageError("画像のアップロードに失敗しました");
       }
+    } catch (err: unknown) {
+      setImageError(err instanceof Error ? err.message : "画像のアップロードに失敗しました");
     } finally {
+      inputEl.value = "";
       setImageUploading(false);
     }
   };

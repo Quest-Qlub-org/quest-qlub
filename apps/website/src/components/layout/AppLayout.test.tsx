@@ -166,6 +166,39 @@ describe("AppLayout Root-level MFA Barrier", () => {
     unmount();
   });
 
+  it("enforces MFA barrier on /setup-profile and /reset-password when mfaChallengeRequired is true", () => {
+    vi.spyOn(AuthContextModule, "useAuth").mockReturnValue({
+      userRole: "viewer",
+      authLoading: false,
+      user: { id: "user-1", email: "user@example.com" } as any,
+      profile: null,
+      setProfile: vi.fn(),
+      setUserRole: vi.fn(),
+      mfaChallengeRequired: true,
+      setMfaChallengeRequired: mockSetMfaChallengeRequired,
+      refreshProfile: vi.fn(),
+    } as any);
+
+    for (const routePath of ["/setup-profile", "/reset-password"]) {
+      const { container, unmount } = renderWithRouter(
+        <Routes>
+          <Route element={<AppLayout />}>
+            <Route
+              path={routePath}
+              element={<div id="protected-auth-subroute">サブ画面コンテンツ</div>}
+            />
+          </Route>
+        </Routes>,
+        { route: routePath },
+      );
+
+      expect(container.querySelector("#protected-auth-subroute")).toBeNull();
+      expect(container.textContent).toContain("2段階認証の確認");
+
+      unmount();
+    }
+  });
+
   it("renders official X link targeting https://x.com/QuestQlub", () => {
     vi.spyOn(AuthContextModule, "useAuth").mockReturnValue({
       userRole: "viewer",

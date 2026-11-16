@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { act } from "react";
 import { MfaChallengeModal } from "./MfaChallengeModal";
 import { supabase } from "../supabase";
+import { setNativeValue } from "../test/test-utils";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -127,5 +128,65 @@ describe("MfaChallengeModal", () => {
     ) as HTMLInputElement | null;
     expect(backupInput).not.toBeNull();
     expect(container.querySelector('label[for="mfa-challenge-backup-input"]')).not.toBeNull();
+  });
+
+  it("ignores unverified TOTP factors and resets loading/mode state after success and reopen", async () => {
+    // 1. unverified ファクターしかない場合はエラー表示して無効化すること
+    vi.spyOn(supabase.auth.mfa, "listFactors").mockResolvedValueOnce({
+      data: { all: [], totp: [{ id: "unverified-1", status: "unverified" }] },
+      error: null,
+    } as any);
+
+    await act(async () => {
+      root!.render(<MfaChallengeModal isOpen={true} onSuccess={vi.fn()} />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "有効な2要素認証ファクターが見つかりませんでした",
+    );
+
+    // 2. verified ファクターで成功後に loading が false に戻り、再オープンで totp モードに戻ること
+    vi.spyOn(supabase.auth.mfa, "listFactors").mockResolvedValue({
+      data: { all: [], totp: [{ id: "verified-1", status: "verified" }] },
+      error: null,
+    } as any);
+    vi.spyOn(supabase.auth.mfa, "challenge").mockResolvedValue({
+      data: { id: "chal-1", factor_type: "totp", expires_at: 999999 },
+      error: null,
+    } as any);
+    vi.spyOn(supabase.auth.mfa, "verify").mockResolvedValue({
+      data: { user: {}, session: {} },
+      error: null,
+    } as any);
+
+    const onSuccess = vi.fn();
+    await act(async () => {
+      root!.render(<MfaChallengeModal isOpen={false} onSuccess={onSuccess} />);
+    });
+    await act(async () => {
+      root!.render(<MfaChallengeModal isOpen={true} onSuccess={onSuccess} />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const totpInput = container.querySelector("#mfa-challenge-totp-input") as HTMLInputElement;
+    act(() => {
+      setNativeValue(totpInput, "654321");
+    });
+
+    await act(async () => {
+      container
+        .querySelector("form")!
+        .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(onSuccess).toHaveBeenCalledTimes(1);
+    const submitBtn = container.querySelector('button[type="submit"]') as HTMLButtonElement;
+    expect(submitBtn.textContent).toContain("認証して進む");
+    expect(submitBtn.disabled).toBe(false);
   });
 });

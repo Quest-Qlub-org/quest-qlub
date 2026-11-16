@@ -131,4 +131,34 @@ describe("ReloadPrompt component", () => {
 
     vi.useRealTimers();
   });
+
+  it("catches registration.update() rejections without unhandled errors", async () => {
+    vi.useFakeTimers();
+    const updateMock = vi.fn().mockRejectedValue(new Error("Offline update error"));
+    const mockRegistration = { update: updateMock } as unknown as ServiceWorkerRegistration;
+
+    vi.spyOn(PwaRegister, "useRegisterSW").mockImplementation((options) => {
+      options?.onRegistered?.(mockRegistration);
+      return {
+        needRefresh: [false, vi.fn()],
+        offlineReady: [false, vi.fn()],
+        updateServiceWorker: vi.fn(),
+      };
+    });
+
+    Object.defineProperty(navigator, "onLine", {
+      configurable: true,
+      value: true,
+    });
+
+    const { unmount } = renderWithRouter(<ReloadPrompt />);
+    await act(async () => {
+      vi.advanceTimersByTime(60 * 60 * 1000);
+      await Promise.resolve();
+    });
+
+    expect(updateMock).toHaveBeenCalledTimes(1);
+    unmount();
+    vi.useRealTimers();
+  });
 });

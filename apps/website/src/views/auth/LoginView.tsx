@@ -5,6 +5,7 @@ import { useApp } from "../../context/AppContext";
 import { setInMemorySudoAuthorized } from "../../components/RoleRoute";
 import { Key, ShieldCheck, AlertCircle, LogOut, KeyRound } from "lucide-react";
 import { updateMetaTags } from "../../utils/seo";
+import { findVerifiedTotpFactor, verifyTotpCode, verifyBackupCode } from "../../utils/mfa";
 
 export const LoginView = () => {
   const [step, setStep] = useState<"credentials" | "mfa_totp" | "mfa_backup">("credentials");
@@ -58,19 +59,12 @@ export const LoginView = () => {
     setError("");
     setVerifyCode("");
     try {
-      const { data, error: factorsErr } = await supabase.auth.mfa.listFactors();
-      if (factorsErr) {
-        setError("2要素認証情報の取得に失敗しました");
-        return;
-      }
-      const verifiedTotp = data.totp.find((f) => f.status === "verified") ?? data.totp[0];
-      if (verifiedTotp) {
-        setFactorId(verifiedTotp.id);
+      const result = await findVerifiedTotpFactor();
+      if (result.factorId) {
+        setFactorId(result.factorId);
       } else {
-        setError("有効な2要素認証ファクターが見つかりませんでした");
+        setError(result.errorMessage ?? "有効な2要素認証ファクターが見つかりませんでした");
       }
-    } catch {
-      setError("通信エラーが発生しました");
     } finally {
       setFetchingFactor(false);
     }
@@ -80,38 +74,46 @@ export const LoginView = () => {
     if (e) e.preventDefault();
     setLoading(true);
     setError("");
-    const { error: loginErr } = await supabase.auth.signInWithPassword({ email, password });
-    if (loginErr) {
-      setError("メールアドレスまたはパスワードが間違っています");
-      setLoading(false);
-      return;
-    }
-
-    // 2FA設定の確認: AAL2が要求されている場合は画面遷移を保留し、インライン2FAステップへ切り替える
     try {
-      const { data: mfaLevel } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      const { error: loginErr } = await supabase.auth.signInWithPassword({ email, password });
+      if (loginErr) {
+        setError("メールアドレスまたはパスワードが間違っています");
+        return;
+      }
+
+      // 2FA設定の確認: AAL2が要求されている場合は画面遷移を保留し、インライン2FAステップへ切り替える
+      // 確認に失敗した場合は fail-closed でセッションを破棄しログイン完了とみなさない
+      const { data: mfaLevel, error: mfaErr } =
+        await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (mfaErr) {
+        await supabase.auth.signOut().catch(() => {});
+        setMfaChallengeRequired(false);
+        setInMemorySudoAuthorized(false);
+        setError("2要素認証状態の確認に失敗しました。再度ログインしてください。");
+        return;
+      }
+
       if (mfaLevel && mfaLevel.currentLevel === "aal1" && mfaLevel.nextLevel === "aal2") {
         setStep("mfa_totp");
-        setLoading(false);
         void prepareMfaStep();
         return;
       }
-    } catch (err) {
-      console.warn("MFA level check error", err);
-    }
 
-    // MFA不要の通常アカウント、またはすでにAAL2完了済みの場合はメイン画面へ遷移
-    isMfaCompletedRef.current = true;
-    setMfaChallengeRequired(false);
-    setInMemorySudoAuthorized(true);
-    await refreshProfile();
-    try {
-      sessionStorage.setItem("quest_qlub_sudo_at", Date.now().toString());
-    } catch {
-      // ignore
+      // MFA不要の通常アカウント、またはすでにAAL2完了済みの場合はメイン画面へ遷移
+      isMfaCompletedRef.current = true;
+      setMfaChallengeRequired(false);
+      setInMemorySudoAuthorized(true);
+      await refreshProfile();
+      navigate("home");
+    } catch (err) {
+      console.warn("Login or MFA level check error", err);
+      await supabase.auth.signOut().catch(() => {});
+      setMfaChallengeRequired(false);
+      setInMemorySudoAuthorized(false);
+      setError("ログイン処理中にエラーが発生しました。再度お試しください。");
+    } finally {
+      setLoading(false);
     }
-    navigate("home");
-    setLoading(false);
   };
 
   const handleVerifyTotp = async (e: React.FormEvent) => {
@@ -122,21 +124,9 @@ export const LoginView = () => {
     setError("");
 
     try {
-      const challenge = await supabase.auth.mfa.challenge({ factorId });
-      if (challenge.error) {
-        setError(challenge.error.message || "認証チャレンジの作成に失敗しました");
-        setLoading(false);
-        return;
-      }
-
-      const verify = await supabase.auth.mfa.verify({
-        factorId,
-        challengeId: challenge.data.id,
-        code: verifyCode.trim(),
-      });
-
-      if (verify.error) {
-        setError("認証コードが正しくありません。最新の6桁コードを入力してください。");
+      const result = await verifyTotpCode(factorId, verifyCode);
+      if (!result.success) {
+        setError(result.errorMessage ?? "認証に失敗しました");
         setLoading(false);
         return;
       }
@@ -167,21 +157,13 @@ export const LoginView = () => {
     setError("");
 
     try {
-      const { data: isValid, error: rpcErr } = await supabase.rpc(
-        "verify_and_consume_backup_code",
-        {
-          p_code: backupCode.trim(),
-        },
-      );
-
-      if (rpcErr || !isValid) {
-        setError("バックアップコードが正しくないか、すでに使用されています。");
+      const result = await verifyBackupCode(backupCode);
+      if (!result.success) {
+        setError(result.errorMessage ?? "バックアップコードの検証に失敗しました");
         setLoading(false);
         return;
       }
 
-      // 成功: 2FAリセットセッションをリフレッシュ
-      await supabase.auth.refreshSession().catch(() => {});
       isMfaCompletedRef.current = true;
       setMfaChallengeRequired(false);
       setInMemorySudoAuthorized(true);
@@ -252,14 +234,19 @@ export const LoginView = () => {
   const handleGoogleLogin = async () => {
     setLoading(true);
     setError("");
-    const { error: googleErr } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: window.location.origin,
-      },
-    });
-    if (googleErr) setError(googleErr.message);
-    setLoading(false);
+    try {
+      const { error: googleErr } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: window.location.origin,
+        },
+      });
+      if (googleErr) setError(googleErr.message);
+    } catch {
+      setError("Googleログインの開始に失敗しました");
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Step 2: 2段階認証 (TOTP または バックアップコード)

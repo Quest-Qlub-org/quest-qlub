@@ -14,8 +14,6 @@ describe("LoginView MFA inline integration", () => {
     mockNavigate = vi.fn();
     vi.spyOn(AppContextModule, "useApp").mockReturnValue({
       navigate: mockNavigate,
-      currentView: "login",
-      viewParam: null,
       user: null,
       profile: null,
       setProfile: vi.fn(),
@@ -419,6 +417,37 @@ describe("LoginView MFA inline integration", () => {
     expect(alertEl?.id).toBe("login-error");
     expect(emailInput.getAttribute("aria-invalid")).toBe("true");
     expect(emailInput.getAttribute("aria-describedby")).toBe("login-error");
+
+    unmount();
+  });
+
+  it("fails closed and signs out when getAuthenticatorAssuranceLevel errors or throws", async () => {
+    vi.spyOn(supabase.auth, "signInWithPassword").mockResolvedValue({
+      data: { user: { id: "user-1", email: "test@example.com" }, session: {} } as any,
+      error: null,
+    });
+    vi.spyOn(supabase.auth.mfa, "getAuthenticatorAssuranceLevel").mockResolvedValue({
+      data: null,
+      error: { message: "MFA check failed" } as any,
+    });
+    const signOutSpy = vi.spyOn(supabase.auth, "signOut").mockResolvedValue({ error: null });
+
+    const { container, unmount } = renderWithRouter(<LoginView />);
+
+    setNativeValue(container.querySelector('input[type="email"]')!, "test@example.com");
+    setNativeValue(container.querySelector('input[type="password"]')!, "password123");
+
+    await act(async () => {
+      container
+        .querySelector("form")!
+        .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+
+    expect(mockNavigate).not.toHaveBeenCalledWith("home");
+    expect(signOutSpy).toHaveBeenCalled();
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "2要素認証状態の確認に失敗しました",
+    );
 
     unmount();
   });

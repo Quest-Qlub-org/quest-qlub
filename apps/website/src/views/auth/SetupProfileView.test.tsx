@@ -94,4 +94,66 @@ describe("SetupProfileView", () => {
 
     unmount();
   });
+
+  it("redirects unauthenticated guests to login, syncs displayName after authLoading, and navigates on logout", async () => {
+    const mockNavigate = vi.fn();
+    const useAppSpy = vi.spyOn(AppContextModule, "useApp");
+
+    // 1. ゲスト状態ではフォームを表示せず login へ遷移すること
+    useAppSpy.mockReturnValue({
+      user: null,
+      profile: null,
+      authLoading: false,
+      setProfile: vi.fn(),
+      showToast: vi.fn(),
+      navigate: mockNavigate,
+    } as any);
+
+    const guestRender = renderWithRouter(<SetupProfileView />, { route: "/setup-profile" });
+    expect(guestRender.container.querySelector("form")).toBeNull();
+    expect(mockNavigate).toHaveBeenCalledWith("login");
+    guestRender.unmount();
+
+    // 2. authLoading 完了後に到着した profile.display_name を同期し、ログアウトで login へ遷移すること
+    mockNavigate.mockReset();
+    const signOutSpy = vi.spyOn(supabase.auth, "signOut").mockResolvedValue({ error: null });
+
+    useAppSpy.mockReturnValue({
+      user: { id: "u1" },
+      profile: null,
+      authLoading: true,
+      setProfile: vi.fn(),
+      showToast: vi.fn(),
+      navigate: mockNavigate,
+    } as any);
+
+    const authedRender = renderWithRouter(<SetupProfileView />, { route: "/setup-profile" });
+    expect(authedRender.container.querySelector("#setup-display-name")).toBeNull();
+
+    useAppSpy.mockReturnValue({
+      user: { id: "u1" },
+      profile: { id: "u1", email: "test@example.com", display_name: "初期表示名" },
+      authLoading: false,
+      setProfile: vi.fn(),
+      showToast: vi.fn(),
+      navigate: mockNavigate,
+    } as any);
+
+    authedRender.rerender(<SetupProfileView />);
+    const displayInput = authedRender.container.querySelector(
+      "#setup-display-name",
+    ) as HTMLInputElement;
+    expect(displayInput.value).toBe("初期表示名");
+
+    const logoutBtn = Array.from(authedRender.container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("ログアウト"),
+    )!;
+    await act(async () => {
+      logoutBtn.click();
+    });
+    expect(signOutSpy).toHaveBeenCalled();
+    expect(mockNavigate).toHaveBeenCalledWith("login");
+
+    authedRender.unmount();
+  });
 });

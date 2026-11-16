@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { supabase } from "../supabase";
 import { ShieldAlert, ShieldCheck, AlertCircle, Key, ArrowLeft } from "lucide-react";
 import { useFocusTrap } from "../hooks/useFocusTrap";
 import { useAuth } from "../context/AuthContext";
 import { setInMemorySudoAuthorized } from "./RoleRoute";
+import { findVerifiedTotpFactor, verifyTotpCode } from "../utils/mfa";
 
 interface SudoConfirmModalProps {
   userEmail: string;
@@ -24,6 +25,14 @@ export const SudoConfirmModal: React.FC<SudoConfirmModalProps> = ({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [isPasskeySupported, setIsPasskeySupported] = useState(false);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const modalRef = useFocusTrap<HTMLDivElement>(true, () => {
     onCancel();
@@ -61,24 +70,28 @@ export const SudoConfirmModal: React.FC<SudoConfirmModalProps> = ({
       }
 
       // 2FA有効ユーザーの場合、signInWithPassword でセッションが aal1 にダウングレードされるため、
-      // モーダル内でシームレスに2FA（AAL2）昇格まで完了させる
-      try {
-        const { data: mfaLevel } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-        if (mfaLevel && mfaLevel.currentLevel === "aal1" && mfaLevel.nextLevel === "aal2") {
-          const { data: factorsData, error: factorsErr } = await supabase.auth.mfa.listFactors();
-          if (!factorsErr && factorsData) {
-            const verifiedTotp =
-              factorsData.totp.find((f) => f.status === "verified") ?? factorsData.totp[0];
-            if (verifiedTotp) {
-              setFactorId(verifiedTotp.id);
-              setStep("mfa_totp");
-              setLoading(false);
-              return;
-            }
-          }
+      // モーダル内でシームレスに2FA（AAL2）昇格まで完了させる（確認不能・未検証時は fail-closed で拒否）
+      const { data: mfaLevel, error: mfaErr } =
+        await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (mfaErr) {
+        setInMemorySudoAuthorized(false);
+        setError("2段階認証状態の確認に失敗しました");
+        setLoading(false);
+        return;
+      }
+
+      if (mfaLevel && mfaLevel.currentLevel === "aal1" && mfaLevel.nextLevel === "aal2") {
+        const factorResult = await findVerifiedTotpFactor();
+        if (factorResult.factorId) {
+          setFactorId(factorResult.factorId);
+          setStep("mfa_totp");
+          setLoading(false);
+          return;
         }
-      } catch {
-        // ignore MFA check error when not configured
+        setInMemorySudoAuthorized(false);
+        setError("2段階認証の確認が必要です");
+        setLoading(false);
+        return;
       }
 
       // 2FA不要ユーザーの場合はハンドシェイク猶予フラグを通常のSudo認可に確定させる
@@ -88,7 +101,10 @@ export const SudoConfirmModal: React.FC<SudoConfirmModalProps> = ({
     } catch {
       setInMemorySudoAuthorized(false);
       setError("認証処理中にエラーが発生しました");
-      setLoading(false);
+    } finally {
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -100,21 +116,9 @@ export const SudoConfirmModal: React.FC<SudoConfirmModalProps> = ({
     setError("");
 
     try {
-      const challenge = await supabase.auth.mfa.challenge({ factorId });
-      if (challenge.error) {
-        setError(challenge.error.message || "認証チャレンジの作成に失敗しました");
-        setLoading(false);
-        return;
-      }
-
-      const verify = await supabase.auth.mfa.verify({
-        factorId,
-        challengeId: challenge.data.id,
-        code: verifyCode.trim(),
-      });
-
-      if (verify.error) {
-        setError("認証コードが正しくありません。最新の6桁コードを入力してください。");
+      const result = await verifyTotpCode(factorId, verifyCode);
+      if (!result.success) {
+        setError(result.errorMessage ?? "2段階認証に失敗しました");
         setLoading(false);
         return;
       }
@@ -124,7 +128,10 @@ export const SudoConfirmModal: React.FC<SudoConfirmModalProps> = ({
       onSuccess();
     } catch {
       setError("2段階認証の処理中にエラーが発生しました");
-      setLoading(false);
+    } finally {
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -151,25 +158,26 @@ export const SudoConfirmModal: React.FC<SudoConfirmModalProps> = ({
           return;
         }
 
-        try {
-          const { data: mfaLevel } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-          if (mfaLevel && mfaLevel.currentLevel === "aal1" && mfaLevel.nextLevel === "aal2") {
-            const { data: factorsData, error: factorsErr } = await supabase.auth.mfa.listFactors();
-            if (!factorsErr && factorsData) {
-              const verifiedTotp =
-                factorsData.totp.find((f) => f.status === "verified") ?? factorsData.totp[0];
-              if (verifiedTotp) {
-                setFactorId(verifiedTotp.id);
-                setStep("mfa_totp");
-                return;
-              }
+        const { data: mfaLevel, error: mfaErr } =
+          await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+        if (mfaErr) {
+          setInMemorySudoAuthorized(false);
+          setError("2段階認証状態の確認に失敗しました");
+          return;
+        }
+        if (mfaLevel && mfaLevel.currentLevel === "aal1" && mfaLevel.nextLevel === "aal2") {
+          const { data: factorsData, error: factorsErr } = await supabase.auth.mfa.listFactors();
+          if (!factorsErr && factorsData) {
+            const verifiedTotp = factorsData.totp.find((f) => f.status === "verified");
+            if (verifiedTotp) {
+              setFactorId(verifiedTotp.id);
+              setStep("mfa_totp");
+              return;
             }
-            setInMemorySudoAuthorized(false);
-            setError("2段階認証の確認が必要です");
-            return;
           }
-        } catch {
-          // ignore if MFA assurance level is unavailable
+          setInMemorySudoAuthorized(false);
+          setError("2段階認証の確認が必要です");
+          return;
         }
 
         setInMemorySudoAuthorized(true, false);

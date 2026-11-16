@@ -15,9 +15,18 @@ export interface ProfileListQueryOptions {
   eq?: { column: string; value: string };
   order?: { column: string; ascending?: boolean };
   range?: { from: number; to: number };
+  ignoreLocalOverrides?: boolean;
+}
+
+export interface SingleProfileQueryOptions {
+  ignoreLocalOverrides?: boolean;
 }
 
 export function applyProfileRoleOverrides(profile: Profile): Profile {
+  // DB から有効な roles 配列を取得できた場合はそれを最優先し、localStorage で上書きしない
+  if (Array.isArray(profile.roles) && profile.roles.length > 0) {
+    return profile;
+  }
   const localOverride = getLocalRolesOverride(profile.id);
   if (localOverride && localOverride.length > 0) {
     return {
@@ -35,7 +44,9 @@ export async function fetchProfilesListWithFallback(
   options: ProfileListQueryOptions = {},
 ): Promise<Profile[] | null> {
   const buildQuery = (selectFields: string) => {
-    let query: any = supabase.from("profiles").select(selectFields);
+    const table: any = supabase.from("profiles");
+    if (!table || typeof table.select !== "function") return null;
+    let query: any = table.select(selectFields);
     if (options.inRole && options.inRole.length > 0) {
       if (selectFields === PROFILE_SELECT_FIELDS_WITH_ROLES && typeof query.or === "function") {
         const roleList = options.inRole.join(",");
@@ -68,16 +79,24 @@ export async function fetchProfilesListWithFallback(
     return query;
   };
 
-  const res = await buildQuery(PROFILE_SELECT_FIELDS_WITH_ROLES);
+  const initialQuery = buildQuery(PROFILE_SELECT_FIELDS_WITH_ROLES);
+  if (!initialQuery) return null;
+  const res = await initialQuery;
+  if (!res) return null;
   if (res.error && isRolesColumnSchemaError(res.error)) {
-    const fallbackRes = await buildQuery(PROFILE_SELECT_FIELDS_BASE);
-    if (!fallbackRes.error && fallbackRes.data) {
-      return (fallbackRes.data as unknown as Profile[]).map(enrichFallbackProfileRoles);
+    const fallbackQuery = buildQuery(PROFILE_SELECT_FIELDS_BASE);
+    if (!fallbackQuery) return null;
+    const fallbackRes = await fallbackQuery;
+    if (fallbackRes && !fallbackRes.error && fallbackRes.data) {
+      return (fallbackRes.data as unknown as Profile[]).map((p) =>
+        enrichFallbackProfileRoles(p, { ignoreLocalOverrides: options.ignoreLocalOverrides }),
+      );
     }
     return null;
   }
   if (!res.error && res.data) {
-    return (res.data as unknown as Profile[]).map(applyProfileRoleOverrides);
+    const rows = res.data as unknown as Profile[];
+    return options.ignoreLocalOverrides ? rows : rows.map(applyProfileRoleOverrides);
   }
   return null;
 }
@@ -85,12 +104,17 @@ export async function fetchProfilesListWithFallback(
 /**
  * 単一プロフィール取得（roles カラム未存在時の 42703 自動フォールバックとロールオーバーライド適用）
  */
-export async function fetchSingleProfileWithFallback(filter: {
-  id?: string;
-  username?: string;
-}): Promise<Profile | null> {
+export async function fetchSingleProfileWithFallback(
+  filter: {
+    id?: string;
+    username?: string;
+  },
+  options: SingleProfileQueryOptions = {},
+): Promise<Profile | null> {
   const buildQuery = (selectFields: string) => {
-    let query: any = supabase.from("profiles").select(selectFields);
+    const table: any = supabase.from("profiles");
+    if (!table || typeof table.select !== "function") return null;
+    let query: any = table.select(selectFields);
     if (filter.id) {
       query = query.eq("id", filter.id);
     } else if (filter.username) {
@@ -103,12 +127,15 @@ export async function fetchSingleProfileWithFallback(filter: {
   if (res.error && isRolesColumnSchemaError(res.error)) {
     const fallbackRes = await buildQuery(PROFILE_SELECT_FIELDS_BASE);
     if (!fallbackRes.error && fallbackRes.data) {
-      return enrichFallbackProfileRoles(fallbackRes.data as unknown as Profile);
+      return enrichFallbackProfileRoles(fallbackRes.data as unknown as Profile, {
+        ignoreLocalOverrides: options.ignoreLocalOverrides,
+      });
     }
     return null;
   }
   if (!res.error && res.data) {
-    return applyProfileRoleOverrides(res.data as unknown as Profile);
+    const row = res.data as unknown as Profile;
+    return options.ignoreLocalOverrides ? row : applyProfileRoleOverrides(row);
   }
   return null;
 }

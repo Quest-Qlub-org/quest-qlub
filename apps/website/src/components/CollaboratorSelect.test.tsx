@@ -157,4 +157,47 @@ describe("CollaboratorSelect", () => {
     expect(options).toContain("w-2");
     expect(options).not.toContain("viewer-1");
   });
+
+  it("includes 13th+ writers from teamMembers in dropdown and fetches missing selected collaborator profiles", async () => {
+    const { supabase } = await import("../supabase");
+    const writer13 = createTestProfile({
+      id: "w-13",
+      role: "writer",
+      roles: ["writer"],
+      display_name: "13人目ライター",
+      username: "writer13",
+    });
+    const fetchedCollab = createTestProfile({
+      id: "w-missing",
+      role: "writer",
+      roles: ["writer"],
+      display_name: "追加取得ライター",
+      username: "fetched_w",
+    });
+
+    vi.spyOn(supabase, "from").mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        in: vi.fn().mockResolvedValue({ data: [fetchedCollab], error: null }),
+      }),
+    } as any);
+
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
+      writers: [mockWriter1],
+      teamMembers: [mockWriter1, writer13],
+    } as any);
+
+    await act(async () => {
+      root!.render(
+        <CollaboratorSelect value={["w-missing"]} onChange={vi.fn()} excludeUserIds={["w-1"]} />,
+      );
+      await Promise.resolve();
+    });
+
+    const select = container.querySelector(
+      "select[data-testid='collaborator-select-input']",
+    ) as HTMLSelectElement;
+    const options = Array.from(select.querySelectorAll("option")).map((o) => o.value);
+    expect(options).toContain("w-13");
+    expect(container.textContent).toContain("追加取得ライター");
+  });
 });

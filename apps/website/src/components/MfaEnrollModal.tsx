@@ -21,6 +21,7 @@ export const MfaEnrollModal = ({
   const [verifying, setVerifying] = useState(false);
   const [generatingBackupCodes, setGeneratingBackupCodes] = useState(false);
   const [backupCodes, setBackupCodes] = useState<string[]>([]);
+  const [backupWarning, setBackupWarning] = useState("");
   const [copiedAll, setCopiedAll] = useState(false);
   const [error, setError] = useState("");
   const [factorId, setFactorId] = useState("");
@@ -29,7 +30,18 @@ export const MfaEnrollModal = ({
   const [verifyCode, setVerifyCode] = useState("");
   const [copied, setCopied] = useState(false);
 
-  const enrollingRef = useRef(false);
+  const mountedRef = useRef(true);
+  const isOpenRef = useRef(isOpen);
+  isOpenRef.current = isOpen;
+  const inFlightEnrollRef = useRef<Promise<void> | null>(null);
+  const enrollSessionRef = useRef(0);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const handleCancel = async () => {
     if (step === "backup") {
@@ -49,15 +61,37 @@ export const MfaEnrollModal = ({
   });
 
   useEffect(() => {
-    if (!isOpen) return;
-    if (enrollingRef.current) return;
-    enrollingRef.current = true;
+    if (!isOpen) {
+      enrollSessionRef.current += 1;
+      setStep("enroll");
+      setBackupCodes([]);
+      setBackupWarning("");
+      setFactorId("");
+      setQrCode("");
+      setSecret("");
+      setVerifyCode("");
+      setError("");
+      setCopied(false);
+      setCopiedAll(false);
+      return;
+    }
 
-    let isMounted = true;
+    setStep("enroll");
+    setBackupCodes([]);
+    setBackupWarning("");
+    setFactorId("");
+    setQrCode("");
+    setSecret("");
     setLoading(true);
     setError("");
     setVerifyCode("");
     setCopied(false);
+    setCopiedAll(false);
+
+    // StrictMode の二重マウントでも clean_unverified_mfa_factors + mfa.enroll を競合実行しない
+    if (inFlightEnrollRef.current) return;
+
+    const currentSession = enrollSessionRef.current;
 
     const enroll = async () => {
       try {
@@ -68,6 +102,14 @@ export const MfaEnrollModal = ({
           // 一括削除エラーは無視して進める
         }
 
+        if (
+          !mountedRef.current ||
+          !isOpenRef.current ||
+          enrollSessionRef.current !== currentSession
+        ) {
+          return;
+        }
+
         // ユニークな friendlyName を使用して mfa_factors_user_friendly_name_unique 制約違反を防止
         const uniqueName = `Authenticator-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
         const { data, error: enrollErr } = await supabase.auth.mfa.enroll({
@@ -75,11 +117,16 @@ export const MfaEnrollModal = ({
           friendlyName: uniqueName,
         });
 
-        if (!isMounted) return;
+        if (
+          !mountedRef.current ||
+          !isOpenRef.current ||
+          enrollSessionRef.current !== currentSession
+        ) {
+          return;
+        }
 
         if (enrollErr) {
           setError(enrollErr.message || "2要素認証の初期化に失敗しました");
-          setLoading(false);
           return;
         }
 
@@ -87,22 +134,26 @@ export const MfaEnrollModal = ({
         setQrCode(data.totp.qr_code);
         setSecret(data.totp.secret);
       } catch {
-        if (isMounted) {
+        if (
+          mountedRef.current &&
+          isOpenRef.current &&
+          enrollSessionRef.current === currentSession
+        ) {
           setError("通信エラーが発生しました");
         }
       } finally {
-        if (isMounted) {
+        inFlightEnrollRef.current = null;
+        if (
+          mountedRef.current &&
+          isOpenRef.current &&
+          enrollSessionRef.current === currentSession
+        ) {
           setLoading(false);
         }
       }
     };
 
-    void enroll();
-
-    return () => {
-      isMounted = false;
-      enrollingRef.current = false;
-    };
+    inFlightEnrollRef.current = enroll();
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -155,6 +206,7 @@ export const MfaEnrollModal = ({
         const { data: codes, error: rpcErr } = await supabase.rpc("generate_mfa_backup_codes");
         if (!rpcErr && Array.isArray(codes) && codes.length > 0) {
           setBackupCodes(codes as string[]);
+          setBackupWarning("");
           setStep("backup");
           return;
         }
@@ -162,10 +214,12 @@ export const MfaEnrollModal = ({
         console.error("Failed to generate backup codes", e);
       }
 
-      // 生成に万が一失敗した場合はそのまま完了
-      onEnrolled?.();
-      onSuccess?.();
-      onClose();
+      // 生成失敗時もユーザーに警告を明示してから完了させる（無言で閉じない）
+      setBackupCodes([]);
+      setBackupWarning(
+        "2要素認証は有効化されましたが、バックアップコードの自動生成に失敗しました。セキュリティ設定画面からバックアップコードを再生成してください。",
+      );
+      setStep("backup");
     } catch {
       setError("認証処理中にエラーが発生しました");
     } finally {
@@ -262,64 +316,81 @@ export const MfaEnrollModal = ({
 
           {step === "backup" ? (
             <div className="space-y-4 animate-in fade-in duration-200">
-              <div className="p-3.5 bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 rounded-xl space-y-1.5">
-                <p className="text-xs font-bold text-green-800 dark:text-green-300 flex items-center gap-1.5">
-                  <Check className="w-4 h-4 text-green-600 dark:text-green-400" />
-                  2要素認証が有効化されました！
-                </p>
-                <p className="text-xs text-green-700 dark:text-green-400 leading-relaxed">
-                  端末の紛失や機種変更時に備え、以下のバックアップコードを保存してください。各コードは認証アプリを使用できない場合に一度だけ利用可能です。
-                </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 bg-gray-50 dark:bg-gray-900/60 p-3 rounded-xl border border-gray-200 dark:border-gray-700">
-                {backupCodes.map((code, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center justify-between px-3 py-1.5 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 text-xs font-mono font-bold text-gray-700 dark:text-gray-200 shadow-sm"
-                  >
-                    <span className="text-gray-500 dark:text-gray-400 text-[10px] select-none">
-                      {idx + 1}.
-                    </span>
-                    <span>{code}</span>
+              {backupWarning ? (
+                <div
+                  role="alert"
+                  className="p-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl space-y-1.5"
+                >
+                  <p className="text-xs font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                    <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                    バックアップコードの生成に注意が必要です
+                  </p>
+                  <p className="text-xs text-amber-700 dark:text-amber-400 leading-relaxed">
+                    {backupWarning}
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="p-3.5 bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 rounded-xl space-y-1.5">
+                    <p className="text-xs font-bold text-green-800 dark:text-green-300 flex items-center gap-1.5">
+                      <Check className="w-4 h-4 text-green-600 dark:text-green-400" />
+                      2要素認証が有効化されました！
+                    </p>
+                    <p className="text-xs text-green-700 dark:text-green-400 leading-relaxed">
+                      端末の紛失や機種変更時に備え、以下のバックアップコードを保存してください。各コードは認証アプリを使用できない場合に一度だけ利用可能です。
+                    </p>
                   </div>
-                ))}
-              </div>
 
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => void handleCopyAllCodes()}
-                  className="flex-1 py-2 px-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 border border-gray-200 dark:border-gray-600 transition-colors cursor-pointer"
-                >
-                  {copiedAll ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
-                      <span className="text-green-600 dark:text-green-400">コピー完了</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5" />
-                      <span>すべてコピー</span>
-                    </>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDownloadCodes}
-                  className="flex-1 py-2 px-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 border border-gray-200 dark:border-gray-600 transition-colors cursor-pointer"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>テキスト保存</span>
-                </button>
-              </div>
+                  <div className="grid grid-cols-2 gap-2 bg-gray-50 dark:bg-gray-900/60 p-3 rounded-xl border border-gray-200 dark:border-gray-700">
+                    {backupCodes.map((code, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between px-3 py-1.5 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 text-xs font-mono font-bold text-gray-700 dark:text-gray-200 shadow-sm"
+                      >
+                        <span className="text-gray-500 dark:text-gray-400 text-[10px] select-none">
+                          {idx + 1}.
+                        </span>
+                        <span>{code}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void handleCopyAllCodes()}
+                      className="flex-1 py-2 px-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 border border-gray-200 dark:border-gray-600 transition-colors cursor-pointer"
+                    >
+                      {copiedAll ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
+                          <span className="text-green-600 dark:text-green-400">コピー完了</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>すべてコピー</span>
+                        </>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDownloadCodes}
+                      className="flex-1 py-2 px-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 border border-gray-200 dark:border-gray-600 transition-colors cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>テキスト保存</span>
+                    </button>
+                  </div>
+                </>
+              )}
 
               <button
                 type="button"
                 onClick={handleFinish}
                 className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl shadow-sm transition-colors mt-2 cursor-pointer"
               >
-                安全な場所に保存しました（完了）
+                {backupWarning ? "確認して閉じる" : "安全な場所に保存しました（完了）"}
               </button>
             </div>
           ) : loading || generatingBackupCodes ? (

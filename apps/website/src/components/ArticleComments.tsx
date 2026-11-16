@@ -1,4 +1,3 @@
-import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   MessageSquare,
@@ -10,77 +9,25 @@ import {
   History,
   Lock,
   LogIn,
-  X,
   Check,
   EyeOff,
   ToggleLeft,
   ToggleRight,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { supabase } from "../supabase";
-import { useFocusTrap } from "../hooks/useFocusTrap";
 import {
-  COMMENT_COOLDOWN_DURATION_MS,
-  COMMENT_COOLDOWN_KEY,
-  getRemainingCooldownSeconds,
-  recordSubmissionTimestamp,
-} from "../utils/antiSpam";
-import { profileHasRole } from "../utils/roles";
+  useArticleComments,
+  getLocalComments,
+  setLocalComments,
+  isCommentsSchemaError,
+  type CommentItem,
+  type CommentHistoryItem,
+} from "../hooks/useArticleComments";
+import { CommentEditHistoryModal } from "./CommentEditHistoryModal";
+import { formatDateTime } from "../utils/date";
 
-export interface CommentItem {
-  id: string;
-  articleId: string;
-  authorName: string;
-  authorId: string;
-  content: string;
-  isPinned: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface CommentHistoryItem {
-  id: string;
-  commentId: string;
-  previousContent: string;
-  editedAt: string;
-}
-
-const COMMENTS_STORAGE_PREFIX = "quest_qlub_comments_";
-
-export function getLocalComments(articleId: string): CommentItem[] {
-  try {
-    const raw = localStorage.getItem(`${COMMENTS_STORAGE_PREFIX}${articleId}`);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
-
-export function setLocalComments(articleId: string, comments: CommentItem[]): void {
-  try {
-    localStorage.setItem(`${COMMENTS_STORAGE_PREFIX}${articleId}`, JSON.stringify(comments));
-  } catch {
-    // ignore
-  }
-}
-
-export function isCommentsSchemaError(error: unknown): boolean {
-  if (!error || typeof error !== "object") return false;
-  const err = error as { code?: string; message?: string };
-  return (
-    err.code === "PGRST205" ||
-    err.code === "42P01" ||
-    err.code === "42703" ||
-    err.code === "42501" ||
-    (typeof err.message === "string" &&
-      (err.message.includes("article_comments") ||
-        err.message.includes("comments_enabled") ||
-        err.message.includes("check_is_editor") ||
-        err.message.includes("Could not find the table") ||
-        err.message.includes("schema cache") ||
-        err.message.includes("permission denied")))
-  );
-}
+export { getLocalComments, setLocalComments, isCommentsSchemaError };
+export type { CommentItem, CommentHistoryItem };
 
 interface ArticleCommentsProps {
   articleId: string;
@@ -89,8 +36,6 @@ interface ArticleCommentsProps {
   commentsEnabled?: boolean;
   onToggleCommentsEnabled?: (nextEnabled: boolean) => Promise<void> | void;
 }
-
-const MAX_PINNED_COMMENTS = 3;
 
 export function ArticleComments({
   articleId,
@@ -101,434 +46,42 @@ export function ArticleComments({
 }: ArticleCommentsProps) {
   const navigate = useNavigate();
   const { user, profile, userRole } = useAuth();
-  const [comments, setComments] = useState<CommentItem[]>([]);
-  const [content, setContent] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState("");
-  const [isFallbackMode, setIsFallbackMode] = useState(false);
-  const [cooldown, setCooldown] = useState(() =>
-    getRemainingCooldownSeconds(COMMENT_COOLDOWN_KEY, COMMENT_COOLDOWN_DURATION_MS),
-  );
-
-  // インライン編集用ステート
-  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
-  const [editingContent, setEditingContent] = useState("");
-
-  // 編集履歴モーダル用ステート
-  const [historyTargetComment, setHistoryTargetComment] = useState<CommentItem | null>(null);
-  const [historyItems, setHistoryItems] = useState<CommentHistoryItem[]>([]);
-  const [loadingHistory, setLoadingHistory] = useState(false);
-
-  const closeHistoryModal = useCallback(() => setHistoryTargetComment(null), []);
-  const historyModalRef = useFocusTrap<HTMLDivElement>(
-    Boolean(historyTargetComment),
-    closeHistoryModal,
-  );
-
   const currentUserId = profile?.id || user?.id || null;
-  const isAuthenticated = userRole !== "guest" && !!currentUserId;
-  const isArticleWriter = Boolean(currentUserId && writerId && currentUserId === writerId);
-  const isCollaborator = Boolean(
-    currentUserId && collaboratorIds && collaboratorIds.includes(currentUserId),
-  );
-  const isEditor = userRole === "editor" || profileHasRole(profile, "editor");
-  const canManageArticleComments = isArticleWriter || isCollaborator || isEditor;
 
-  // コメントオフ時は、記事ライターまたは編集長のみ過去コメントを閲覧可能
-  const canViewComments = commentsEnabled || canManageArticleComments;
-
-  const sortComments = useCallback((list: CommentItem[]) => {
-    return [...list].sort((a, b) => {
-      if (a.isPinned !== b.isPinned) {
-        return a.isPinned ? -1 : 1;
-      }
-      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-    });
-  }, []);
-
-  const fetchComments = useCallback(async () => {
-    if (!canViewComments) {
-      setComments([]);
-      return;
-    }
-
-    try {
-      const { data, error: fetchErr } = await supabase
-        .from("article_comments")
-        .select(
-          "id, article_id, author_name, author_id, content, is_pinned, created_at, updated_at",
-        )
-        .eq("article_id", articleId)
-        .order("is_pinned", { ascending: false })
-        .order("created_at", { ascending: true });
-
-      if (!fetchErr && data) {
-        const loaded: CommentItem[] = data.map((d: any) => ({
-          id: d.id,
-          articleId: d.article_id,
-          authorName: d.author_name,
-          authorId: d.author_id || "",
-          content: d.content,
-          isPinned: Boolean(d.is_pinned),
-          createdAt: d.created_at,
-          updatedAt: d.updated_at || d.created_at,
-        }));
-        setComments(sortComments(loaded));
-        setLocalComments(articleId, loaded);
-        setIsFallbackMode(false);
-      } else if (fetchErr) {
-        console.warn("fetchComments failed:", fetchErr);
-        const local = getLocalComments(articleId);
-        if (local.length > 0) {
-          setComments(sortComments(local));
-        }
-        if (isCommentsSchemaError(fetchErr)) {
-          setIsFallbackMode(true);
-        }
-      }
-    } catch (e) {
-      console.warn("fetchComments exception:", e);
-      const local = getLocalComments(articleId);
-      if (local.length > 0) {
-        setComments(sortComments(local));
-      }
-      setIsFallbackMode(true);
-    }
-  }, [articleId, canViewComments, sortComments]);
-
-  useEffect(() => {
-    void fetchComments();
-  }, [fetchComments]);
-
-  const startCooldown = useCallback(() => {
-    recordSubmissionTimestamp(COMMENT_COOLDOWN_KEY);
-    setCooldown(getRemainingCooldownSeconds(COMMENT_COOLDOWN_KEY, COMMENT_COOLDOWN_DURATION_MS));
-  }, []);
-
-  useEffect(() => {
-    if (cooldown <= 0) return;
-    const timer = setInterval(() => {
-      setCooldown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [cooldown]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!isAuthenticated || !currentUserId) {
-      setError("コメントを投稿するにはログインが必要です");
-      return;
-    }
-    if (!commentsEnabled) {
-      setError("この記事のコメント機能はオフになっています");
-      return;
-    }
-    if (cooldown > 0) {
-      setError(`連続投稿を防ぐため、あと${cooldown}秒お待ちください`);
-      return;
-    }
-
-    const trimmedContent = content.trim();
-    if (!trimmedContent) {
-      setError("コメントを入力してください");
-      return;
-    }
-    if (trimmedContent.length > 500) {
-      setError("コメントは500文字以内で入力してください");
-      return;
-    }
-
-    const displayAuthorName =
-      profile?.display_name || (profile?.username ? `@${profile.username}` : "読者");
-
-    setSubmitting(true);
-    setError("");
-
-    try {
-      const insertQuery = supabase.from("article_comments").insert({
-        article_id: articleId,
-        author_name: displayAuthorName,
-        author_id: currentUserId,
-        content: trimmedContent,
-      });
-
-      const res =
-        typeof (insertQuery as any).select === "function"
-          ? await (insertQuery as any).select().maybeSingle()
-          : await insertQuery;
-
-      const nowIso = new Date().toISOString();
-
-      if (res?.error) {
-        if (isCommentsSchemaError(res.error)) {
-          const newComment: CommentItem = {
-            id: `local_comment_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-            articleId,
-            authorName: displayAuthorName,
-            authorId: currentUserId,
-            content: trimmedContent,
-            isPinned: false,
-            createdAt: nowIso,
-            updatedAt: nowIso,
-          };
-          const nextComments = sortComments([...comments, newComment]);
-          setComments(nextComments);
-          setLocalComments(articleId, nextComments);
-          setContent("");
-          setIsFallbackMode(true);
-          startCooldown();
-          return;
-        }
-        const errCode = typeof res.error.code === "string" ? res.error.code : "";
-        const errMessage = typeof res.error.message === "string" ? res.error.message : "";
-        if (errCode === "P0001" && errMessage) {
-          setError(errMessage);
-          startCooldown();
-          return;
-        }
-        setError("コメントの送信に失敗しました");
-        return;
-      }
-
-      const inserted = res?.data;
-      const newComment: CommentItem = {
-        id: inserted?.id || `comment_${Date.now()}`,
-        articleId,
-        authorName: inserted?.author_name || displayAuthorName,
-        authorId: inserted?.author_id || currentUserId,
-        content: inserted?.content || trimmedContent,
-        isPinned: Boolean(inserted?.is_pinned),
-        createdAt: inserted?.created_at || nowIso,
-        updatedAt: inserted?.updated_at || inserted?.created_at || nowIso,
-      };
-
-      const nextComments = sortComments([...comments, newComment]);
-      setComments(nextComments);
-      setLocalComments(articleId, nextComments);
-      setContent("");
-      setIsFallbackMode(false);
-      startCooldown();
-    } catch {
-      const nowIso = new Date().toISOString();
-      const newComment: CommentItem = {
-        id: `local_comment_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-        articleId,
-        authorName: displayAuthorName,
-        authorId: currentUserId,
-        content: trimmedContent,
-        isPinned: false,
-        createdAt: nowIso,
-        updatedAt: nowIso,
-      };
-      const nextComments = sortComments([...comments, newComment]);
-      setComments(nextComments);
-      setLocalComments(articleId, nextComments);
-      setContent("");
-      setIsFallbackMode(true);
-      startCooldown();
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  // ピン留め切り替え（記事のライター本人のみ・最大3件まで）
-  const handleTogglePin = async (comment: CommentItem) => {
-    if (!isArticleWriter) return;
-    setError("");
-
-    const nextPinned = !comment.isPinned;
-    if (nextPinned) {
-      const currentPinnedCount = comments.filter((c) => c.isPinned).length;
-      if (currentPinnedCount >= MAX_PINNED_COMMENTS) {
-        setError(`ピン留めできるコメントは最大${MAX_PINNED_COMMENTS}件までです`);
-        return;
-      }
-    }
-
-    try {
-      const { error: pinErr } = await supabase
-        .from("article_comments")
-        .update({ is_pinned: nextPinned })
-        .eq("id", comment.id);
-
-      if (pinErr) {
-        if (isCommentsSchemaError(pinErr) || comment.id.startsWith("local_")) {
-          const nextComments = sortComments(
-            comments.map((c) => (c.id === comment.id ? { ...c, isPinned: nextPinned } : c)),
-          );
-          setComments(nextComments);
-          setLocalComments(articleId, nextComments);
-          return;
-        }
-        setError(pinErr.message || "ピン留めの更新に失敗しました");
-        return;
-      }
-
-      const nextComments = sortComments(
-        comments.map((c) => (c.id === comment.id ? { ...c, isPinned: nextPinned } : c)),
-      );
-      setComments(nextComments);
-      setLocalComments(articleId, nextComments);
-    } catch {
-      if (comment.id.startsWith("local_") || isFallbackMode) {
-        const nextComments = sortComments(
-          comments.map((c) => (c.id === comment.id ? { ...c, isPinned: nextPinned } : c)),
-        );
-        setComments(nextComments);
-        setLocalComments(articleId, nextComments);
-      } else {
-        setError("ピン留めの更新に失敗しました");
-      }
-    }
-  };
-
-  // コメント削除（投稿者本人、記事ライター、共同執筆者、または編集長）
-  const handleDelete = async (comment: CommentItem) => {
-    const isCommentOwner = Boolean(currentUserId && comment.authorId === currentUserId);
-    if (!isCommentOwner && !canManageArticleComments) return;
-
-    setError("");
-    try {
-      const { error: delErr } = await supabase
-        .from("article_comments")
-        .delete()
-        .eq("id", comment.id);
-
-      if (delErr) {
-        if (isCommentsSchemaError(delErr) || comment.id.startsWith("local_")) {
-          const nextComments = comments.filter((c) => c.id !== comment.id);
-          setComments(nextComments);
-          setLocalComments(articleId, nextComments);
-          return;
-        }
-        setError("コメントの削除に失敗しました");
-        return;
-      }
-
-      const nextComments = comments.filter((c) => c.id !== comment.id);
-      setComments(nextComments);
-      setLocalComments(articleId, nextComments);
-    } catch {
-      if (comment.id.startsWith("local_") || isFallbackMode) {
-        const nextComments = comments.filter((c) => c.id !== comment.id);
-        setComments(nextComments);
-        setLocalComments(articleId, nextComments);
-      } else {
-        setError("コメントの削除に失敗しました");
-      }
-    }
-  };
-
-  // コメント編集の開始（投稿者本人のみ）
-  const startEdit = (comment: CommentItem) => {
-    if (!currentUserId || comment.authorId !== currentUserId) return;
-    setEditingCommentId(comment.id);
-    setEditingContent(comment.content);
-    setError("");
-  };
-
-  // コメント編集の保存（投稿者本人のみ）
-  const handleSaveEdit = async (comment: CommentItem) => {
-    if (!currentUserId || comment.authorId !== currentUserId) return;
-    const trimmed = editingContent.trim();
-    if (!trimmed) {
-      setError("コメントを入力してください");
-      return;
-    }
-    if (trimmed.length > 500) {
-      setError("コメントは500文字以内で入力してください");
-      return;
-    }
-    if (trimmed === comment.content) {
-      setEditingCommentId(null);
-      return;
-    }
-
-    try {
-      const nowIso = new Date().toISOString();
-      const { error: updateErr } = await supabase
-        .from("article_comments")
-        .update({ content: trimmed, updated_at: nowIso })
-        .eq("id", comment.id);
-
-      if (updateErr) {
-        if (isCommentsSchemaError(updateErr) || comment.id.startsWith("local_")) {
-          const nextComments = comments.map((c) =>
-            c.id === comment.id ? { ...c, content: trimmed, updatedAt: nowIso } : c,
-          );
-          setComments(nextComments);
-          setLocalComments(articleId, nextComments);
-          setEditingCommentId(null);
-          return;
-        }
-        setError("コメントの編集に失敗しました");
-        return;
-      }
-
-      const nextComments = comments.map((c) =>
-        c.id === comment.id ? { ...c, content: trimmed, updatedAt: nowIso } : c,
-      );
-      setComments(nextComments);
-      setLocalComments(articleId, nextComments);
-      setEditingCommentId(null);
-    } catch {
-      if (comment.id.startsWith("local_") || isFallbackMode) {
-        const nowIso = new Date().toISOString();
-        const nextComments = comments.map((c) =>
-          c.id === comment.id ? { ...c, content: trimmed, updatedAt: nowIso } : c,
-        );
-        setComments(nextComments);
-        setLocalComments(articleId, nextComments);
-        setEditingCommentId(null);
-      } else {
-        setError("コメントの編集に失敗しました");
-      }
-    }
-  };
-
-  // 編集履歴の表示（誰でも閲覧可能）
-  const handleOpenHistory = async (comment: CommentItem) => {
-    setHistoryTargetComment(comment);
-    setLoadingHistory(true);
-    setHistoryItems([]);
-    try {
-      const { data, error: histErr } = await supabase
-        .from("comment_edit_history")
-        .select("id, comment_id, previous_content, edited_at")
-        .eq("comment_id", comment.id)
-        .order("edited_at", { ascending: false });
-
-      if (!histErr && data) {
-        setHistoryItems(
-          data.map((h: any) => ({
-            id: h.id,
-            commentId: h.comment_id,
-            previousContent: h.previous_content,
-            editedAt: h.edited_at,
-          })),
-        );
-      }
-    } catch {
-      // ignore
-    } finally {
-      setLoadingHistory(false);
-    }
-  };
-
-  const formatDate = (isoString: string) => {
-    try {
-      const d = new Date(isoString);
-      return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
-    } catch {
-      return "";
-    }
-  };
+  const {
+    comments,
+    content,
+    setContent,
+    submitting,
+    error,
+    isFallbackMode,
+    cooldown,
+    editingCommentId,
+    setEditingCommentId,
+    editingContent,
+    setEditingContent,
+    historyTargetComment,
+    historyItems,
+    loadingHistory,
+    isAuthenticated,
+    isArticleWriter,
+    canManageArticleComments,
+    handleSubmit,
+    handleTogglePin,
+    handleDelete,
+    startEdit,
+    handleSaveEdit,
+    handleOpenHistory,
+    closeHistoryModal,
+  } = useArticleComments({
+    articleId,
+    writerId,
+    collaboratorIds,
+    commentsEnabled,
+    currentUserId,
+    profile,
+    userRole,
+  });
 
   // コメント機能がオフで、一般読者・ゲストが閲覧している場合（過去のコメントも含め完全非表示）
   if (!commentsEnabled && !canManageArticleComments) {
@@ -660,7 +213,7 @@ export function ArticleComments({
                       </span>
                     ) : null}
                     <span className="text-[11px] text-gray-500 dark:text-gray-400">
-                      {formatDate(comment.createdAt)}
+                      {formatDateTime(comment.createdAt)}
                     </span>
                     {isEdited && (
                       <button
@@ -848,80 +401,12 @@ export function ArticleComments({
       )}
 
       {/* 編集履歴モーダル（誰でも閲覧可能） */}
-      {historyTargetComment && (
-        <div
-          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in"
-          onClick={closeHistoryModal}
-        >
-          <div
-            ref={historyModalRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="comment-history-modal-title"
-            className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-700">
-              <div className="flex items-center gap-2">
-                <History className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                <h2
-                  id="comment-history-modal-title"
-                  className="font-bold text-gray-900 dark:text-gray-100 text-base"
-                >
-                  コメントの編集履歴
-                </h2>
-              </div>
-              <button
-                type="button"
-                aria-label="閉じる"
-                onClick={closeHistoryModal}
-                className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-5 overflow-y-auto space-y-4">
-              <div className="bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-xl p-3.5">
-                <div className="flex items-center justify-between text-[11px] font-bold text-blue-700 dark:text-blue-300 mb-1">
-                  <span>現在の表示内容（最新）</span>
-                  <span>{formatDate(historyTargetComment.updatedAt)}</span>
-                </div>
-                <p className="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap">
-                  {historyTargetComment.content}
-                </p>
-              </div>
-
-              {loadingHistory ? (
-                <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-4">
-                  履歴を読み込み中...
-                </p>
-              ) : historyItems.length === 0 ? (
-                <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-4">
-                  過去の編集履歴データはありません
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  <p className="text-xs font-bold text-gray-500 dark:text-gray-400">編集前の履歴</p>
-                  {historyItems.map((item) => (
-                    <div
-                      key={item.id}
-                      className="bg-gray-50 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 rounded-xl p-3.5"
-                    >
-                      <div className="text-[11px] text-gray-500 dark:text-gray-400 mb-1">
-                        編集日時: {formatDate(item.editedAt)}
-                      </div>
-                      <p className="text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap">
-                        {item.previousContent}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <CommentEditHistoryModal
+        targetComment={historyTargetComment}
+        historyItems={historyItems}
+        loading={loadingHistory}
+        onClose={closeHistoryModal}
+      />
     </section>
   );
 }

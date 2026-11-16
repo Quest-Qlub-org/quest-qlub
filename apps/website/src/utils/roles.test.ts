@@ -176,5 +176,35 @@ describe("roles utility", () => {
       });
       expect(exact.roles).toContain("engineer");
     });
+
+    it("does not grant engineer role based solely on mutable display_name", () => {
+      const spoofed = enrichFallbackProfileRoles<{
+        id: string;
+        username: string;
+        display_name: string;
+        role: string;
+        roles?: string[] | null;
+      }>({
+        id: "u-spoof",
+        username: "random_user",
+        display_name: "るーと",
+        role: "viewer",
+      });
+      expect(spoofed.roles).toEqual(["viewer"]);
+
+      const spoofedNoimzip = enrichFallbackProfileRoles<{
+        id: string;
+        username: string;
+        display_name: string;
+        role: string;
+        roles?: string[] | null;
+      }>({
+        id: "u-spoof-2",
+        username: "attacker",
+        display_name: "Noimzip",
+        role: "viewer",
+      });
+      expect(spoofedNoimzip.roles).toEqual(["viewer"]);
+    });
   });
 });

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vite-plus/test";
+import DOMPurify from "dompurify";
 import { sanitizeHtml } from "./sanitize";
 
 describe("sanitizeHtml", () => {
@@ -116,5 +117,28 @@ describe("sanitizeHtml", () => {
     const output = sanitizeHtml(input);
     expect(output).not.toContain("contenteditable");
     expect(output).toContain("Editable");
+  });
+
+  it("strips dangerous overlay utility classes while keeping allowlisted editor classes", () => {
+    const input =
+      '<div data-type="custom-frame" class="custom-frame custom-frame-theme my-4 fixed inset-0 z-50 bg-black/50">' +
+      '<code class="language-typescript absolute top-0">const a = 1;</code>' +
+      "</div>";
+    const output = sanitizeHtml(input);
+    expect(output).toContain("custom-frame");
+    expect(output).toContain("custom-frame-theme");
+    expect(output).toContain("my-4");
+    expect(output).toContain("language-typescript");
+    expect(output).not.toContain("fixed");
+    expect(output).not.toContain("inset-0");
+    expect(output).not.toContain("z-50");
+    expect(output).not.toContain("bg-black/50");
+    expect(output).not.toContain("absolute");
+    expect(output).not.toContain("top-0");
+  });
+
+  it("does not mutate hooks on the global DOMPurify singleton", () => {
+    const output = DOMPurify.sanitize('<a href="https://example.com">External</a>');
+    expect(output).not.toContain("ugc");
   });
 });
