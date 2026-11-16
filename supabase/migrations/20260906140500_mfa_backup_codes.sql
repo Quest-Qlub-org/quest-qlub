@@ -14,6 +14,7 @@ CREATE INDEX IF NOT EXISTS idx_mfa_backup_codes_user_id ON public.mfa_backup_cod
 ALTER TABLE public.mfa_backup_codes ENABLE ROW LEVEL SECURITY;
 
 -- Policy: Users can only view their own backup code metadata (used_at, created_at) - hash is protected
+DROP POLICY IF EXISTS "Users can view own backup codes" ON public.mfa_backup_codes;
 CREATE POLICY "Users can view own backup codes" ON public.mfa_backup_codes
     FOR SELECT USING (auth.uid() = user_id);
 

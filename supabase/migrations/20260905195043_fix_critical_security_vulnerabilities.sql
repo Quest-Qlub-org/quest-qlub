@@ -18,6 +18,7 @@ DROP POLICY IF EXISTS "anyone can insert" ON public.contact_messages;
 DROP POLICY IF EXISTS "自分のお気に入りだけ操作できる" ON public.favorites;
 DROP POLICY IF EXISTS "自分のお気に入りだけ操作" ON public.favorites;
 
+DROP POLICY IF EXISTS "favorites_manage_own" ON public.favorites;
 CREATE POLICY "favorites_manage_own" ON public.favorites
   FOR ALL TO authenticated
   USING (auth.uid() = user_id)
