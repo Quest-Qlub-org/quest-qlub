@@ -3,21 +3,13 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vite-plus/test"
 import { createRoot } from "react-dom/client";
 import { act } from "react";
 
-let mockIsDev = true;
-let mockIsConnectedToProductionDb = true;
+let mockIsDevelopment = true;
 
-vi.mock("../supabase", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../supabase")>();
-  return {
-    ...actual,
-    get isDev() {
-      return mockIsDev;
-    },
-    get isConnectedToProductionDb() {
-      return mockIsConnectedToProductionDb;
-    },
-  };
-});
+vi.mock("../supabaseConfig", () => ({
+  get isDevelopment() {
+    return mockIsDevelopment;
+  },
+}));
 
 import { EnvironmentBanner } from "./EnvironmentBanner";
 
@@ -31,8 +23,7 @@ describe("EnvironmentBanner", () => {
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
-    mockIsDev = true;
-    mockIsConnectedToProductionDb = true;
+    mockIsDevelopment = true;
   });
 
   afterEach(() => {
@@ -48,22 +39,17 @@ describe("EnvironmentBanner", () => {
     vi.restoreAllMocks();
   });
 
-  it("renders production DB warning banner in dev mode when connected to production DB", () => {
-    mockIsDev = true;
-    mockIsConnectedToProductionDb = true;
+  it("does not render in production mode", () => {
+    mockIsDevelopment = false;
 
     act(() => {
       root!.render(<EnvironmentBanner />);
     });
 
-    expect(container.textContent).toContain("本番用Supabaseデータベース");
-    expect(container.textContent).toContain("データ作成・削除操作は本番環境に反映されます");
+    expect(container.textContent).toBe("");
   });
 
   it("renders safe development DB banner in dev mode when not connected to prod", () => {
-    mockIsDev = true;
-    mockIsConnectedToProductionDb = false;
-
     act(() => {
       root!.render(<EnvironmentBanner />);
     });
@@ -72,9 +58,6 @@ describe("EnvironmentBanner", () => {
   });
 
   it("dismisses banner when close button is clicked", () => {
-    mockIsDev = true;
-    mockIsConnectedToProductionDb = false;
-
     act(() => {
       root!.render(<EnvironmentBanner />);
     });

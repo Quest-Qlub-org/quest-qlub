@@ -49,13 +49,15 @@ pnpm install
 
    > [!WARNING]
    > 本番用 Supabase プロジェクトの接続情報をローカル環境に設定しないでください。
-   > ローカル開発サーバー起動時、本番DBへの接続が検出された場合は画面上に警告バナーが表示されます。
+   > 開発・検証環境で本番ホストが検出されると、Supabase クライアントは初期化されず、接続先を設定し直す案内が表示されます。
 
 2. **自動テスト環境 (`vp test`)**:
    `apps/website/.env.test`（リポジトリ同梱）が自動的に適用されるため、設定作業は不要です。外部の実データベースへは一切通信しません。
 
 3. **本番環境 (Vercel)**:
    Vercel ダッシュボードの「Settings」>「Environment Variables」にて本番用接続情報を設定します。
+   Preview には開発・検証用の接続情報を設定します。フレームワーク環境変数 `VITE_VERCEL_ENV` がビルドに渡るよう、Vercel のシステム環境変数の公開を有効にしてください。
+   本番 Supabase に独自の API ホストを使う場合は、開発・検証環境の `VITE_SUPABASE_PRODUCTION_URL` にその URL を登録し、起動時の遮断対象に追加します。
 
 ### 4. 開発サーバーの起動
 
@@ -81,6 +83,8 @@ Vite+ (`vp`) の統合コマンドを使用して、フォーマット、静的�
 | `vp test`              | Vitest によるユニットテストの実行                        |
 | `vp run website#build` | TypeScript 型チェック (`tsc`) およびプロダクションビルド |
 | `pnpm run ready`       | `vp check` + 全テスト + 全パッケージビルドの一括実行     |
+
+GitHub Actions の依存はフルコミット SHA で固定しています。Dependabot が週次で更新候補を提案します。手動で更新するときは、Action の公式リポジトリでリリースタグが指すコミットと変更内容を確認し、SHA と隣のバージョンコメントを更新してください。PR の CI で動作を確認します。
 
 ---
 
@@ -120,6 +124,8 @@ Vite+ (`vp`) の統合コマンドを使用して、フォーマット、静的�
 - **デプロイ設定**:
   - `vercel.json` は `apps/website/vercel.json` に配置されており、SPAリライトやCSP/HSTSなどのセキュリティヘッダーが定義されています。
   - Vercelダッシュボードの「Environment Variables」に `VITE_SUPABASE_URL` と `VITE_SUPABASE_ANON_KEY` を登録する必要があります。
+- Google ログインのコールバックを独自ドメインへ変更するときは、[Google OAuth のカスタムドメイン手順](docs/google-oauth-domain.md)を参照してください。
+- DB の認可を含むリリースでは、[DB 認可のリリース検証](docs/database-authorization-release.md)に従って適用履歴と実効権限を照合します。
 
 ---
 

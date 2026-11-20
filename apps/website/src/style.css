@@ -2,6 +2,33 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  html {
+    /* 固定ナビゲーションとフォーカスの輪郭に必要な下端のスクロール余白 */
+    --mobile-nav-clearance: calc(4rem + env(safe-area-inset-bottom, 0px));
+    scroll-padding-block-end: var(--mobile-nav-clearance);
+  }
+
+  @screen md {
+    html {
+      scroll-padding-block-end: 0;
+    }
+  }
+}
+
+@layer components {
+  .brand-focus:focus-visible,
+  .article-content a:focus-visible {
+    outline: 2px solid theme("colors.brand.700");
+    outline-offset: 2px;
+  }
+
+  .dark .brand-focus:focus-visible,
+  .dark .article-content a:focus-visible {
+    outline-color: theme("colors.brand.300");
+  }
+}
+
 /* Article Content & Styling System */
 .article-content.article-size-small {
   font-size: 0.875rem;
@@ -118,7 +145,7 @@
   margin: 1rem auto;
 }
 .article-content a {
-  color: #bf783a;
+  color: theme("colors.brand.600");
   text-decoration: underline;
 }
 
@@ -194,7 +221,7 @@ html.dark .article-content hr {
   border-top-color: #374151;
 }
 html.dark .article-content a {
-  color: #dfb692;
+  color: theme("colors.brand.300");
 }
 html.dark .article-content .custom-frame-theme {
   border-color: #bf783a;

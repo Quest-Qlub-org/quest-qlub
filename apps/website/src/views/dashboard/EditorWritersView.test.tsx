@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vite-plus/test";
 import { act } from "react";
+import { within } from "@testing-library/react";
 import { EditorWritersView } from "./EditorWritersView";
 import { renderWithRouter, createTestProfile, setNativeValue } from "../../test/test-utils";
 import { supabase } from "../../supabase";
@@ -387,14 +388,6 @@ describe("EditorWritersView", () => {
     });
     const { container, unmount } = renderResult;
 
-    const emailInput = container.querySelector(
-      'input[placeholder="メールアドレス"]',
-    ) as HTMLInputElement;
-    expect(emailInput.className).toContain("placeholder-gray-500");
-    expect(emailInput.className).toContain("dark:placeholder-gray-300");
-    expect(emailInput.className).not.toContain("placeholder-gray-400");
-    expect(emailInput.className).not.toContain("dark:placeholder-gray-500");
-
     const searchInput = container.querySelector(
       'input[placeholder="名前・ID・メアドで検索"]',
     ) as HTMLInputElement;
@@ -411,68 +404,53 @@ describe("EditorWritersView", () => {
     unmount();
   });
 
-  it("preserves email input when promoteWriter fails and sets local primary role via getPrimaryRole on demotion (#145)", async () => {
-    const mockProfiles = [
+  it("adds the writer role to the account selected by ID", async () => {
+    const profiles = [
       createTestProfile({
-        id: "usr-multi-demote",
-        display_name: "エンジニア兼ライター",
-        username: "eng_writer",
-        email: "engwriter@example.com",
-        role: "writer",
-        roles: ["writer", "engineer"],
+        id: "selected-account",
+        display_name: "同名のライター候補",
+        username: "selected",
+        role: "engineer",
+        roles: ["engineer"],
+      }),
+      createTestProfile({
+        id: "other-account",
+        display_name: "同名のライター候補",
+        username: "other",
       }),
     ];
+    const rpc = vi.spyOn(supabase, "rpc").mockImplementation(((name: string) =>
+      Promise.resolve({
+        data: name === "admin_get_all_profiles" ? profiles : null,
+        error: null,
+      })) as any);
 
-    vi.spyOn(supabase, "rpc").mockImplementation(((fn: string) => {
-      if (fn === "admin_get_all_profiles") {
-        return Promise.resolve({ data: mockProfiles, error: null });
-      }
-      if (fn === "admin_promote_writer") {
-        return Promise.resolve({ data: null, error: { message: "User not found" } });
-      }
-      if (fn === "admin_set_user_roles") {
-        return Promise.resolve({ data: null, error: null });
-      }
-      return Promise.resolve({ data: null, error: null });
-    }) as any);
-
-    let renderResult!: ReturnType<typeof renderWithRouter>;
+    let rendered!: ReturnType<typeof renderWithRouter>;
     await act(async () => {
-      renderResult = renderWithRouter(<EditorWritersView />);
+      rendered = renderWithRouter(<EditorWritersView />);
     });
-    const { container, unmount } = renderResult;
+    const view = within(rendered.container);
 
-    const emailInput = container.querySelector(
-      'input[placeholder="メールアドレス"]',
-    ) as HTMLInputElement;
     act(() => {
-      setNativeValue(emailInput, "missing@example.com");
+      setNativeValue(
+        view.getByLabelText<HTMLInputElement>("名前・ID・メールアドレスで検索"),
+        "selected-account",
+      );
     });
 
-    const promoteBtn = Array.from(container.querySelectorAll("button")).find(
-      (b) => b.textContent?.trim() === "昇格",
-    );
+    expect(view.getByText("@selected")).toBeDefined();
+    expect(view.queryByText("@other")).toBeNull();
+    expect(rpc).not.toHaveBeenCalledWith("admin_set_user_roles", expect.anything());
+
     await act(async () => {
-      promoteBtn!.click();
+      view.getByRole("button", { name: "+ ライター" }).click();
     });
 
-    // RPC 失敗時は入力メールが消えないこと
-    expect(emailInput.value).toBe("missing@example.com");
-
-    // 複数ロールユーザーを viewer 降格するとローカル primary role が engineer になること
-    const select = container.querySelector(
-      '[data-testid="role-select-usr-multi-demote"]',
-    ) as HTMLSelectElement;
-    await act(async () => {
-      select.value = "viewer";
-      select.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(rpc).toHaveBeenCalledWith("admin_set_user_roles", {
+      target_user_id: "selected-account",
+      new_roles: ["engineer", "writer"],
     });
-
-    // engineer が primary role のため、select の値は "viewer" ではなく "engineer" 等（options に無い場合は先頭 fallback になる前に state 上 w.role が "engineer"）になっていること
-    // バッジで「エンジニア」が残り「閲覧者」にならないことを確認
-    expect(container.textContent).toContain("✓ エンジニア");
-    expect(container.textContent).not.toContain("✓ 閲覧者");
-
-    unmount();
+    expect(view.getByRole("button", { name: "✓ ライター" })).toBeDefined();
+    rendered.unmount();
   });
 });

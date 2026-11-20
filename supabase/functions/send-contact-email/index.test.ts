@@ -1,223 +1,140 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vite-plus/test";
-import { handleContactRequest, resetRateLimitMapForTests } from "./index";
+import { handleContactRequest } from "./index";
 
-function setMockDenoEnv(envMap: Record<string, string | undefined>) {
-  (globalThis as Record<string, unknown>).Deno = {
-    env: {
-      get: (key: string) => envMap[key],
-    },
+const secret = "fake-worker-secret-long-enough-for-tests";
+const apiUrl = "https://test-mock.supabase.co";
+const resendUrl = "https://api.resend.com/emails";
+const job = {
+  receipt_id: "test-receipt",
+  lease_token: "test-lease",
+  name: "テスト応募者",
+  email: "writer@example.test",
+  subject: "保存された件名",
+  body: "保存された本文",
+};
+
+function setMockDenoEnv(overrides: Record<string, string | undefined> = {}) {
+  const env: Record<string, string | undefined> = {
+    CONTACT_NOTIFICATION_WORKER_SECRET: secret,
+    SUPABASE_URL: apiUrl,
+    SUPABASE_SERVICE_ROLE_KEY: "service-key",
+    RESEND_API_KEY: "resend-key",
+    ...overrides,
   };
+  vi.stubGlobal("Deno", { env: { get: (key: string) => env[key] } });
 }
 
-function makeRequest(options: {
-  method?: string;
-  body?: unknown;
-  rawBody?: string;
-  headers?: Record<string, string>;
-}): Request {
-  const { method = "POST", body, rawBody, headers = {} } = options;
-  const init: RequestInit = {
-    method,
-    headers: {
-      origin: "https://quest-qlub.vercel.app",
-      "cf-connecting-ip": "203.0.113.10",
-      ...headers,
-    },
-  };
-  if (method !== "GET" && method !== "OPTIONS") {
-    init.body = rawBody !== undefined ? rawBody : JSON.stringify(body);
+function makeRequest({ method = "POST", workerSecret = secret } = {}) {
+  const options: RequestInit = { method, headers: { "x-contact-worker-secret": workerSecret } };
+  if (method === "POST") {
+    options.body = JSON.stringify({ subject: "ブラウザーが指定した件名" });
   }
-  return new Request("https://example.supabase.co/functions/v1/send-contact-email", init);
+  return new Request(`${apiUrl}/functions/v1/send-contact-email`, options);
 }
 
-describe("send-contact-email Edge Function (#148)", () => {
-  const originalFetch = globalThis.fetch;
-
+describe("contact notification worker", () => {
   beforeEach(() => {
-    resetRateLimitMapForTests();
-    setMockDenoEnv({
-      RESEND_API_KEY: "test-resend-key",
-      CONTACT_RECEIVER_EMAIL: "contact@quest-qlub.com",
-      CONTACT_SENDER_EMAIL: "Quest Qlub <noreply@quest-qlub.com>",
-    });
+    setMockDenoEnv();
   });
 
   afterEach(() => {
-    delete (globalThis as Record<string, unknown>).Deno;
-    globalThis.fetch = originalFetch;
+    vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
-  it("rejects non-POST methods with 405 before consuming IP rate-limit quota", async () => {
-    for (let i = 0; i < 5; i++) {
-      const res = await handleContactRequest(makeRequest({ method: "GET" }));
-      expect(res.status).toBe(405);
-    }
+  it("requires staff scheduling credentials before claiming any job", async () => {
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
 
-    globalThis.fetch = vi.fn(
-      async () => new Response(JSON.stringify({ id: "email-1" }), { status: 200 }),
-    ) as typeof fetch;
-
-    const postRes = await handleContactRequest(
-      makeRequest({
-        body: {
-          name: "Test User",
-          email: "user@example.com",
-          subject: "Hello",
-          body: "Valid message body",
-        },
-      }),
-    );
-    expect(postRes.status).toBe(200);
+    expect((await handleContactRequest(makeRequest({ method: "GET" }))).status).toBe(405);
+    expect((await handleContactRequest(makeRequest({ workerSecret: "wrong" }))).status).toBe(401);
+    setMockDenoEnv({ CONTACT_NOTIFICATION_WORKER_SECRET: undefined });
+    expect((await handleContactRequest(makeRequest())).status).toBe(401);
+    expect(fetch).not.toHaveBeenCalled();
   });
 
-  it("returns 400 instead of 500 when JSON body is null, primitive, array, or malformed", async () => {
-    for (const badBody of ["null", "123", '"hello"', "[]", "{invalid"]) {
-      const res = await handleContactRequest(makeRequest({ rawBody: badBody }));
-      expect(res.status).toBe(400);
-    }
+  it("sends only the stored receipt and logs the outcome without message or provider content", async () => {
+    const logs = vi.spyOn(console, "info").mockImplementation(() => {});
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json([job]))
+      .mockResolvedValueOnce(Response.json({ private: "provider-response-content" }))
+      .mockResolvedValueOnce(Response.json("sent"));
+    vi.stubGlobal("fetch", fetch);
+
+    const response = await handleContactRequest(makeRequest());
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ claimed: 1 });
+    const [[claimUrl, claimRequest], [provider, delivery], [finishUrl, finishRequest]] =
+      fetch.mock.calls;
+    expect(claimUrl).toBe(`${apiUrl}/rest/v1/rpc/claim_contact_notifications`);
+    expect(JSON.parse(claimRequest.body)).toEqual({});
+    expect(provider).toBe(resendUrl);
+    expect(delivery.headers["Idempotency-Key"]).toBe("contact-receipt/test-receipt");
+    expect(JSON.parse(delivery.body)).toMatchObject({
+      reply_to: job.email,
+      subject: "【お問い合わせ】保存された件名",
+    });
+    expect(JSON.parse(delivery.body).text).toContain(job.body);
+    expect(finishUrl).toBe(`${apiUrl}/rest/v1/rpc/finish_contact_notification`);
+    expect(JSON.parse(finishRequest.body)).toEqual({
+      job_receipt_id: job.receipt_id,
+      job_lease_token: job.lease_token,
+      delivery_error: null,
+    });
+    expect(logs.mock.calls).toEqual([
+      [JSON.stringify({ receipt_id: job.receipt_id, status: "sent", error_kind: null })],
+    ]);
   });
 
-  it("does not consume email rate-limit quota on invalid payloads before validation", async () => {
-    const targetEmail = "victim@example.com";
+  it("records retryable errors and reuses the receipt key with a new lease", async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json([job]))
+      .mockResolvedValueOnce(new Response("temporary outage", { status: 503 }))
+      .mockResolvedValueOnce(Response.json("pending"))
+      .mockResolvedValueOnce(Response.json([{ ...job, lease_token: "second-lease" }]))
+      .mockResolvedValueOnce(Response.json({}))
+      .mockResolvedValueOnce(Response.json("sent"));
+    vi.stubGlobal("fetch", fetch);
 
-    // Send 4 invalid requests targeting victim@example.com from distinct IPs
-    for (let i = 0; i < 4; i++) {
-      const res = await handleContactRequest(
-        makeRequest({
-          headers: { "cf-connecting-ip": `198.51.100.${i + 1}` },
-          body: {
-            name: "",
-            email: targetEmail,
-            subject: "Missing name",
-            body: "Should fail validation before email rate limit",
-          },
+    expect((await handleContactRequest(makeRequest())).status).toBe(200);
+    expect((await handleContactRequest(makeRequest())).status).toBe(200);
+
+    const deliveries = fetch.mock.calls.filter(([url]) => url === resendUrl);
+    expect(deliveries.map(([, options]) => options.headers["Idempotency-Key"])).toEqual([
+      "contact-receipt/test-receipt",
+      "contact-receipt/test-receipt",
+    ]);
+    expect(JSON.parse(fetch.mock.calls[2][1].body)).toMatchObject({
+      job_lease_token: job.lease_token,
+      delivery_error: "provider_unavailable",
+    });
+    expect(JSON.parse(fetch.mock.calls[5][1].body)).toMatchObject({
+      job_lease_token: "second-lease",
+      delivery_error: null,
+    });
+  });
+
+  it("leaves an unfinalized claim to be retried after the lease expires", async () => {
+    const logs = vi.spyOn(console, "error").mockImplementation(() => {});
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json([job]))
+      .mockResolvedValueOnce(Response.json({}))
+      .mockResolvedValueOnce(new Response("private PostgREST error", { status: 502 }));
+    vi.stubGlobal("fetch", fetch);
+
+    expect((await handleContactRequest(makeRequest())).status).toBe(503);
+    expect(logs.mock.calls).toEqual([
+      [
+        JSON.stringify({
+          receipt_id: job.receipt_id,
+          status: "processing",
+          error_kind: "database_finalize",
         }),
-      );
-      expect(res.status).toBe(400);
-    }
-
-    globalThis.fetch = vi.fn(
-      async () => new Response(JSON.stringify({ id: "email-2" }), { status: 200 }),
-    ) as typeof fetch;
-
-    const validRes = await handleContactRequest(
-      makeRequest({
-        headers: { "cf-connecting-ip": "198.51.100.99" },
-        body: {
-          name: "Real Victim",
-          email: targetEmail,
-          subject: "Legit inquiry",
-          body: "Hello team",
-        },
-      }),
-    );
-    expect(validRes.status).toBe(200);
-  });
-
-  it("excludes legacy share-quest.vercel.app from allowed CORS origins", async () => {
-    const res = await handleContactRequest(
-      makeRequest({
-        method: "OPTIONS",
-        headers: { origin: "https://share-quest.vercel.app" },
-      }),
-    );
-    expect(res.headers.get("access-control-allow-origin")).toBe("https://quest-qlub.vercel.app");
-
-    const allowedRes = await handleContactRequest(
-      makeRequest({
-        method: "OPTIONS",
-        headers: { origin: "https://quest-qlub-git-main-quest-qlub.vercel.app" },
-      }),
-    );
-    expect(allowedRes.headers.get("access-control-allow-origin")).toBe(
-      "https://quest-qlub-git-main-quest-qlub.vercel.app",
-    );
-  });
-
-  it("returns stealth 200 without calling Resend when honeypot field is populated", async () => {
-    const fetchSpy = vi.fn();
-    globalThis.fetch = fetchSpy as typeof fetch;
-
-    const res = await handleContactRequest(
-      makeRequest({
-        body: {
-          name: "Bot",
-          email: "bot@example.com",
-          subject: "Spam",
-          body: "Buy stuff",
-          _hp: "filled-by-bot",
-        },
-      }),
-    );
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true });
-    expect(fetchSpy).not.toHaveBeenCalled();
-  });
-
-  it("rejects CR/LF characters in name, email, or subject with 400", async () => {
-    const res = await handleContactRequest(
-      makeRequest({
-        body: {
-          name: "Alice",
-          email: "alice@example.com",
-          subject: "Hello\r\nBcc: attacker@evil.com",
-          body: "Valid body",
-        },
-      }),
-    );
-    expect(res.status).toBe(400);
-  });
-
-  it("rate-limits repeated requests per IP and per normalized email", async () => {
-    globalThis.fetch = vi.fn(
-      async () => new Response(JSON.stringify({ id: "email-ok" }), { status: 200 }),
-    ) as typeof fetch;
-
-    const validBody = {
-      name: "Alice",
-      email: "Alice@Example.com",
-      subject: "Question",
-      body: "Message",
-    };
-
-    // 3 requests from distinct IPs for same normalized email succeed
-    for (let i = 0; i < 3; i++) {
-      const res = await handleContactRequest(
-        makeRequest({
-          headers: { "cf-connecting-ip": `192.0.2.${i + 1}` },
-          body: validBody,
-        }),
-      );
-      expect(res.status).toBe(200);
-    }
-
-    // 4th request for same normalized email (different case, new IP) is 429
-    const emailLimitedRes = await handleContactRequest(
-      makeRequest({
-        headers: { "cf-connecting-ip": "192.0.2.99" },
-        body: { ...validBody, email: "alice@example.com" },
-      }),
-    );
-    expect(emailLimitedRes.status).toBe(429);
-
-    // 3 requests from same IP with distinct emails succeed, 4th is 429
-    for (let i = 0; i < 3; i++) {
-      const res = await handleContactRequest(
-        makeRequest({
-          headers: { "cf-connecting-ip": "198.51.100.50" },
-          body: { ...validBody, email: `distinct-${i}@example.com` },
-        }),
-      );
-      expect(res.status).toBe(200);
-    }
-
-    const ipLimitedRes = await handleContactRequest(
-      makeRequest({
-        headers: { "cf-connecting-ip": "198.51.100.50" },
-        body: { ...validBody, email: "distinct-3@example.com" },
-      }),
-    );
-    expect(ipLimitedRes.status).toBe(429);
+      ],
+    ]);
   });
 });

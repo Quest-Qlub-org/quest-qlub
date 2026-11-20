@@ -183,7 +183,7 @@ describe("LoginView MFA inline integration", () => {
     unmount();
   });
 
-  it("allows switching to backup code and navigates to home after verification", async () => {
+  it("allows switching to backup code and navigates to re-enrollment after verification", async () => {
     vi.spyOn(supabase.auth, "signInWithPassword").mockResolvedValue({
       data: { user: { id: "user-1", email: "test@example.com" }, session: {} } as any,
       error: null,
@@ -230,7 +230,7 @@ describe("LoginView MFA inline integration", () => {
 
     // バックアップコードを入力
     const backupInput = container.querySelector(
-      'input[placeholder="例: abcd-1234"]',
+      'input[placeholder="保存したバックアップコード"]',
     ) as HTMLInputElement;
     expect(backupInput).not.toBeNull();
     setNativeValue(backupInput, "abcd-1234");
@@ -244,7 +244,7 @@ describe("LoginView MFA inline integration", () => {
     expect(supabase.rpc).toHaveBeenCalledWith("verify_and_consume_backup_code", {
       p_code: "abcd-1234",
     });
-    expect(mockNavigate).toHaveBeenCalledWith("home");
+    expect(mockNavigate).toHaveBeenCalledWith("settings");
 
     unmount();
   });

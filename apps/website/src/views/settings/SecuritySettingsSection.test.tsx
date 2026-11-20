@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vite-plus/test";
 import { createRoot } from "react-dom/client";
 import { act } from "react";
+import { AuthWeakPasswordError } from "@supabase/supabase-js";
 import { SecuritySettingsSection } from "./SecuritySettingsSection";
 import { supabase } from "../../supabase";
 import { setNativeValue } from "../../test/test-utils";
@@ -128,6 +129,54 @@ describe("SecuritySettingsSection - Password Change", () => {
     expect(mockShowToast).toHaveBeenCalledWith("パスワードを変更しました");
     expect(newPasswordInput.value).toBe("");
     expect(confirmPasswordInput.value).toBe("");
+  });
+
+  it("shows Auth's leaked-password rejection during a password change", async () => {
+    vi.spyOn(supabase.auth, "updateUser").mockResolvedValue({
+      data: { user: null },
+      error: new AuthWeakPasswordError("Weak password", 422, ["pwned"]),
+    });
+    await act(async () => {
+      root!.render(<SecuritySettingsSection showToast={mockShowToast} />);
+    });
+
+    const newPassword = container.querySelector<HTMLInputElement>(
+      '[data-testid="new-password-input"]',
+    )!;
+    const confirmation = container.querySelector<HTMLInputElement>(
+      '[data-testid="confirm-password-input"]',
+    )!;
+    act(() => {
+      setNativeValue(newPassword, "password123");
+      setNativeValue(confirmation, "password123");
+    });
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="password-change-card"] button[type="submit"]',
+        )!
+        .click();
+    });
+
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "漏えいが確認されています",
+    );
+    expect(mockShowToast).not.toHaveBeenCalledWith("パスワードを変更しました");
+    expect(newPassword.value).toBe("password123");
+  });
+
+  it("shows the re-enrollment step when recovery invalidates the previous factors", async () => {
+    vi.spyOn(supabase, "rpc").mockResolvedValue({
+      data: { total: 0, remaining: 0, re_enroll_required: true },
+      error: null,
+    } as any);
+
+    await act(async () => {
+      root!.render(<SecuritySettingsSection showToast={mockShowToast} />);
+    });
+
+    expect(container.querySelector('[role="status"]')?.textContent).toContain("認証アプリを再登録");
+    expect(container.textContent).toContain("有効にする");
   });
 
   it("unenrolls all verified TOTP factors and resets loading state on error", async () => {

@@ -14,6 +14,11 @@ import { LogoIcon } from "../icons/NavIcons";
 import { useAuth } from "../../context/AuthContext";
 import { useUI } from "../../context/UIContext";
 import imgTitle from "../../assets/brand_title.png";
+import {
+  confirmServerSudoSession,
+  isSudoMfaHandshakeActive,
+  lockSudoSession,
+} from "../../utils/sudoState";
 
 const HIDE_HEADER_PATHS = [
   "/login",
@@ -30,7 +35,7 @@ export function AppLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { mfaChallengeRequired, setMfaChallengeRequired } = useAuth();
-  const { toastMessage, hideToast } = useUI();
+  const { toastMessage, hideToast, showToast } = useUI();
 
   const hideHeader = HIDE_HEADER_PATHS.some((path) => location.pathname.startsWith(path));
   const isMfaBarrierExempt = MFA_BARRIER_EXEMPT_PATHS.some((path) =>
@@ -82,13 +87,26 @@ export function AppLayout() {
       <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center p-4">
         <MfaChallengeModal
           isOpen={true}
-          onSuccess={() => {
-            setMfaChallengeRequired(false);
-            if (location.pathname.startsWith("/login")) {
-              void navigate("/");
+          onSuccess={async (method) => {
+            if (method === "recovery") {
+              lockSudoSession();
+              showToast(
+                "アカウントを復旧しました。セキュリティ設定で認証アプリを再登録してください。",
+              );
+              void navigate("/settings");
+            } else if (isSudoMfaHandshakeActive()) {
+              const authorized = await confirmServerSudoSession().catch(() => false);
+              if (!authorized) {
+                lockSudoSession();
+                showToast("管理操作の再認証を確認できませんでした。もう一度お試しください。");
+              }
+            } else {
+              lockSudoSession();
             }
+            setMfaChallengeRequired(false);
           }}
           onCancel={async () => {
+            lockSudoSession();
             setMfaChallengeRequired(false);
             await supabase.auth.signOut().catch(() => {});
             void navigate("/login");
@@ -133,7 +151,7 @@ export function AppLayout() {
       </div>
 
       {!hideHeader && (
-        <footer className="bg-gray-50 dark:bg-gray-900/60 border-t border-gray-200 dark:border-gray-800 mt-12 pb-[calc(env(safe-area-inset-bottom)+3.5rem)] md:pb-0">
+        <footer className="bg-gray-50 dark:bg-gray-900/60 border-t border-gray-200 dark:border-gray-800 mt-12 pb-[var(--mobile-nav-clearance)] md:pb-0">
           <div className="max-w-6xl mx-auto px-4 py-8">
             <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-8 mb-6">
               <div className="flex flex-col gap-2">

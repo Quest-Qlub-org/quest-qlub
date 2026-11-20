@@ -275,7 +275,7 @@ export const MfaEnrollModal = ({
         role="dialog"
         aria-modal="true"
         aria-labelledby="mfa-enroll-title"
-        className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 w-full max-w-md overflow-hidden relative"
+        className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 relative w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto"
       >
         <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/80">
           <div className="flex items-center gap-2">
@@ -341,16 +341,16 @@ export const MfaEnrollModal = ({
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 bg-gray-50 dark:bg-gray-900/60 p-3 rounded-xl border border-gray-200 dark:border-gray-700">
+                  <div className="grid gap-2 bg-gray-50 dark:bg-gray-900/60 p-3 rounded-xl border border-gray-200 dark:border-gray-700">
                     {backupCodes.map((code, idx) => (
                       <div
-                        key={idx}
-                        className="flex items-center justify-between px-3 py-1.5 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 text-xs font-mono font-bold text-gray-700 dark:text-gray-200 shadow-sm"
+                        key={code}
+                        className="flex min-w-0 items-center gap-2 px-2 py-1.5 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 text-xs font-mono font-bold text-gray-700 dark:text-gray-200 shadow-sm"
                       >
                         <span className="text-gray-500 dark:text-gray-400 text-[10px] select-none">
                           {idx + 1}.
                         </span>
-                        <span>{code}</span>
+                        <span className="min-w-0 break-all">{code}</span>
                       </div>
                     ))}
                   </div>

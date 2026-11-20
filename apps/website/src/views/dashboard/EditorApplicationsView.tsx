@@ -13,9 +13,25 @@ export interface ContactMessage {
   subject: string;
   body: string;
   created_at: string;
+  message_kind?: "contact" | "writer_application" | "legacy_writer_application";
+  application_user_id?: string | null;
+  review_status?: "pending" | ReviewDecision | null;
+  account_display_name?: string | null;
+  account_username?: string | null;
+  notification_status?: keyof typeof notificationLabels | null;
 }
 
-export function isWriterApplicationMessage(msg: ContactMessage): boolean {
+type ReviewDecision = "approved" | "rejected";
+
+const notificationLabels = {
+  pending: "通知待ち",
+  processing: "通知処理中",
+  sent: "通知済み",
+  failed: "通知失敗",
+};
+
+function isWriterApplicationMessage(msg: ContactMessage): boolean {
+  if (msg.message_kind) return msg.message_kind !== "contact";
   const subject = typeof msg.subject === "string" ? msg.subject.trim() : "";
   const body = typeof msg.body === "string" ? msg.body : "";
   return subject.startsWith("【ライター応募】") && body.includes("【志望動機・自己PR】:");
@@ -27,7 +43,8 @@ export function EditorApplicationsView() {
   const [loading, setLoading] = useState(true);
   const [filterMode, setFilterMode] = useState<"applications" | "all">("applications");
   const [keyword, setKeyword] = useState("");
-  const [promotingEmail, setPromotingEmail] = useState<string | null>(null);
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState("");
   const nav = useNavigate();
 
   useEffect(() => {
@@ -39,19 +56,29 @@ export function EditorApplicationsView() {
 
   const fetchMessages = useCallback(async () => {
     setLoading(true);
+    setLoadError("");
     try {
-      const { data, error } = await supabase
-        .from("contact_messages")
-        .select("id, name, email, subject, body, created_at")
-        .order("created_at", { ascending: false });
-
-      if (!error && data) {
-        setMessages(data as ContactMessage[]);
-      } else {
-        console.error("Failed to load contact messages:", error);
+      let { data, error } = await supabase.rpc("admin_list_contact_receipts");
+      if (error?.code === "PGRST202" || error?.code === "42883") {
+        // The existing tables remain readable under their RLS. Review stays disabled
+        // because these rows lack account binding from the new RPC.
+        ({ data, error } = await supabase
+          .from("contact_messages")
+          .select("id, name, email, subject, body, created_at")
+          .order("created_at", { ascending: false }));
       }
-    } catch (e) {
-      console.error("Exception loading contact messages:", e);
+
+      if (error) {
+        setLoadError(
+          error.code === "42501"
+            ? "受付を確認するには管理画面で再認証してください。"
+            : "受付を読み込めませんでした。",
+        );
+        return;
+      }
+      setMessages((data ?? []) as ContactMessage[]);
+    } catch {
+      setLoadError("受付を読み込めませんでした。");
     } finally {
       setLoading(false);
     }
@@ -61,31 +88,50 @@ export function EditorApplicationsView() {
     void fetchMessages();
   }, [fetchMessages]);
 
-  const handlePromote = async (email: string) => {
-    if (!window.confirm(`${email} をライターに昇格させますか？`)) return;
-    setPromotingEmail(email);
+  const handleReview = async (message: ContactMessage, decision: ReviewDecision) => {
+    if (!message.application_user_id || message.review_status !== "pending") return;
+    const account = message.account_username
+      ? "@" + message.account_username
+      : message.account_display_name;
+    const accountLabel = account
+      ? `${account} (${message.application_user_id})`
+      : message.application_user_id;
+    const action = decision === "approved" ? "ライターに昇格" : "応募を見送り";
+    if (!window.confirm(`${accountLabel} の${action}を確定しますか？`)) return;
+
+    setReviewingId(message.id);
     try {
-      const { error } = await supabase.rpc("admin_promote_writer", {
-        target_email: email.trim(),
+      const { error } = await supabase.rpc("admin_review_writer_application", {
+        receipt_id: message.id,
+        expected_account_id: message.application_user_id,
+        decision,
       });
-      if (!error) {
-        if (typeof refreshTeamMembers === "function") {
-          void refreshTeamMembers();
-        }
-        if (typeof refreshWriters === "function") {
-          void refreshWriters();
-        }
-        if (typeof window !== "undefined") {
-          window.dispatchEvent(new Event("quest_qlub_roles_updated"));
-        }
-        showToast(`${email} をライターに昇格しました`);
-      } else {
-        showToast("昇格に失敗しました: " + error.message);
+      if (error) {
+        showToast(
+          error.code === "42501"
+            ? "審査には管理画面での再認証が必要です。"
+            : error.code === "PT409"
+              ? error.message
+              : "審査結果を保存できませんでした。",
+        );
+        return;
       }
+
+      setMessages((previous) =>
+        previous.map((item) =>
+          item.id === message.id ? { ...item, review_status: decision } : item,
+        ),
+      );
+      if (decision === "approved") {
+        void refreshTeamMembers?.();
+        void refreshWriters?.();
+        window.dispatchEvent(new Event("quest_qlub_roles_updated"));
+      }
+      showToast(decision === "approved" ? "ライターに昇格しました" : "応募を見送りました");
     } catch {
-      showToast("エラーが発生しました。もう一度お試しください。");
+      showToast("審査結果を保存できませんでした。もう一度お試しください。");
     } finally {
-      setPromotingEmail(null);
+      setReviewingId(null);
     }
   };
 
@@ -172,7 +218,11 @@ export function EditorApplicationsView() {
         </div>
       </div>
 
-      {loading ? (
+      {loadError ? (
+        <div role="alert" className="p-4 text-sm text-red-700 dark:text-red-300">
+          {loadError}
+        </div>
+      ) : loading ? (
         <div className="flex flex-col items-center justify-center py-12 gap-2 text-gray-500 dark:text-gray-400">
           <Loader2 className="w-6 h-6 animate-spin text-purple-600" />
           <span className="text-xs">メッセージを読み込んでいます...</span>
@@ -187,7 +237,8 @@ export function EditorApplicationsView() {
         <div className="space-y-4">
           {filteredMessages.map((msg) => {
             const isWriterApp = isWriterApplicationMessage(msg);
-            const isPromoting = promotingEmail === msg.email;
+            const canReview = msg.review_status === "pending" && Boolean(msg.application_user_id);
+            const isReviewing = reviewingId === msg.id;
 
             return (
               <div
@@ -207,22 +258,57 @@ export function EditorApplicationsView() {
                       )}
                     </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400 font-mono mt-0.5">
+                      {isWriterApp ? "受付時メール " : ""}
                       {msg.email}
                     </p>
+                    {isWriterApp && msg.application_user_id && (
+                      <p className="mt-1 break-all text-xs text-gray-700 dark:text-gray-200">
+                        {msg.account_display_name}{" "}
+                        {msg.account_username ? "@" + msg.account_username : ""}{" "}
+                        <span className="font-mono">{msg.application_user_id}</span>
+                      </p>
+                    )}
+                    {isWriterApp && !msg.application_user_id && (
+                      <p className="mt-1 text-xs text-gray-700 dark:text-gray-200">
+                        {msg.message_kind === "writer_application"
+                          ? "応募のアカウントを確認できません"
+                          : "旧形式の応募。承認にはログインして再応募が必要です。"}
+                      </p>
+                    )}
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
                     <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
                       {formatArticleDate(msg.created_at)}
                     </span>
-                    {isWriterApp && (
-                      <button
-                        onClick={() => void handlePromote(msg.email)}
-                        disabled={isPromoting}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white rounded-xl text-xs font-bold hover:bg-purple-700 transition-colors shadow-sm disabled:opacity-50"
-                      >
-                        <UserPlus className="w-3.5 h-3.5" />
-                        <span>{isPromoting ? "昇格処理中..." : "ライターに昇格"}</span>
-                      </button>
+                    {msg.notification_status && (
+                      <span className="text-xs text-gray-700 dark:text-gray-200">
+                        {notificationLabels[msg.notification_status]}
+                      </span>
+                    )}
+                    {msg.review_status === "approved" && <span className="text-xs">承認済み</span>}
+                    {msg.review_status === "rejected" && (
+                      <span className="text-xs">見送り済み</span>
+                    )}
+                    {canReview && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => void handleReview(msg, "rejected")}
+                          disabled={reviewingId !== null}
+                          className="rounded-xl border border-gray-300 px-3 py-1.5 text-xs font-bold text-gray-700 disabled:opacity-50 dark:border-gray-600 dark:text-gray-200"
+                        >
+                          見送る
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleReview(msg, "approved")}
+                          disabled={reviewingId !== null}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white rounded-xl text-xs font-bold hover:bg-purple-700 transition-colors shadow-sm disabled:opacity-50"
+                        >
+                          <UserPlus className="w-3.5 h-3.5" aria-hidden="true" />
+                          {isReviewing ? "審査中…" : "ライターに昇格"}
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>

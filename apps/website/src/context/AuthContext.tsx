@@ -4,7 +4,7 @@ import { supabase } from "../supabase";
 import type { Profile } from "../supabase";
 import { getPrimaryRole } from "../utils/roles";
 import { fetchSingleProfileWithFallback } from "../utils/profileQueries";
-import { setInMemorySudoAuthorized } from "../utils/sudoState";
+import { isSudoMfaHandshakeActive, setInMemorySudoAuthorized } from "../utils/sudoState";
 
 export type UserRole = "guest" | "viewer" | "writer" | "editor" | "engineer";
 
@@ -160,7 +160,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (err) {
         console.warn("Failed to check MFA assurance level", err);
       }
-      if (isMounted) setMfaChallengeRequired(false);
+      // The Sudo confirmation keeps control of its MFA prompt until the DB grants access.
+      if (isMounted && !isSudoMfaHandshakeActive()) setMfaChallengeRequired(false);
     };
 
     // getSession によるセッション初期復元

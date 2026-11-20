@@ -1,7 +1,5 @@
 interface DenoRuntime {
-  env: {
-    get(key: string): string | undefined;
-  };
+  env: { get(key: string): string | undefined };
   serve?: (handler: (req: Request) => Response | Promise<Response>) => unknown;
 }
 
@@ -9,310 +7,170 @@ function getDeno(): DenoRuntime | undefined {
   return (globalThis as { Deno?: DenoRuntime }).Deno;
 }
 
-function getEnv(key: string): string | undefined {
-  return getDeno()?.env.get(key);
+type DeliveryError =
+  | "provider_rejected"
+  | "provider_unavailable"
+  | "network_error"
+  | "provider_rate_limit";
+
+interface NotificationJob {
+  receipt_id: string;
+  lease_token: string;
+  name: string;
+  email: string;
+  subject: string;
+  body: string;
 }
 
-// 明示的に許可するオリジン（本番・ローカル）
-const ALLOWED_ORIGINS = [
-  "https://quest-qlub.vercel.app",
-  "http://localhost:5173",
-  "http://localhost:3000",
-];
-
-// このプロジェクト自身の Vercel プレビューのみ許可（任意の *.vercel.app は許可しない）
-// 例: https://quest-qlub-15t83eki3-quest-qlub.vercel.app
-//     https://quest-qlub-git-main-quest-qlub.vercel.app
-const ALLOWED_PREVIEW_ORIGIN = /^https:\/\/quest-qlub[a-z0-9-]*\.vercel\.app$/;
-
-function isAllowedOrigin(origin: string): boolean {
-  if (!origin) return false;
-  if (ALLOWED_ORIGINS.includes(origin)) return true;
-  if (ALLOWED_PREVIEW_ORIGIN.test(origin)) return true;
-  const allowedOriginEnv = getEnv("ALLOWED_ORIGIN");
-  return !!allowedOriginEnv && origin === allowedOriginEnv;
+interface WorkerConfig {
+  supabaseUrl: string;
+  serviceKey: string;
+  resendKey: string;
+  from: string;
+  to: string;
 }
 
-function getCorsHeaders(req: Request): Record<string, string> {
-  const origin = req.headers.get("origin") || "";
-  const allowedOriginEnv = getEnv("ALLOWED_ORIGIN");
-  const fallback = allowedOriginEnv || "https://quest-qlub.vercel.app";
-
-  return {
-    "Access-Control-Allow-Origin": isAllowedOrigin(origin) ? origin : fallback,
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    Vary: "Origin",
-  };
+async function matchesSecret(supplied: string, expected: string): Promise<boolean> {
+  const encoder = new TextEncoder();
+  const [suppliedHash, expectedHash] = await Promise.all(
+    [supplied, expected].map(async (value) => {
+      return new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(value)));
+    }),
+  );
+  let difference = 0;
+  for (let i = 0; i < suppliedHash.length; i++) {
+    difference |= suppliedHash[i] ^ expectedHash[i];
+  }
+  return difference === 0;
 }
 
-function jsonResponse(
-  payload: Record<string, unknown>,
-  status: number,
-  headers: Record<string, string>,
-): Response {
-  return new Response(JSON.stringify(payload), {
-    headers: { ...headers, "Content-Type": "application/json" },
-    status,
+async function callDb<T>(
+  config: WorkerConfig,
+  operation: "claim_contact_notifications" | "finish_contact_notification",
+  args: Record<string, string | null>,
+): Promise<T> {
+  const response = await fetch(`${config.supabaseUrl}/rest/v1/rpc/${operation}`, {
+    method: "POST",
+    headers: {
+      apikey: config.serviceKey,
+      Authorization: `Bearer ${config.serviceKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(args),
+    signal: AbortSignal.timeout(15_000),
   });
+
+  if (!response.ok) {
+    throw new Error(operation);
+  }
+  return response.json();
 }
 
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
-
-const EMAIL_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)+$/;
-
-// In-memory rate limiting map: ip/email -> timestamps array
-const rateLimitMap = new Map<string, number[]>();
-const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1分
-const MAX_REQUESTS_PER_WINDOW = 3; // 1分間に最大3回まで
-const MAX_RATE_LIMIT_ENTRIES = 5000;
-
-export function resetRateLimitMapForTests(): void {
-  rateLimitMap.clear();
-}
-
-function cleanupRateLimitMap(now: number): void {
-  if (rateLimitMap.size < MAX_RATE_LIMIT_ENTRIES) return;
-  for (const [k, times] of rateLimitMap.entries()) {
-    const active = times.filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
-    if (active.length === 0) {
-      rateLimitMap.delete(k);
-    } else {
-      rateLimitMap.set(k, active);
-    }
-  }
-  while (rateLimitMap.size >= MAX_RATE_LIMIT_ENTRIES) {
-    const oldestKey = rateLimitMap.keys().next().value;
-    if (!oldestKey) break;
-    rateLimitMap.delete(oldestKey);
-  }
-}
-
-function isRateLimited(key: string): boolean {
-  const now = Date.now();
-  cleanupRateLimitMap(now);
-  const timestamps = (rateLimitMap.get(key) || []).filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
-  if (timestamps.length >= MAX_REQUESTS_PER_WINDOW) {
-    rateLimitMap.set(key, timestamps);
-    return true;
-  }
-  timestamps.push(now);
-  rateLimitMap.set(key, timestamps);
-  return false;
-}
-
-export async function handleContactRequest(req: Request): Promise<Response> {
-  const corsHeaders = getCorsHeaders(req);
-
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
-
-  if (req.method !== "POST") {
-    return jsonResponse({ error: "Method Not Allowed" }, 405, {
-      ...corsHeaders,
-      Allow: "POST, OPTIONS",
-    });
-  }
-
+async function sendNotification(
+  config: WorkerConfig,
+  job: NotificationJob,
+): Promise<DeliveryError | null> {
   try {
-    let parsed: unknown;
-    try {
-      parsed = await req.json();
-    } catch {
-      return jsonResponse({ error: "リクエスト形式が不正です。" }, 400, corsHeaders);
-    }
-
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return jsonResponse({ error: "リクエスト形式が不正です。" }, 400, corsHeaders);
-    }
-
-    const raw = parsed as Record<string, unknown>;
-
-    // クライアントIPの取得（プロキシ/Edge信頼ヘッダを優先、XFFは末尾の信頼済みホップを参照）
-    const clientIp =
-      req.headers.get("cf-connecting-ip")?.trim() ||
-      req.headers.get("x-real-ip")?.trim() ||
-      req.headers.get("x-forwarded-for")?.split(",").pop()?.trim() ||
-      "unknown-ip";
-
-    if (isRateLimited(`ip:${clientIp}`)) {
-      return jsonResponse(
-        {
-          error:
-            "短時間に多数のリクエストが送信されました。しばらく時間をおいて再度お試しください。",
-        },
-        429,
-        corsHeaders,
-      );
-    }
-
-    // ボット対策1: ハニーポットフィールドのチェック（人間には見えないダミー項目）
-    if (raw._hp || raw.honeypot || raw.website_trap) {
-      console.warn("Honeypot field triggered by bot from IP:", clientIp);
-      // ボットには成功したように見せかけて実際の送信は行わない（ステルス拒否）
-      return jsonResponse({ ok: true }, 200, corsHeaders);
-    }
-
-    const name = typeof raw.name === "string" ? raw.name.trim() : "";
-    const email = typeof raw.email === "string" ? raw.email.trim() : "";
-    const subject = typeof raw.subject === "string" ? raw.subject.trim() : "";
-    const body = typeof raw.body === "string" ? raw.body.trim() : "";
-
-    // Validation（メールアドレス単位のレート制限より前に実施し、不正入力による枠消費を防止）
-    if (!name || !email || !subject || !body) {
-      return jsonResponse({ error: "すべての項目を入力してください。" }, 400, corsHeaders);
-    }
-
-    if (name.length > 100 || subject.length > 200 || body.length > 5000) {
-      return jsonResponse({ error: "入力文字数が上限を超えています。" }, 400, corsHeaders);
-    }
-
-    if (!EMAIL_REGEX.test(email) || email.length > 254) {
-      return jsonResponse({ error: "有効なメールアドレスを入力してください。" }, 400, corsHeaders);
-    }
-
-    // Header injection prevention: reject CR / LF in email, name, and subject
-    if (/[\r\n]/.test(email) || /[\r\n]/.test(name) || /[\r\n]/.test(subject)) {
-      return jsonResponse({ error: "不正な改行文字が含まれています。" }, 400, corsHeaders);
-    }
-
-    // メールアドレス単位のレート制限（大文字・小文字を正規化）
-    const normalizedEmail = email.toLowerCase();
-    if (isRateLimited(`email:${normalizedEmail}`)) {
-      return jsonResponse(
-        {
-          error:
-            "このメールアドレスから短時間に連続してお問い合わせが送信されました。しばらくお待ちください。",
-        },
-        429,
-        corsHeaders,
-      );
-    }
-
-    const safeName = escapeHtml(name);
-    const safeEmail = escapeHtml(email);
-    const safeSubject = escapeHtml(subject);
-    const safeBody = escapeHtml(body);
-    const safeMailto = encodeURIComponent(email);
-
-    const adminHtml = `
-<!DOCTYPE html>
-<html lang="ja">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f4f6f9;font-family:'Helvetica Neue',Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f9;padding:40px 0;">
-    <tr><td align="center">
-      <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
-        <tr>
-          <td style="background:#bf783a;padding:32px 40px;">
-            <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:0.5px;">📬 新しいお問い合わせ</h1>
-            <p style="margin:6px 0 0;color:#f7ebe0;font-size:13px;">Quest Qlub お問い合わせフォームより</p>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:32px 40px;">
-            <table width="100%" cellpadding="0" cellspacing="0">
-              <tr><td style="padding:10px 0;border-bottom:1px solid #f0f0f0;">
-                <p style="margin:0;font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;">お名前</p>
-                <p style="margin:4px 0 0;font-size:15px;color:#1e293b;font-weight:600;">${safeName}</p>
-              </td></tr>
-              <tr><td style="padding:10px 0;border-bottom:1px solid #f0f0f0;">
-                <p style="margin:0;font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;">メールアドレス</p>
-                <p style="margin:4px 0 0;font-size:15px;color:#bf783a;">${safeEmail}</p>
-              </td></tr>
-              <tr><td style="padding:10px 0;border-bottom:1px solid #f0f0f0;">
-                <p style="margin:0;font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;">件名</p>
-                <p style="margin:4px 0 0;font-size:15px;color:#1e293b;font-weight:600;">${safeSubject}</p>
-              </td></tr>
-              <tr><td style="padding:10px 0;">
-                <p style="margin:0;font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;">内容</p>
-                <p style="margin:8px 0 0;font-size:15px;color:#334155;line-height:1.7;white-space:pre-wrap;">${safeBody}</p>
-              </td></tr>
-            </table>
-            <div style="margin-top:28px;">
-              <a href="mailto:${safeMailto}" style="display:inline-block;background:#bf783a;color:#ffffff;font-size:14px;font-weight:700;padding:12px 28px;border-radius:8px;text-decoration:none;">このメールに返信する</a>
-            </div>
-          </td>
-        </tr>
-        <tr>
-          <td style="background:#f8fafc;padding:20px 40px;border-top:1px solid #e2e8f0;">
-            <p style="margin:0;font-size:12px;color:#94a3b8;text-align:center;">© 2026 Quest Qlub — このメールはお問い合わせフォームから自動送信されました</p>
-          </td>
-        </tr>
-      </table>
-    </td></tr>
-  </table>
- </body>
-</html>`;
-
-    const receiverEmail = getEnv("CONTACT_RECEIVER_EMAIL");
-    if (!receiverEmail) {
-      console.warn(
-        "CONTACT_RECEIVER_EMAIL is not set. Defaulting to contact@quest-qlub.com. Note: With unverified onboarding@resend.dev, emails will fail if receiver does not match Resend account email.",
-      );
-    }
-    const toEmail = receiverEmail || "contact@quest-qlub.com";
-
-    const senderEmail = getEnv("CONTACT_SENDER_EMAIL") || "Quest Qlub <onboarding@resend.dev>";
-    if (!getEnv("CONTACT_SENDER_EMAIL")) {
-      console.warn(
-        "CONTACT_SENDER_EMAIL is not configured. Falling back to 'Quest Qlub <onboarding@resend.dev>'. Ensure custom domain is configured in Resend to avoid delivery restrictions.",
-      );
-    }
-
-    const resendApiKey = getEnv("RESEND_API_KEY");
-    if (!resendApiKey) {
-      console.error("RESEND_API_KEY is not configured.");
-      return jsonResponse(
-        { error: "メール送信サービスの設定が不足しています。" },
-        500,
-        corsHeaders,
-      );
-    }
-
-    const res = await fetch("https://api.resend.com/emails", {
+    const result = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${resendApiKey}`,
+        Authorization: `Bearer ${config.resendKey}`,
+        "Idempotency-Key": `contact-receipt/${job.receipt_id}`,
       },
       body: JSON.stringify({
-        from: senderEmail,
-        to: toEmail,
-        reply_to: email,
-        subject: `【お問い合わせ】${subject}`,
-        html: adminHtml,
+        from: config.from,
+        to: [config.to],
+        reply_to: job.email,
+        subject: `【お問い合わせ】${job.subject}`,
+        text: `受付ID ${job.receipt_id}\nお名前 ${job.name}\nメールアドレス ${job.email}\n\n${job.body}`,
       }),
+      signal: AbortSignal.timeout(15_000),
     });
 
-    const result = await res.json();
-    console.log("Resend response:", JSON.stringify(result));
-
-    if (!res.ok) {
-      console.error("Resend API error:", result);
-      return jsonResponse(
-        { error: "メール送信サービスでエラーが発生しました。" },
-        502,
-        corsHeaders,
-      );
+    // Only the status is needed. Provider responses may contain submitted content.
+    void result.body?.cancel().catch(() => {});
+    if (result.ok) return null;
+    if (result.status === 429) return "provider_rate_limit";
+    if (result.status >= 500 || result.status === 408 || result.status === 409) {
+      return "provider_unavailable";
     }
-
-    return jsonResponse({ ok: true }, 200, corsHeaders);
-  } catch (e) {
-    console.error("Error:", e);
-    return jsonResponse({ error: "サーバー内部エラーが発生しました。" }, 500, corsHeaders);
+    return "provider_rejected";
+  } catch {
+    return "network_error";
   }
 }
 
-const deno = getDeno();
-if (deno && typeof deno.serve === "function") {
-  deno.serve(handleContactRequest);
+async function processNotification(config: WorkerConfig, job: NotificationJob): Promise<boolean> {
+  const deliveryError = await sendNotification(config, job);
+  try {
+    const status = await callDb<string | null>(config, "finish_contact_notification", {
+      job_receipt_id: job.receipt_id,
+      job_lease_token: job.lease_token,
+      delivery_error: deliveryError,
+    });
+    console.info(
+      JSON.stringify({
+        receipt_id: job.receipt_id,
+        status: status ?? "stale_lease",
+        error_kind: deliveryError,
+      }),
+    );
+    return true;
+  } catch {
+    console.error(
+      JSON.stringify({
+        receipt_id: job.receipt_id,
+        status: "processing",
+        error_kind: "database_finalize",
+      }),
+    );
+    return false;
+  }
 }
+
+export async function handleContactRequest(req: Request): Promise<Response> {
+  if (req.method !== "POST") {
+    return Response.json(
+      { error: "method_not_allowed" },
+      { status: 405, headers: { Allow: "POST" } },
+    );
+  }
+
+  const env = getDeno()?.env;
+  const secret = env?.get("CONTACT_NOTIFICATION_WORKER_SECRET");
+  const supplied = req.headers.get("x-contact-worker-secret");
+  if (!secret || secret.length < 32 || !supplied || !(await matchesSecret(supplied, secret))) {
+    return Response.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  const supabaseUrl = env?.get("SUPABASE_URL");
+  const serviceKey = env?.get("SUPABASE_SERVICE_ROLE_KEY");
+  const resendKey = env?.get("RESEND_API_KEY");
+  if (!supabaseUrl || !serviceKey || !resendKey) {
+    console.error(JSON.stringify({ error_kind: "worker_configuration" }));
+    return Response.json({ error: "worker_configuration" }, { status: 503 });
+  }
+
+  const config: WorkerConfig = {
+    supabaseUrl,
+    serviceKey,
+    resendKey,
+    from: env?.get("CONTACT_SENDER_EMAIL") ?? "Quest Qlub <onboarding@resend.dev>",
+    to: env?.get("CONTACT_RECEIVER_EMAIL") ?? "contact@quest-qlub.com",
+  };
+
+  try {
+    const jobs = await callDb<NotificationJob[]>(config, "claim_contact_notifications", {});
+    const finalized = await Promise.all(jobs.map((job) => processNotification(config, job)));
+    return Response.json(
+      { claimed: jobs.length },
+      { status: finalized.every(Boolean) ? 200 : 503 },
+    );
+  } catch {
+    console.error(JSON.stringify({ error_kind: "database_claim" }));
+    return Response.json({ error: "database_claim" }, { status: 503 });
+  }
+}
+
+getDeno()?.serve?.(handleContactRequest);

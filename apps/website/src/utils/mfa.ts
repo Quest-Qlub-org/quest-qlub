@@ -103,7 +103,19 @@ export async function verifyBackupCode(rawCode: string): Promise<MfaVerifyResult
     p_code: code,
   });
 
-  if (rpcErr || !isValid) {
+  if (rpcErr?.code === "PT429") {
+    return {
+      success: false,
+      errorMessage: "バックアップコードの試行上限に達しました。15分ほどおいて再度お試しください。",
+    };
+  }
+  if (rpcErr) {
+    return {
+      success: false,
+      errorMessage: "バックアップコードを確認できませんでした。再度ログインしてお試しください。",
+    };
+  }
+  if (!isValid) {
     return {
       success: false,
       errorMessage: "バックアップコードが正しくないか、すでに使用されています。",

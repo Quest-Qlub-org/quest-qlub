@@ -262,6 +262,8 @@ describe("AppLayout Root-level MFA Barrier", () => {
     // #98 Footer links are <Link>/<a> rather than <button>
     const footer = container.querySelector("footer");
     expect(footer).not.toBeNull();
+    expect(footer?.classList.contains("pb-[var(--mobile-nav-clearance)]")).toBe(true);
+    expect(footer?.classList.contains("md:pb-0")).toBe(true);
     expect(footer?.querySelectorAll("button")).toHaveLength(0);
 
     const expectedPaths = [

@@ -209,13 +209,13 @@ describe("DataContext", () => {
     ];
 
     const createQueryChain = (data: any[] = []) => {
-      const chain: any = {
+      const chain: any = Object.assign(Promise.resolve({ data, error: null }), {
         select: vi.fn(() => chain),
         eq: vi.fn(() => chain),
         in: vi.fn(() => chain),
-        order: vi.fn(() => Promise.resolve({ data, error: null })),
+        order: vi.fn(() => chain),
         range: vi.fn(() => Promise.resolve({ data, error: null })),
-      };
+      });
       return chain;
     };
 
@@ -382,18 +382,16 @@ describe("DataContext", () => {
 
     vi.spyOn(supabase, "from").mockImplementation((table: string) => {
       if (table === "articles") {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              order: vi.fn(() => ({
-                range: vi.fn(() => {
-                  callOrder.push("select:articles");
-                  return Promise.resolve({ data: [], error: null });
-                }),
-              })),
-            })),
-          })),
-        } as any;
+        const query = {
+          select: vi.fn(() => query),
+          eq: vi.fn(() => query),
+          order: vi.fn(() => query),
+          range: vi.fn(() => {
+            callOrder.push("select:articles");
+            return Promise.resolve({ data: [], error: null });
+          }),
+        };
+        return query as unknown as ReturnType<typeof supabase.from>;
       }
       return {
         select: vi.fn(() => ({
@@ -551,7 +549,7 @@ describe("DataContext", () => {
     }));
     (supabase as any).removeChannel = removeChannelSpy;
 
-    const firstPage = Array.from({ length: 12 }, (_, idx) => ({
+    const firstPage = Array.from({ length: 13 }, (_, idx) => ({
       id: `art-${idx}`,
       title: `記事${idx}`,
       status: "published",
@@ -639,8 +637,9 @@ describe("DataContext", () => {
       );
     });
 
-    // 最初の12行取得後、1件除外され11件表示だが、次ページは raw offset=12 から開始されること
+    // 次ページ確認用の13行目を保持せず、除外された予約記事はオフセットに含める。
     expect(dataState.articles.length).toBe(11);
+    expect(dataState.hasMoreArticles).toBe(true);
 
     // 同時に2回 loadMoreArticles を呼んでも、useRef ロックで1回しか実行されないこと
     let p1!: Promise<void>;
@@ -650,8 +649,8 @@ describe("DataContext", () => {
       p2 = dataState.loadMoreArticles();
     });
     expect(rangeCalls).toEqual([
-      [0, 11],
-      [12, 23],
+      [0, 12],
+      [12, 24],
     ]);
 
     await act(async () => {
@@ -662,6 +661,7 @@ describe("DataContext", () => {
     // 重複ID(art-11)が排除され art-12 だけ追加されること
     expect(dataState.articles.length).toBe(12);
     expect(dataState.articles.filter((a) => a.id === "art-11")).toHaveLength(1);
+    expect(dataState.hasMoreArticles).toBe(false);
 
     // アンマウント時に removeChannel が呼ばれること
     act(() => {

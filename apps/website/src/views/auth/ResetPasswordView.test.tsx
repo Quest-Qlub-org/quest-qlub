@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vite-plus/test";
 import { act } from "react";
+import { AuthWeakPasswordError } from "@supabase/supabase-js";
 import { ResetPasswordView } from "./ResetPasswordView";
 import { renderWithRouter, setNativeValue } from "../../test/test-utils";
 import { supabase } from "../../supabase";
@@ -107,6 +108,41 @@ describe("ResetPasswordView", () => {
       "パスワードの更新中にエラーが発生しました",
     );
 
+    unmount();
+  });
+
+  it("allows a different choice when Auth rejects a leaked reset password", async () => {
+    const signOut = vi.spyOn(supabase.auth, "signOut");
+    vi.spyOn(supabase.auth, "updateUser").mockResolvedValue({
+      data: { user: null },
+      error: new AuthWeakPasswordError("Weak password", 422, ["pwned"]),
+    });
+    let result!: ReturnType<typeof renderWithRouter>;
+    await act(async () => {
+      result = renderWithRouter(<ResetPasswordView />, { route: "/reset-password" });
+    });
+    const { container, unmount } = result;
+
+    act(() => {
+      setNativeValue(container.querySelector<HTMLInputElement>("#reset-password")!, "password123");
+      setNativeValue(
+        container.querySelector<HTMLInputElement>("#reset-password-confirm")!,
+        "password123",
+      );
+    });
+    await act(async () => {
+      container
+        .querySelector("form")!
+        .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "漏えいが確認されています",
+    );
+    expect(container.querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled).toBe(
+      false,
+    );
+    expect(signOut).not.toHaveBeenCalled();
     unmount();
   });
 });

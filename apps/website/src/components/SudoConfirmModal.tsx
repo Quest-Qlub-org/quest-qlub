@@ -3,7 +3,11 @@ import { supabase } from "../supabase";
 import { ShieldAlert, ShieldCheck, AlertCircle, Key, ArrowLeft } from "lucide-react";
 import { useFocusTrap } from "../hooks/useFocusTrap";
 import { useAuth } from "../context/AuthContext";
-import { setInMemorySudoAuthorized } from "./RoleRoute";
+import {
+  beginSudoMfaHandshake,
+  confirmServerSudoSession,
+  lockSudoSession,
+} from "../utils/sudoState";
 import { findVerifiedTotpFactor, verifyTotpCode } from "../utils/mfa";
 
 interface SudoConfirmModalProps {
@@ -17,7 +21,7 @@ export const SudoConfirmModal: React.FC<SudoConfirmModalProps> = ({
   onSuccess,
   onCancel,
 }) => {
-  const { setMfaChallengeRequired } = useAuth();
+  const { user, setMfaChallengeRequired } = useAuth();
   const [step, setStep] = useState<"password" | "mfa_totp">("password");
   const [password, setPassword] = useState("");
   const [verifyCode, setVerifyCode] = useState("");
@@ -34,104 +38,114 @@ export const SudoConfirmModal: React.FC<SudoConfirmModalProps> = ({
     };
   }, []);
 
-  const modalRef = useFocusTrap<HTMLDivElement>(true, () => {
-    onCancel();
-  });
-
   useEffect(() => {
     if (typeof window !== "undefined" && !!window.PublicKeyCredential) {
       setIsPasskeySupported(true);
     }
   }, []);
 
+  const resetWithError = (message: string) => {
+    lockSudoSession();
+    setStep("password");
+    setError(message);
+  };
+
+  const handleCancel = () => {
+    lockSudoSession();
+    onCancel();
+  };
+
+  const modalRef = useFocusTrap<HTMLDivElement>(true, handleCancel);
+
+  const confirmAuthorization = async () => {
+    if (!isMountedRef.current) return;
+
+    const authorized = await confirmServerSudoSession();
+    if (!isMountedRef.current) {
+      if (authorized) lockSudoSession();
+      return;
+    }
+
+    setMfaChallengeRequired(false);
+    if (authorized) {
+      onSuccess();
+    } else {
+      resetWithError("管理操作の再認証を確認できませんでした。もう一度お試しください。");
+    }
+  };
+
+  const continueAfterPrimaryAuth = async () => {
+    const { data: mfaLevel, error: mfaError } =
+      await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (!isMountedRef.current) return;
+    if (mfaError || !mfaLevel) {
+      resetWithError("2段階認証状態の確認に失敗しました");
+      return;
+    }
+    if (mfaLevel.currentLevel === "aal1" && mfaLevel.nextLevel === "aal2") {
+      const factor = await findVerifiedTotpFactor();
+      if (!isMountedRef.current) return;
+      if (!factor.factorId) {
+        resetWithError("2段階認証の確認が必要です");
+        return;
+      }
+      setFactorId(factor.factorId);
+      setVerifyCode("");
+      setStep("mfa_totp");
+      return;
+    }
+
+    await confirmAuthorization();
+  };
+
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!password) return;
+    if (!password || loading) return;
 
     setLoading(true);
     setError("");
-
     try {
-      // signInWithPassword が内部で SIGNED_IN イベントを発火し、2FA有効ユーザーでは一時的に
-      // AppLayout の MfaChallengeModal に切り替わる（RoleRoute がアンマウントされる）場合があるため、
-      // 呼び出し直前に MFA ハンドシェイク猶予付きでメモリ内 Sudo 認可フラグをセットし、失敗時は即座に取り消す
-      setInMemorySudoAuthorized(true, true);
-
-      const { error: signInErr } = await supabase.auth.signInWithPassword({
+      const started = await beginSudoMfaHandshake();
+      if (!isMountedRef.current) return;
+      if (!started) {
+        resetWithError("管理操作の再認証を開始できませんでした。もう一度お試しください。");
+        return;
+      }
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email: userEmail,
         password,
       });
-
-      if (signInErr) {
-        setInMemorySudoAuthorized(false);
-        setError("パスワードが正しくありません");
-        setLoading(false);
+      if (signInError || !data.session) {
+        resetWithError("パスワードが正しくありません");
         return;
       }
 
-      // 2FA有効ユーザーの場合、signInWithPassword でセッションが aal1 にダウングレードされるため、
-      // モーダル内でシームレスに2FA（AAL2）昇格まで完了させる（確認不能・未検証時は fail-closed で拒否）
-      const { data: mfaLevel, error: mfaErr } =
-        await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-      if (mfaErr) {
-        setInMemorySudoAuthorized(false);
-        setError("2段階認証状態の確認に失敗しました");
-        setLoading(false);
-        return;
-      }
-
-      if (mfaLevel && mfaLevel.currentLevel === "aal1" && mfaLevel.nextLevel === "aal2") {
-        const factorResult = await findVerifiedTotpFactor();
-        if (factorResult.factorId) {
-          setFactorId(factorResult.factorId);
-          setStep("mfa_totp");
-          setLoading(false);
-          return;
-        }
-        setInMemorySudoAuthorized(false);
-        setError("2段階認証の確認が必要です");
-        setLoading(false);
-        return;
-      }
-
-      // 2FA不要ユーザーの場合はハンドシェイク猶予フラグを通常のSudo認可に確定させる
-      setInMemorySudoAuthorized(true, false);
-      setMfaChallengeRequired(false);
-      onSuccess();
+      setPassword("");
+      await continueAfterPrimaryAuth();
     } catch {
-      setInMemorySudoAuthorized(false);
-      setError("認証処理中にエラーが発生しました");
+      resetWithError("認証処理中にエラーが発生しました");
     } finally {
-      if (isMountedRef.current) {
-        setLoading(false);
-      }
+      if (isMountedRef.current) setLoading(false);
     }
   };
 
   const handleVerifyTotp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!verifyCode.trim() || !factorId) return;
+    if (!verifyCode.trim() || !factorId || loading) return;
 
     setLoading(true);
     setError("");
-
     try {
       const result = await verifyTotpCode(factorId, verifyCode);
       if (!result.success) {
         setError(result.errorMessage ?? "2段階認証に失敗しました");
-        setLoading(false);
         return;
       }
-
-      setInMemorySudoAuthorized(true);
-      setMfaChallengeRequired(false);
-      onSuccess();
+      await confirmAuthorization();
     } catch {
-      setError("2段階認証の処理中にエラーが発生しました");
+      resetWithError("2段階認証の処理中にエラーが発生しました");
     } finally {
-      if (isMountedRef.current) {
-        setLoading(false);
-      }
+      if (isMountedRef.current) setLoading(false);
     }
   };
 
@@ -139,58 +153,31 @@ export const SudoConfirmModal: React.FC<SudoConfirmModalProps> = ({
     setLoading(true);
     setError("");
     try {
-      setInMemorySudoAuthorized(true, true);
-      const { data, error: passkeyErr } = await supabase.auth.signInWithPasskey();
-      if (passkeyErr) {
-        setInMemorySudoAuthorized(false);
-        if (passkeyErr.name !== "NotAllowedError") {
-          setError("パスキーでの認証に失敗しました");
-        }
+      const started = await beginSudoMfaHandshake();
+      if (!isMountedRef.current) return;
+      if (!started) {
+        resetWithError("管理操作の再認証を開始できませんでした。もう一度お試しください。");
+        return;
+      }
+      const { data, error: passkeyError } = await supabase.auth.signInWithPasskey();
+      if (passkeyError || !data.session) {
+        resetWithError(
+          passkeyError?.name === "NotAllowedError" ? "" : "パスキーでの認証に失敗しました",
+        );
         return;
       }
 
-      if (data?.session) {
-        const signedEmail = data.session.user?.email?.trim().toLowerCase();
-        const targetEmail = userEmail.trim().toLowerCase();
-        if (targetEmail && signedEmail && signedEmail !== targetEmail) {
-          setInMemorySudoAuthorized(false);
-          setError("現在のログインアカウントと異なるパスキーが使用されました");
-          return;
-        }
-
-        const { data: mfaLevel, error: mfaErr } =
-          await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-        if (mfaErr) {
-          setInMemorySudoAuthorized(false);
-          setError("2段階認証状態の確認に失敗しました");
-          return;
-        }
-        if (mfaLevel && mfaLevel.currentLevel === "aal1" && mfaLevel.nextLevel === "aal2") {
-          const { data: factorsData, error: factorsErr } = await supabase.auth.mfa.listFactors();
-          if (!factorsErr && factorsData) {
-            const verifiedTotp = factorsData.totp.find((f) => f.status === "verified");
-            if (verifiedTotp) {
-              setFactorId(verifiedTotp.id);
-              setStep("mfa_totp");
-              return;
-            }
-          }
-          setInMemorySudoAuthorized(false);
-          setError("2段階認証の確認が必要です");
-          return;
-        }
-
-        setInMemorySudoAuthorized(true, false);
-        setMfaChallengeRequired(false);
-        onSuccess();
-      } else {
-        setInMemorySudoAuthorized(false);
+      if (data.session.user.id !== user?.id) {
+        await supabase.auth.signOut({ scope: "local" });
+        resetWithError("現在のログインアカウントと異なるパスキーが使用されました");
+        return;
       }
+
+      await continueAfterPrimaryAuth();
     } catch {
-      setInMemorySudoAuthorized(false);
-      setError("パスキー認証中にエラーが発生しました");
+      resetWithError("パスキー認証中にエラーが発生しました");
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) setLoading(false);
     }
   };
 
@@ -321,7 +308,7 @@ export const SudoConfirmModal: React.FC<SudoConfirmModalProps> = ({
         <div className="pt-4 mt-4 border-t border-gray-100 dark:border-gray-700">
           <button
             type="button"
-            onClick={onCancel}
+            onClick={handleCancel}
             disabled={loading}
             className="w-full py-2 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
           >

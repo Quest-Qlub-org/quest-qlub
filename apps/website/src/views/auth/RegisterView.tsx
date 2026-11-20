@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { supabase } from "../../supabase";
 import { useApp } from "../../context/AppContext";
 import { validatePassword } from "../../utils/validation";
+import { getPasswordAuthErrorMessage } from "../../utils/passwordAuthErrors";
 import { verifySpamCheck, REGISTER_COOLDOWN_KEY } from "../../utils/antiSpam";
 import { useSubmissionCooldown } from "../../hooks/useSubmissionCooldown";
 import { HoneypotInput } from "../../components/HoneypotInput";
@@ -69,7 +70,7 @@ export const RegisterView = () => {
       options: { data: { display_name: displayName, username: username.trim() } },
     });
     if (signUpErr) {
-      setError(signUpErr.message);
+      setError(getPasswordAuthErrorMessage(signUpErr, "アカウントの登録に失敗しました"));
     } else {
       triggerCooldown();
       navigate("login");

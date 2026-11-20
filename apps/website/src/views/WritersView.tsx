@@ -24,16 +24,18 @@ const WriterRow = ({
   const profilePath = `/writers/${w.username || w.id}`;
 
   return (
-    <div className="relative flex items-center justify-between p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/80 rounded-xl m-2 hover:bg-blue-50 dark:hover:bg-gray-700/60 focus-within:ring-2 focus-within:ring-blue-500 transition-colors shadow-sm">
+    <div className="relative flex flex-wrap items-center gap-x-4 gap-y-2 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/80 rounded-xl m-2 hover:bg-blue-50 dark:hover:bg-gray-700/60 transition-colors shadow-sm">
       <Link
         to={profilePath}
-        className="flex items-center gap-4 min-w-0 flex-1 after:absolute after:inset-0 focus-visible:outline-none"
+        className="flex items-center gap-4 min-w-0 flex-[1_1_11rem] after:absolute after:inset-0 after:rounded-xl focus-visible:after:outline focus-visible:after:outline-2 focus-visible:after:outline-blue-700 dark:focus-visible:after:outline-blue-300"
       >
         <div className="bg-gray-100 dark:bg-gray-700 rounded-full border border-gray-200 dark:border-gray-600 overflow-hidden w-12 h-12 flex items-center justify-center shrink-0">
           {w.avatar_url ? (
             <img
               src={w.avatar_url}
               className="w-12 h-12 object-cover"
+              width={48}
+              height={48}
               alt={`${writerName}のアバター`}
               loading="lazy"
               decoding="async"
@@ -43,14 +45,14 @@ const WriterRow = ({
           )}
         </div>
         <div className="min-w-0">
-          <p className="font-bold text-gray-800 dark:text-gray-100 text-base truncate">
+          <p className="font-bold text-gray-800 dark:text-gray-100 text-base [overflow-wrap:anywhere]">
             {writerName}
           </p>
           <div className="flex items-center gap-1.5 flex-wrap">
             {getProfileRoles(w).map((r) => (
               <span
                 key={r}
-                className={`text-xs font-bold ${
+                className={`text-xs font-bold whitespace-nowrap ${
                   r === "editor"
                     ? "text-purple-600 dark:text-purple-400"
                     : r === "engineer"
@@ -64,17 +66,13 @@ const WriterRow = ({
           </div>
         </div>
       </Link>
-      <div className="flex items-center gap-3 shrink-0 ml-2">
+      <div className="ml-auto flex shrink-0 items-center gap-3">
         {currentUserId !== w.id && (
           <button
             type="button"
             aria-pressed={isFollowing}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onToggleFollow(w.id);
-            }}
-            className={`relative z-10 inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm cursor-pointer ${
+            onClick={() => onToggleFollow(w.id)}
+            className={`relative z-10 inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-colors shadow-sm cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700 dark:focus-visible:outline-blue-300 ${
               isFollowing
                 ? "bg-blue-600 text-white hover:bg-blue-700"
                 : "bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
@@ -82,12 +80,12 @@ const WriterRow = ({
           >
             {isFollowing ? (
               <>
-                <UserCheck className="w-3.5 h-3.5" />
+                <UserCheck className="w-3.5 h-3.5" aria-hidden="true" />
                 <span>フォロー中</span>
               </>
             ) : (
               <>
-                <UserPlus className="w-3.5 h-3.5" />
+                <UserPlus className="w-3.5 h-3.5" aria-hidden="true" />
                 <span>フォロー</span>
               </>
             )}
@@ -159,7 +157,7 @@ export const WritersView = () => {
       </div>
 
       {writersLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
           <WriterRowSkeleton />
           <WriterRowSkeleton />
           <WriterRowSkeleton />
@@ -172,7 +170,7 @@ export const WritersView = () => {
               <h2 className="text-sm font-bold text-gray-500 dark:text-gray-400 mb-2 pl-2">
                 編集長
               </h2>
-              <div className="md:grid md:grid-cols-2 md:gap-2">
+              <div className="lg:grid lg:grid-cols-2 lg:gap-2">
                 {editors.map((w) => (
                   <WriterRow
                     key={w.id}
@@ -190,7 +188,7 @@ export const WritersView = () => {
             <h2 className="text-sm font-bold text-gray-500 dark:text-gray-400 mb-2 pl-2">
               ライター
             </h2>
-            <div className="md:grid md:grid-cols-2 md:gap-2">
+            <div className="lg:grid lg:grid-cols-2 lg:gap-2">
               {writerList.length > 0 ? (
                 writerList.map((w) => (
                   <WriterRow

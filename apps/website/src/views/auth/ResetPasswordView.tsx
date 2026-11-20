@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "../../supabase";
 import { useApp } from "../../context/AppContext";
 import { validatePassword } from "../../utils/validation";
+import { getPasswordAuthErrorMessage } from "../../utils/passwordAuthErrors";
 import { updateMetaTags } from "../../utils/seo";
 
 export const ResetPasswordView = () => {
@@ -68,7 +69,7 @@ export const ResetPasswordView = () => {
       const { error: updateErr } = await supabase.auth.updateUser({ password });
 
       if (updateErr) {
-        setError(updateErr.message);
+        setError(getPasswordAuthErrorMessage(updateErr, "パスワードの更新に失敗しました"));
       } else {
         showToast("パスワードを更新しました。新しいパスワードでログインしてください。");
         await supabase.auth.signOut().catch(() => {});

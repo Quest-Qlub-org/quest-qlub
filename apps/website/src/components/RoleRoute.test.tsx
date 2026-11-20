@@ -14,6 +14,8 @@ import {
 import { UIProvider } from "../context/UIContext";
 import { DataProvider } from "../context/DataContext";
 import * as AuthContextModule from "../context/AuthContext";
+import { confirmServerSudoSession } from "../utils/sudoState";
+import { supabase } from "../supabase";
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -23,6 +25,15 @@ describe("RoleRoute access control", () => {
 
   beforeEach(() => {
     setInMemorySudoAuthorized(false);
+    vi.spyOn(supabase, "rpc").mockImplementation((functionName) => {
+      const data =
+        functionName === "confirm_sudo_session"
+          ? new Date(Date.now() + SUDO_TIMEOUT_MS).toISOString()
+          : functionName === "begin_sudo_session"
+            ? "challenge-1"
+            : null;
+      return Promise.resolve({ data, error: null }) as any;
+    });
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -555,6 +566,10 @@ describe("RoleRoute access control", () => {
         root!.unmount();
         root = createRoot(container);
       });
+
+      expect(checkIsSudoActive()).toBe(false);
+      // AppLayout confirms the server grant after its MFA challenge succeeds.
+      expect(await confirmServerSudoSession()).toBe(true);
 
       // MfaChallengeModal で2FAが完了し、再び RoleRoute がマウントされた際、
       // パスワード再入力モーダルにループせず直接ダッシュボードが表示されること！
