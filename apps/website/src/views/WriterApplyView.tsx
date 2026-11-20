@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { supabase } from "../supabase";
+import { isContactRateLimitError, submitContactMessage } from "../utils/contactSubmissions";
 import { useApp } from "../context/AppContext";
 import { PenTool, CheckCircle, Send, ArrowLeft, Sparkles, ListChecks } from "lucide-react";
 import { updateMetaTags } from "../utils/seo";
@@ -105,45 +105,17 @@ export const WriterApplyView = () => {
     setError("");
 
     try {
-      // 1. contact_messages テーブルに保存
-      const { error: dbError } = await supabase.from("contact_messages").insert({
-        name: name.trim(),
-        email: email.trim(),
-        subject,
-        body,
-      });
-
+      const dbError = await submitContactMessage({ name, email, subject, body }, honeypot);
       if (dbError) {
-        setSubmitting(false);
-        if (dbError.message?.includes("10分間に3件") || (dbError as any).code === "P0001") {
-          setError(
-            "短時間に多数の送信が行われました。10分ほど時間をおいてから再度お試しください。",
-          );
-        } else {
-          setError(
-            "送信に失敗しました。通信環境をご確認のうえ、しばらく経ってから再度お試しください。",
-          );
-        }
+        setError(
+          isContactRateLimitError(dbError)
+            ? "短時間に多数の送信が行われました。10分ほど時間をおいてから再度お試しください。"
+            : "送信に失敗しました。通信環境をご確認のうえ、しばらく経ってから再度お試しください。",
+        );
         return;
       }
 
       markSubmitted();
-
-      // 2. send-contact-email Edge Function で運営者にメール通知
-      try {
-        await supabase.functions.invoke("send-contact-email", {
-          body: {
-            name: name.trim(),
-            email: email.trim(),
-            subject,
-            body,
-            _hp: honeypot,
-          },
-        });
-      } catch (funcErr) {
-        console.warn("Edge function invocation notification failed", funcErr);
-      }
-
       setSubmitted(true);
       showToast("ライター応募を受け付けました");
     } catch {

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, CheckCircle, Clock, HelpCircle, Mail, Send, Shield } from "lucide-react";
-import { supabase } from "../supabase";
+import { isContactRateLimitError, submitContactMessage } from "../utils/contactSubmissions";
 import { validateContactForm } from "../utils/validation";
 import { updateMetaTags } from "../utils/seo";
 import { useSubmissionCooldown } from "./shared/useSubmissionCooldown";
@@ -51,41 +51,24 @@ export function ContactView() {
     setSending(true);
     setErr("");
 
-    const { error } = await supabase.from("contact_messages").insert({
-      name: name.trim(),
-      email: email.trim(),
-      subject: subject.trim(),
-      body: body.trim(),
-    });
-
-    if (error) {
-      setSending(false);
-      setErr("送信に失敗しました。しばらくたってから再度お試しください。");
-      return;
-    }
-
-    // 運営者宛てメール通知（失敗してもDBにメッセージは記録されているため警告ログに留め、ユーザーには送信完了を表示）
     try {
-      const { error: fnError } = await supabase.functions.invoke("send-contact-email", {
-        body: {
-          name: name.trim(),
-          email: email.trim(),
-          subject: subject.trim(),
-          body: body.trim(),
-          _hp: honeypot,
-        },
-      });
-
-      if (fnError) {
-        console.warn("send-contact-email notification returned error:", fnError);
+      const error = await submitContactMessage({ name, email, subject, body }, honeypot);
+      if (error) {
+        setErr(
+          isContactRateLimitError(error)
+            ? "短時間に多数の送信が行われました。時間をおいてから再度お試しください。"
+            : "送信に失敗しました。しばらくたってから再度お試しください。",
+        );
+        return;
       }
-    } catch (fnErr) {
-      console.warn("send-contact-email invocation failed:", fnErr);
-    }
 
-    markSubmitted();
-    setSending(false);
-    setSent(true);
+      markSubmitted();
+      setSent(true);
+    } catch {
+      setErr("送信に失敗しました。しばらくたってから再度お試しください。");
+    } finally {
+      setSending(false);
+    }
   };
 
   if (sent) {

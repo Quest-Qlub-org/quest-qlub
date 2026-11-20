@@ -159,12 +159,10 @@ describe("WriterApplyView", () => {
     expect(dbSpy).not.toHaveBeenCalled();
   });
 
-  it("shows error when both DB insert and Edge Function fail", async () => {
+  it("shows an error when saving the receipt fails", async () => {
     setupAppMock();
 
-    vi.spyOn(supabase, "from").mockReturnValue({
-      insert: vi.fn().mockResolvedValue({ error: { message: "DB Error" } }),
-    } as any);
+    vi.spyOn(supabase, "rpc").mockResolvedValue({ error: { message: "DB Error" } } as any);
 
     const fnSpy = vi.spyOn(supabase.functions, "invoke");
 
@@ -207,10 +205,8 @@ describe("WriterApplyView", () => {
   it("shows rate limit error when DB trigger rejects rapid submissions", async () => {
     setupAppMock();
 
-    vi.spyOn(supabase, "from").mockReturnValue({
-      insert: vi
-        .fn()
-        .mockResolvedValue({ error: { code: "P0001", message: "10分間に3件までです" } }),
+    vi.spyOn(supabase, "rpc").mockResolvedValue({
+      error: { code: "PT429", message: "10分間に3件までです" },
     } as any);
 
     const fnSpy = vi.spyOn(supabase.functions, "invoke");
@@ -248,17 +244,14 @@ describe("WriterApplyView", () => {
     expect(fnSpy).not.toHaveBeenCalled();
   });
 
-  it("succeeds when DB insert succeeds even if Edge Function fails", async () => {
+  it("completes after saving the receipt and leaves the notification to the server", async () => {
     setupAppMock();
 
-    vi.spyOn(supabase, "from").mockReturnValue({
-      insert: vi.fn().mockResolvedValue({ error: null }),
+    const receipt = vi.spyOn(supabase, "rpc").mockResolvedValue({
+      data: "test-writer-receipt",
+      error: null,
     } as any);
-
-    vi.spyOn(supabase.functions, "invoke").mockResolvedValue({
-      data: null,
-      error: { message: "Function Error" } as any,
-    });
+    const notification = vi.spyOn(supabase.functions, "invoke");
 
     await act(async () => {
       root!.render(
@@ -292,6 +285,11 @@ describe("WriterApplyView", () => {
       { timeout: 10000, interval: 50 },
     );
     expect(mockShowToast).toHaveBeenCalledWith("ライター応募を受け付けました");
+    expect(receipt).toHaveBeenCalledWith(
+      "submit_contact_message",
+      expect.objectContaining({ message_subject: "【ライター応募】応募者 太郎様より" }),
+    );
+    expect(notification).not.toHaveBeenCalled();
   });
 
   it("autofills name and email when profile and user load asynchronously", async () => {

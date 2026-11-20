@@ -46,19 +46,13 @@ describe("ContactView", () => {
     vi.restoreAllMocks();
   });
 
-  it("completes successfully and prevents duplicate submission even if Edge Function fails", async () => {
-    const insertMock = vi.fn().mockResolvedValue({ error: null });
-    vi.spyOn(supabase, "from").mockReturnValue({
-      insert: insertMock,
+  it("completes after the receipt RPC and leaves notification to the server", async () => {
+    const receipt = vi.spyOn(supabase, "rpc").mockResolvedValue({
+      data: "test-contact-receipt",
+      error: null,
     } as any);
-
-    const invokeMock = vi.fn().mockResolvedValue({
-      data: null,
-      error: { message: "Edge Function error" } as any,
-    });
-    vi.spyOn(supabase, "functions", "get").mockReturnValue({
-      invoke: invokeMock,
-    } as any);
+    const legacyInsert = vi.spyOn(supabase, "from");
+    const invokeMock = vi.spyOn(supabase.functions, "invoke");
 
     await act(async () => {
       root!.render(
@@ -103,23 +97,26 @@ describe("ContactView", () => {
       });
     }
 
-    expect(insertMock).toHaveBeenCalled();
-    expect(invokeMock).toHaveBeenCalled();
+    expect(receipt).toHaveBeenCalledWith("submit_contact_message", {
+      sender_name: "山田太郎",
+      sender_email: "yamada@example.com",
+      message_subject: "問い合わせ件名",
+      message_body: "問い合わせ本文です。よろしくお願いいたします。",
+      honeypot: "",
+    });
+    expect(legacyInsert).not.toHaveBeenCalled();
+    expect(invokeMock).not.toHaveBeenCalled();
     expect(container.textContent).toContain("送信完了");
     expect(container.textContent).toContain("お問い合わせを受け付けました");
     expect(container.textContent).not.toContain("メールの送信処理に失敗しました");
   });
 
-  it("shows error message when DB insert fails", async () => {
-    const insertMock = vi.fn().mockResolvedValue({ error: { message: "DB Error" } });
-    vi.spyOn(supabase, "from").mockReturnValue({
-      insert: insertMock,
-    } as any);
-
-    vi.spyOn(supabase.functions, "invoke").mockResolvedValue({
+  it("shows an error when the receipt fails and does not fall back for permission errors", async () => {
+    vi.spyOn(supabase, "rpc").mockResolvedValue({
       data: null,
-      error: null,
-    });
+      error: { code: "42501", message: "Permission denied" },
+    } as any);
+    const legacyInsert = vi.spyOn(supabase, "from");
 
     await act(async () => {
       root!.render(
@@ -163,6 +160,7 @@ describe("ContactView", () => {
 
     expect(container.textContent).toContain("送信に失敗しました");
     expect(container.textContent).not.toContain("送信完了");
+    expect(legacyInsert).not.toHaveBeenCalled();
   });
 
   it("renders accessible heading, associated labels, required attributes, and alert error state", async () => {
