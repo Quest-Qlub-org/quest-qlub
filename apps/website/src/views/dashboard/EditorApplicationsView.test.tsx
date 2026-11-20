@@ -6,144 +6,95 @@ import * as AppContextModule from "../../context/AppContext";
 import { renderWithRouter, setNativeValue } from "../../test/test-utils";
 import { supabase } from "../../supabase";
 
-(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+const application = {
+  id: "msg-1",
+  name: "山田花子",
+  email: "hanako-at-application@example.test",
+  subject: "【ライター応募】山田花子様より",
+  body: "【志望動機・自己PR】:\nAIとWeb開発についての記事を書きたいです。",
+  created_at: "2026-10-24T10:00:00Z",
+  message_kind: "writer_application",
+  application_user_id: "auth-hanako",
+  review_status: "pending",
+  account_display_name: "花子",
+  account_username: "hanako",
+};
+const generalContact = {
+  id: "msg-2",
+  name: "鈴木一郎",
+  email: "contact@example.test",
+  subject: "ライター応募について質問",
+  body: "一般お問い合わせの本文です。",
+  created_at: "2026-10-23T10:00:00Z",
+  message_kind: "contact",
+};
+
+async function mountView() {
+  let container = document.createElement("div");
+  await act(async () => {
+    container = renderWithRouter(<EditorApplicationsView />).container;
+  });
+  return container;
+}
 
 describe("EditorApplicationsView", () => {
-  const mockShowToast = vi.fn();
+  const showToast = vi.fn();
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    showToast.mockClear();
+    vi.spyOn(AppContextModule, "useApp").mockReturnValue({ showToast } as any);
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("renders writer applications and allows filtering and promoting applicant", async () => {
-    const mockMessages = [
-      {
-        id: "msg-1",
-        name: "山田花子",
-        email: "hanako@example.com",
-        subject: "【ライター応募】山田花子様より",
-        body: "【志望動機・自己PR】:\nAIとWeb開発についての記事を書きたいです。",
-        created_at: "2026-10-24T10:00:00Z",
-      },
-      {
-        id: "msg-2",
-        name: "鈴木一郎",
-        email: "suzuki@example.com",
-        subject: "サービスの使い方について質問",
-        body: "アカウント設定について質問があります。",
-        created_at: "2026-10-23T10:00:00Z",
-      },
-    ];
-
-    const mockRpc = vi.fn().mockResolvedValue({ data: {}, error: null });
-
-    vi.spyOn(window, "confirm").mockReturnValue(true);
-
-    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
-      if (table === "contact_messages") {
-        return {
-          select: vi.fn().mockReturnValue({
-            order: vi.fn().mockResolvedValue({
-              data: mockMessages,
-              error: null,
-            }),
-          }),
-        } as any;
-      }
-      return {} as any;
+  it("identifies the account before promoting the verified receipt", async () => {
+    const rpc = vi.spyOn(supabase, "rpc").mockImplementation((name) => {
+      return Promise.resolve({
+        data: name === "admin_list_contact_receipts" ? [application, generalContact] : "approved",
+        error: null,
+      }) as any;
     });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const container = await mountView();
 
-    vi.spyOn(supabase, "rpc").mockImplementation(mockRpc);
-
-    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
-      showToast: mockShowToast,
-    } as any);
-
-    let container: HTMLElement = document.createElement("div");
-
-    await act(async () => {
-      const rendered = renderWithRouter(<EditorApplicationsView />);
-      container = rendered.container;
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    // 初期状態は「ライター応募」のみ表示
     expect(container.textContent).toContain("山田花子");
-    expect(container.textContent).toContain("hanako@example.com");
+    expect(container.textContent).toContain("受付時メール hanako-at-application@example.test");
+    expect(container.textContent).toContain("@hanako");
+    expect(container.textContent).toContain("auth-hanako");
     expect(container.textContent).not.toContain("鈴木一郎");
 
-    // 「すべて」タブに切り替え
-    const allTabBtn = Array.from(container.querySelectorAll("button")).find((b) =>
-      b.textContent?.includes("すべて"),
-    );
-    expect(allTabBtn).toBeDefined();
-
-    await act(async () => {
-      allTabBtn!.click();
-    });
-
+    const allTab = Array.from(container.querySelectorAll('[role="tab"]')).find((item) =>
+      item.textContent?.includes("すべて"),
+    ) as HTMLButtonElement;
+    await act(async () => allTab.click());
     expect(container.textContent).toContain("鈴木一郎");
-
-    // 検索バーで絞り込み
-    const searchInput = container.querySelector(
-      'input[placeholder="名前・メール・内容で検索"]',
-    ) as HTMLInputElement;
-    expect(searchInput).not.toBeNull();
-
-    act(() => {
-      setNativeValue(searchInput, "花子");
-    });
-
-    expect(container.textContent).toContain("山田花子");
+    const search = container.querySelector("#applications-search-input") as HTMLInputElement;
+    act(() => setNativeValue(search, "花子"));
     expect(container.textContent).not.toContain("鈴木一郎");
 
-    // 「ライターに昇格」ボタンをクリック
-    const promoteBtn = Array.from(container.querySelectorAll("button")).find((b) =>
-      b.textContent?.includes("ライターに昇格"),
-    );
-    expect(promoteBtn).toBeDefined();
+    const promote = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("ライターに昇格"),
+    )!;
+    await act(async () => promote.click());
 
-    await act(async () => {
-      promoteBtn!.click();
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining("@hanako (auth-hanako)"));
+    expect(rpc).toHaveBeenCalledWith("admin_review_writer_application", {
+      receipt_id: "msg-1",
+      expected_account_id: "auth-hanako",
+      decision: "approved",
     });
-
-    expect(mockRpc).toHaveBeenCalledWith("admin_promote_writer", {
-      target_email: "hanako@example.com",
-    });
-    expect(mockShowToast).toHaveBeenCalledWith("hanako@example.com をライターに昇格しました");
+    expect(showToast).toHaveBeenCalledWith("ライターに昇格しました");
+    expect(container.textContent).toContain("承認済み");
+    expect(container.textContent).not.toContain("ライターに昇格");
   });
 
-  it("uses WCAG AA compliant contrast classes for search input, empty state, and timestamps", async () => {
-    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
-      if (table === "contact_messages") {
-        return {
-          select: vi.fn().mockReturnValue({
-            order: vi.fn().mockResolvedValue({ data: [], error: null }),
-          }),
-        } as any;
-      }
-      return {} as any;
-    });
-    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
-      showToast: mockShowToast,
-    } as any);
+  it("uses WCAG AA compliant contrast classes for search input and empty state", async () => {
+    vi.spyOn(supabase, "rpc").mockResolvedValue({ data: [], error: null } as any);
+    const container = await mountView();
 
-    let container: HTMLElement = document.createElement("div");
-    await act(async () => {
-      const rendered = renderWithRouter(<EditorApplicationsView />);
-      container = rendered.container;
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    const searchInput = container.querySelector(
-      'input[placeholder="名前・メール・内容で検索"]',
-    ) as HTMLInputElement;
+    const searchInput = container.querySelector("#applications-search-input") as HTMLInputElement;
     expect(searchInput.className).toContain("placeholder-gray-500");
     expect(searchInput.className).toContain("dark:placeholder-gray-400");
     expect(searchInput.className).not.toMatch(/(?:^|\s)placeholder-gray-400(?:\s|$)/);
@@ -157,65 +108,34 @@ describe("EditorApplicationsView", () => {
     expect(emptyText?.className).not.toContain("dark:text-gray-500");
   });
 
-  it("does not misclassify general contact messages containing ライター応募 in subject as writer applications (#139)", async () => {
-    const mockMessages = [
-      {
-        id: "msg-app",
-        name: "正規応募者",
-        email: "real@example.com",
-        subject: "【ライター応募】正規応募者様より",
-        body: "【応募者名】: 正規応募者\n【志望動機・自己PR】:\n記事を書きたいです。",
-        created_at: "2026-10-24T10:00:00Z",
-      },
-      {
-        id: "msg-spoof",
-        name: "なりすまし送信者",
-        email: "spoof@example.com",
-        subject: "ライター応募について質問",
-        body: "一般お問い合わせの本文です。",
-        created_at: "2026-10-23T10:00:00Z",
-      },
-    ];
-
-    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
-      if (table === "contact_messages") {
-        return {
-          select: vi.fn().mockReturnValue({
-            order: vi.fn().mockResolvedValue({ data: mockMessages, error: null }),
-          }),
-        } as any;
-      }
-      return {} as any;
-    });
-    vi.spyOn(AppContextModule, "useApp").mockReturnValue({
-      showToast: mockShowToast,
+  it("retains read-only legacy applications and classifies ordinary enquiries as contact", async () => {
+    vi.spyOn(supabase, "rpc").mockResolvedValue({ data: null, error: { code: "PGRST202" } } as any);
+    const legacyApp = {
+      ...application,
+      message_kind: undefined,
+      application_user_id: undefined,
+      review_status: undefined,
+    };
+    vi.spyOn(supabase, "from").mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        order: vi.fn().mockResolvedValue({ data: [legacyApp, generalContact], error: null }),
+      }),
     } as any);
 
-    let container: HTMLElement = document.createElement("div");
-    await act(async () => {
-      const rendered = renderWithRouter(<EditorApplicationsView />);
-      container = rendered.container;
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    // 応募者タブでは正規応募者のみ表示され、なりすましは除外されること
-    expect(container.textContent).toContain("正規応募者");
-    expect(container.textContent).not.toContain("なりすまし送信者");
+    const container = await mountView();
+    expect(container.textContent).toContain(application.name);
     expect(container.textContent).toContain("ライター応募 (1)");
+    expect(container.textContent).toContain("旧形式の応募");
+    expect(container.textContent).not.toContain(generalContact.name);
+    expect(container.textContent).not.toContain("ライターに昇格");
+  });
 
-    // 「すべて」タブでもなりすましに「応募者」バッジや「ライターに昇格」ボタンが付かないこと
-    const allTabBtn = Array.from(container.querySelectorAll("button")).find((b) =>
-      b.textContent?.includes("すべて"),
-    );
-    await act(async () => {
-      allTabBtn!.click();
-    });
+  it("shows a reauthentication message without falling back to contact data on denial", async () => {
+    vi.spyOn(supabase, "rpc").mockResolvedValue({ data: null, error: { code: "42501" } } as any);
+    const directRead = vi.spyOn(supabase, "from");
+    const container = await mountView();
 
-    expect(container.textContent).toContain("なりすまし送信者");
-    const promoteButtons = Array.from(container.querySelectorAll("button")).filter((b) =>
-      b.textContent?.includes("ライターに昇格"),
-    );
-    expect(promoteButtons).toHaveLength(1);
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("再認証");
+    expect(directRead).not.toHaveBeenCalled();
   });
 });

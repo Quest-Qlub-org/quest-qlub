@@ -182,55 +182,6 @@ export function EditorWritersView() {
     showToast(`ロール（${getRoleLabel(rawRole)}）を追加しました`);
   };
 
-  const promoteWriter = async (email: string): Promise<boolean> => {
-    const targetEmail = email.trim();
-    if (!targetEmail) return false;
-
-    // セキュアな管理者専用RPC関数を実行
-    const { data: rpcData, error: rpcError } = await supabase.rpc("admin_promote_writer", {
-      target_email: targetEmail,
-    });
-
-    if (rpcError) {
-      showToast("ライターの昇格に失敗しました: " + rpcError.message);
-      return false;
-    }
-
-    if (rpcData) {
-      const updated = rpcData as Profile;
-      const existing = allProfiles.find((w) => w.id === updated.id);
-      const nextRoles = Array.from(
-        new Set(
-          [...(existing ? getProfileRoles(existing) : []), "writer"].filter((r) => r !== "viewer"),
-        ),
-      );
-      const nextPrimary = getPrimaryRole(nextRoles);
-      setLocalRolesOverride(updated.id, nextRoles);
-      setAllProfiles((prev) =>
-        prev.find((w) => w.id === updated.id)
-          ? prev.map((w) =>
-              w.id === updated.id
-                ? {
-                    ...w,
-                    ...updated,
-                    role: nextPrimary,
-                    roles: nextRoles,
-                  }
-                : w,
-            )
-          : [...prev, { ...updated, role: nextPrimary, roles: nextRoles }],
-      );
-      notifyRolesUpdated();
-      showToast(
-        `${updated.display_name ?? (updated.username ? `@${updated.username}` : (updated.email ?? updated.id))} をライターに昇格しました`,
-      );
-      return true;
-    }
-    return false;
-  };
-
-  const [newEmail, setNewEmail] = useState("");
-
   // 全アカウントから検出されたカスタムロール一覧（絞り込みセレクト用）
   const customRoleKeys = Array.from(
     new Set(
@@ -240,14 +191,12 @@ export function EditorWritersView() {
     ),
   );
 
-  const filtered = allProfiles.filter((w) => {
-    const emailMatch =
-      searchEmail === "" ||
-      (w.email ? w.email.toLowerCase().includes(searchEmail.toLowerCase()) : false) ||
-      (w.display_name ? w.display_name.toLowerCase().includes(searchEmail.toLowerCase()) : false) ||
-      (w.username ? w.username.toLowerCase().includes(searchEmail.toLowerCase()) : false);
-    const roleMatch = searchRole === "" || profileHasRole(w, searchRole);
-    return emailMatch && roleMatch;
+  const accountQuery = searchEmail.trim().toLowerCase();
+  const filtered = allProfiles.filter((profile) => {
+    const accountMatches = [profile.id, profile.email, profile.display_name, profile.username].some(
+      (value) => value?.toLowerCase().includes(accountQuery),
+    );
+    return accountMatches && (searchRole === "" || profileHasRole(profile, searchRole));
   });
 
   return (
@@ -267,38 +216,6 @@ export function EditorWritersView() {
         <span className="ml-auto text-xs text-gray-500 dark:text-gray-400">
           {allProfiles.length} アカウント
         </span>
-      </div>
-
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm space-y-3">
-        <label
-          htmlFor="promote-writer-email"
-          className="block font-bold text-gray-800 dark:text-gray-100 text-sm"
-        >
-          メアドでライターに昇格
-        </label>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <input
-            id="promote-writer-email"
-            type="email"
-            autoComplete="email"
-            placeholder="メールアドレス"
-            value={newEmail}
-            onChange={(e) => setNewEmail(e.target.value)}
-            className="flex-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 min-w-0"
-          />
-          <button
-            type="button"
-            onClick={async () => {
-              const ok = await promoteWriter(newEmail);
-              if (ok) {
-                setNewEmail("");
-              }
-            }}
-            className="px-4 py-2 bg-purple-600 text-white text-sm font-bold rounded-lg hover:bg-purple-700 cursor-pointer shrink-0"
-          >
-            昇格
-          </button>
-        </div>
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm space-y-2">

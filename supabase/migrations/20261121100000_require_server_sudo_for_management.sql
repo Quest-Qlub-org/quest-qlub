@@ -164,40 +164,6 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION public.admin_promote_writer(target_email text)
-RETURNS public.profiles
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = ''
-AS $$
-DECLARE
-  v_profile public.profiles;
-BEGIN
-  IF NOT public.check_is_editor() OR NOT quest_qlub_private.has_active_sudo() THEN
-    RAISE EXCEPTION 'ライターの昇格には編集長の再認証が必要です。' USING ERRCODE = '42501';
-  END IF;
-
-  IF target_email IS NULL OR trim(target_email) = '' THEN
-    RAISE EXCEPTION 'メールアドレスを入力してください。';
-  END IF;
-
-  UPDATE public.profiles
-  SET role = CASE WHEN role = 'editor' THEN 'editor' ELSE 'writer' END,
-      roles = CASE
-        WHEN 'writer' = ANY(COALESCE(roles, '{}'::text[])) THEN roles
-        ELSE array_append(ARRAY(SELECT unnest(COALESCE(roles, '{}'::text[])) EXCEPT SELECT 'viewer'), 'writer')
-      END
-  WHERE lower(email) = lower(trim(target_email))
-  RETURNING * INTO v_profile;
-
-  IF v_profile.id IS NULL THEN
-    RAISE EXCEPTION '指定されたメールアドレスのユーザーが見つかりません。';
-  END IF;
-
-  RETURN v_profile;
-END;
-$$;
-
 CREATE OR REPLACE FUNCTION public.admin_get_all_profiles()
 RETURNS TABLE (
   id uuid,
@@ -230,8 +196,11 @@ END;
 $$;
 
 REVOKE EXECUTE ON FUNCTION public.admin_set_user_roles(text, text[]), public.admin_change_user_role(text, text),
-  public.admin_promote_writer(text), public.admin_get_all_profiles() FROM PUBLIC, anon;
+  public.admin_get_all_profiles() FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.admin_set_user_roles(text, text[]), public.admin_change_user_role(text, text),
-  public.admin_promote_writer(text), public.admin_get_all_profiles() TO authenticated;
+  public.admin_get_all_profiles() TO authenticated;
+
+-- The deployed application reviews signed-in applicants by receipt and account ID.
+DROP FUNCTION IF EXISTS public.admin_promote_writer(text);
 
 COMMIT;
