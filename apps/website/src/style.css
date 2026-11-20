@@ -2,6 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  html {
+    /* 固定ナビゲーションとフォーカスの輪郭に必要な下端のスクロール余白 */
+    --mobile-nav-clearance: calc(4rem + env(safe-area-inset-bottom, 0px));
+    scroll-padding-block-end: var(--mobile-nav-clearance);
+  }
+
+  @screen md {
+    html {
+      scroll-padding-block-end: 0;
+    }
+  }
+}
+
 /* Article Content & Styling System */
 .article-content.article-size-small {
   font-size: 0.875rem;

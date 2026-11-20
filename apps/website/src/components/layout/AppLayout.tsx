@@ -133,7 +133,7 @@ export function AppLayout() {
       </div>
 
       {!hideHeader && (
-        <footer className="bg-gray-50 dark:bg-gray-900/60 border-t border-gray-200 dark:border-gray-800 mt-12 pb-[calc(env(safe-area-inset-bottom)+3.5rem)] md:pb-0">
+        <footer className="bg-gray-50 dark:bg-gray-900/60 border-t border-gray-200 dark:border-gray-800 mt-12 pb-[var(--mobile-nav-clearance)] md:pb-0">
           <div className="max-w-6xl mx-auto px-4 py-8">
             <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-8 mb-6">
               <div className="flex flex-col gap-2">
