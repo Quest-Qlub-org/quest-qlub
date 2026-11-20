@@ -10,6 +10,7 @@ import {
   setInMemorySudoAuthorized,
   isSudoMfaHandshakeActive,
   getSudoRemainingMs,
+  lockSudoSession,
 } from "../utils/sudoState";
 
 export { SUDO_TIMEOUT_MS, checkIsSudoActive, setInMemorySudoAuthorized };
@@ -28,7 +29,7 @@ export function SudoAreaLayout() {
   useEffect(() => {
     return () => {
       if (!isSudoMfaHandshakeActive()) {
-        setInMemorySudoAuthorized(false);
+        lockSudoSession();
       }
     };
   }, []);
@@ -59,7 +60,7 @@ export function RoleRoute({ requiredRole, children, manageLeaveLock = true }: Ro
     return () => {
       if (!manageLeaveLock) return;
       if (isSudoRequired && !mfaPendingRef.current && !isSudoMfaHandshakeActive()) {
-        setInMemorySudoAuthorized(false);
+        lockSudoSession();
       }
     };
   }, [isSudoRequired, manageLeaveLock]);
@@ -75,7 +76,7 @@ export function RoleRoute({ requiredRole, children, manageLeaveLock = true }: Ro
     if (!isSudoRequired || !sudoPassed) return;
     const remainingMs = getSudoRemainingMs();
     const timer = window.setTimeout(() => {
-      setInMemorySudoAuthorized(false);
+      lockSudoSession();
       setSudoPassed(false);
     }, remainingMs);
     return () => {
@@ -115,7 +116,6 @@ export function RoleRoute({ requiredRole, children, manageLeaveLock = true }: Ro
       <SudoConfirmModal
         userEmail={user?.email || ""}
         onSuccess={() => {
-          setInMemorySudoAuthorized(true);
           setSudoPassed(true);
         }}
         onCancel={() => {

@@ -68,10 +68,13 @@ describe("MobileNav navigation", () => {
     const writersLink = links.find((a) => a.textContent?.includes("ライター"));
     expect(writersLink?.getAttribute("href")).toBe("/writers");
     expect(writersLink?.getAttribute("aria-current")).toBe("page");
+    expect(writersLink?.querySelector(".text-blue-600.underline")).not.toBeNull();
+    expect(writersLink?.classList.contains("brand-focus")).toBe(true);
 
     const homeLink = links.find((a) => a.textContent?.includes("トップ"));
     expect(homeLink?.getAttribute("href")).toBe("/");
     expect(homeLink?.getAttribute("aria-current")).toBeNull();
+    expect(homeLink?.querySelector(".underline")).toBeNull();
   });
 
   it("navigates to target route when a mobile nav link is clicked", () => {

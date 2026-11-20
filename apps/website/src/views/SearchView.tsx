@@ -13,29 +13,42 @@ import { updateMetaTags } from "../utils/seo";
 import { supabase } from "../supabase";
 import type { Profile } from "../supabase";
 import { fetchProfilesListWithFallback } from "../utils/profileQueries";
-import { ARTICLE_LIST_FIELDS } from "../context/DataContext";
+import { ARTICLE_LIST_FIELDS, ARTICLE_PAGE_SIZE } from "../context/DataContext";
 import { isArticleOptionalColumnSchemaError } from "../utils/supabaseErrors";
 
 const SEARCH_ARTICLE_FIELDS =
   "id, title, content, summary, thumbnail, thumbnail_url, thumbnail_color, writer_id, views, likes, tags, is_recommended, is_popular, status, series_id, episode_number, created_at";
+const WRITER_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const SearchView = () => {
-  const { articles, writers } = useApp();
+  const {
+    articles,
+    articlesLoading,
+    hasMoreArticles,
+    loadingMoreArticles,
+    loadMoreArticles,
+    writers,
+  } = useApp();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const urlTag = searchParams.get("tag");
-  const urlQ = searchParams.get("q") || searchParams.get("keyword");
-
-  const [keyword, setKeyword] = useState(() => urlQ || "");
-  const [selectedTags, setSelectedTags] = useState<string[]>(() => (urlTag ? [urlTag] : []));
-  const [selectedWriterIds, setSelectedWriterIds] = useState<string[]>([]);
+  const keyword = searchParams.get("q") || searchParams.get("keyword") || "";
+  const selectedTags = useMemo(
+    () => [...new Set(searchParams.getAll("tag").filter(Boolean))],
+    [searchParams],
+  );
+  const selectedWriterIds = useMemo(
+    () => [...new Set(searchParams.getAll("writer").filter(Boolean))],
+    [searchParams],
+  );
 
   const [serverTags, setServerTags] = useState<string[]>([]);
   const [serverWriters, setServerWriters] = useState<Profile[]>([]);
-  const [serverResults, setServerResults] = useState<Article[] | null>(null);
+  const [serverResults, setServerResults] = useState<{
+    filters: URLSearchParams;
+    articles: Article[];
+  } | null>(null);
   const [isLoadingServerResults, setIsLoadingServerResults] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(12);
-  const skipUrlTagResetRef = useRef(false);
+  const [visibleCount, setVisibleCount] = useState(ARTICLE_PAGE_SIZE);
 
   useEffect(() => {
     updateMetaTags({
@@ -44,18 +57,6 @@ export const SearchView = () => {
       url: "https://quest-qlub.vercel.app/search",
     });
   }, []);
-
-  useEffect(() => {
-    if (skipUrlTagResetRef.current) {
-      skipUrlTagResetRef.current = false;
-      return;
-    }
-    setSelectedTags(urlTag ? [urlTag] : []);
-  }, [urlTag]);
-
-  useEffect(() => {
-    setKeyword(urlQ ?? "");
-  }, [urlQ]);
 
   useEffect(() => {
     let isMounted = true;
@@ -98,13 +99,12 @@ export const SearchView = () => {
   }, []);
 
   const displayTags = useMemo(() => {
-    if (serverTags.length > 0) return serverTags;
     const publishedArticles = articles.filter((a) => isArticlePubliclyVisible(a));
-    const allTags = Array.from(new Set(publishedArticles.flatMap((a) => a.tags ?? []))).filter(
-      Boolean,
-    );
-    return allTags.length > 0 ? allTags : MOCK_TAGS;
-  }, [articles, serverTags]);
+    const localTags = publishedArticles.flatMap((a) => a.tags ?? []).filter(Boolean);
+    const availableTags =
+      serverTags.length > 0 ? serverTags : localTags.length > 0 ? localTags : MOCK_TAGS;
+    return [...new Set([...availableTags, ...selectedTags])];
+  }, [articles, selectedTags, serverTags]);
 
   const effectiveWriters = useMemo(() => {
     return serverWriters.length > 0 ? serverWriters : writers;
@@ -116,11 +116,13 @@ export const SearchView = () => {
   const hasFilter = Boolean(keyword || selectedTags.length > 0 || selectedWriterIds.length > 0);
 
   useEffect(() => {
-    setVisibleCount(12);
-  }, [keyword, selectedTags, selectedWriterIds]);
+    setVisibleCount(ARTICLE_PAGE_SIZE);
+  }, [searchParams]);
 
   useEffect(() => {
-    if (!hasFilter) {
+    // URL から受け取った ID は PostgREST の OR 式に渡す前に検証する。
+    const queryWriterIds = selectedWriterIds.filter((id) => WRITER_ID_PATTERN.test(id));
+    if (!hasFilter || (selectedWriterIds.length > 0 && queryWriterIds.length === 0)) {
       setServerResults(null);
       setIsLoadingServerResults(false);
       return;
@@ -141,24 +143,25 @@ export const SearchView = () => {
             .eq("status", "published")
             .order("created_at", { ascending: false });
 
-          if (selectedWriterIds.length > 0) {
+          if (queryWriterIds.length > 0) {
             if (useCollabOr && typeof query.or === "function") {
-              const writerIn = `writer_id.in.(${selectedWriterIds.join(",")})`;
-              const collabConditions = selectedWriterIds
+              const writerIn = `writer_id.in.(${queryWriterIds.join(",")})`;
+              const collabConditions = queryWriterIds
                 .map((id) => `collaborator_ids.cs.{"${id}"}`)
                 .join(",");
               query = query.or(`${writerIn},${collabConditions}`);
             } else if (typeof query.in === "function") {
-              query = query.in("writer_id", selectedWriterIds);
+              query = query.in("writer_id", queryWriterIds);
             }
           }
           if (selectedTags.length > 0 && typeof query.overlaps === "function") {
-            query = query.overlaps("tags", selectedTags);
+            const quotedTags = selectedTags.map((tag) => '"' + tag.replace(/["\\]/g, "\\$&") + '"');
+            query = query.overlaps("tags", `{${quotedTags.join(",")}}`);
           }
           return query;
         };
 
-        const canAttemptCollab = selectedWriterIds.length > 0;
+        const canAttemptCollab = queryWriterIds.length > 0;
         let { data, error } = await runQuery(
           canAttemptCollab ? `${baseSelectFields}, collaborator_ids` : baseSelectFields,
           canAttemptCollab,
@@ -191,7 +194,7 @@ export const SearchView = () => {
               return matchKeywords(searchTargets, queryKeywords);
             });
           }
-          setServerResults(mapped);
+          setServerResults({ filters: searchParams, articles: mapped });
         } else {
           setServerResults(null);
         }
@@ -207,11 +210,11 @@ export const SearchView = () => {
       isMounted = false;
       clearTimeout(timer);
     };
-  }, [hasFilter, keyword, selectedTags, selectedWriterIds, queryKeywords]);
+  }, [hasFilter, searchParams, selectedTags, selectedWriterIds, queryKeywords]);
 
   const results = useMemo(() => {
-    if (serverResults !== null) {
-      return serverResults;
+    if (serverResults?.filters === searchParams) {
+      return serverResults.articles;
     }
     return articles.filter((a) => {
       if (!isArticlePubliclyVisible(a)) return false;
@@ -241,49 +244,52 @@ export const SearchView = () => {
         return false;
       return true;
     });
-  }, [articles, effectiveWriters, queryKeywords, selectedTags, selectedWriterIds, serverResults]);
+  }, [
+    articles,
+    effectiveWriters,
+    queryKeywords,
+    searchParams,
+    selectedTags,
+    selectedWriterIds,
+    serverResults,
+  ]);
 
   const pagedResults = useMemo(() => {
     return results.slice(0, visibleCount);
   }, [results, visibleCount]);
 
-  const toggleTag = (tag: string) => {
-    const next = selectedTags.includes(tag)
-      ? selectedTags.filter((t) => t !== tag)
-      : [...selectedTags, tag];
-    setSelectedTags(next);
-    if (searchParams.get("tag") === tag && !next.includes(tag)) {
-      skipUrlTagResetRef.current = true;
-      const nextParams = new URLSearchParams(searchParams);
-      nextParams.delete("tag");
-      setSearchParams(nextParams, { replace: true });
-    }
+  const hiddenResultCount = results.length - pagedResults.length;
+  const hasNextArticlePage = !hasFilter && !articlesLoading && hasMoreArticles;
+  const isLoadingArticles = !hasFilter && (articlesLoading || loadingMoreArticles);
+
+  const showMore = () => {
+    setVisibleCount(pagedResults.length + ARTICLE_PAGE_SIZE);
+    if (hiddenResultCount === 0 && hasNextArticlePage) void loadMoreArticles();
   };
 
-  const toggleWriter = (id: string) =>
-    setSelectedWriterIds((prev) =>
-      prev.includes(id) ? prev.filter((w) => w !== id) : [...prev, id],
-    );
-
-  const handleClearKeyword = () => {
-    setKeyword("");
-    if (searchParams.has("q") || searchParams.has("keyword")) {
-      const nextParams = new URLSearchParams(searchParams);
-      nextParams.delete("q");
-      nextParams.delete("keyword");
-      setSearchParams(nextParams, { replace: true });
+  const toggleFilter = (key: "tag" | "writer", value: string) => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (nextParams.has(key, value)) {
+      nextParams.delete(key, value);
+    } else {
+      nextParams.append(key, value);
     }
+    setSearchParams(nextParams, { replace: true });
+  };
+
+  const updateKeyword = (value: string) => {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("keyword");
+    if (value) nextParams.set("q", value);
+    else nextParams.delete("q");
+    setSearchParams(nextParams, { replace: true });
   };
 
   const handleResetFilters = () => {
-    setKeyword("");
-    setSelectedTags([]);
-    setSelectedWriterIds([]);
-    if (searchParams.toString()) {
-      setSearchParams({}, { replace: true });
-    }
+    const nextParams = new URLSearchParams(searchParams);
+    for (const key of ["q", "keyword", "tag", "writer"]) nextParams.delete(key);
+    setSearchParams(nextParams, { replace: true });
   };
-
   return (
     <div className="p-4 md:p-8 space-y-6 animate-in fade-in duration-300">
       <div className="border-b border-gray-200 dark:border-gray-700 pb-3">
@@ -303,7 +309,7 @@ export const SearchView = () => {
               type="text"
               placeholder="キーワードで検索"
               value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
+              onChange={(e) => updateKeyword(e.target.value)}
               className="w-full pl-12 pr-10 py-4 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-xl focus:border-blue-500 dark:focus:border-blue-400 transition-all outline-none font-bold text-gray-700 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 shadow-sm"
             />
             <div className="absolute left-3 top-3.5 pointer-events-none" aria-hidden="true">
@@ -313,7 +319,7 @@ export const SearchView = () => {
               <button
                 type="button"
                 aria-label="検索キーワードをクリア"
-                onClick={handleClearKeyword}
+                onClick={() => updateKeyword("")}
                 className="absolute right-3 top-4 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 cursor-pointer"
               >
                 <X className="w-5 h-5" aria-hidden="true" />
@@ -332,7 +338,7 @@ export const SearchView = () => {
                     key={tag}
                     type="button"
                     aria-pressed={isSelected}
-                    onClick={() => toggleTag(tag)}
+                    onClick={() => toggleFilter("tag", tag)}
                     className={`px-3 py-1.5 border rounded-lg text-sm font-bold transition-colors cursor-pointer ${isSelected ? "bg-blue-600 border-blue-600 text-white" : "bg-gray-50 dark:bg-gray-700/60 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:border-blue-300 dark:hover:border-blue-700 hover:text-blue-600 dark:hover:text-blue-400"}`}
                   >
                     #{tag}
@@ -372,7 +378,7 @@ export const SearchView = () => {
                       key={w.id}
                       type="button"
                       aria-pressed={isSelected}
-                      onClick={() => toggleWriter(w.id)}
+                      onClick={() => toggleFilter("writer", w.id)}
                       className={`flex items-center gap-2 p-2.5 border rounded-lg text-left transition-colors min-w-0 cursor-pointer ${isSelected ? "bg-blue-50 dark:bg-blue-950/50 border-blue-400 dark:border-blue-500" : "bg-gray-50 dark:bg-gray-700/60 border-gray-200 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:border-blue-200"}`}
                     >
                       {w.avatar_url ? (
@@ -406,7 +412,7 @@ export const SearchView = () => {
           )}
         </div>
         <div className="min-w-0">
-          <div aria-busy={isLoadingServerResults}>
+          <div aria-busy={isLoadingServerResults || isLoadingArticles}>
             <div
               className="mb-3 flex items-center justify-between"
               role="status"
@@ -416,31 +422,43 @@ export const SearchView = () => {
               <h2 className="font-bold text-gray-700 dark:text-gray-200">
                 {hasFilter
                   ? `検索結果 (${results.length}件)`
-                  : `公開中の記事 (${results.length}件)`}
+                  : `公開中の記事 (${pagedResults.length}件)`}
               </h2>
               {isLoadingServerResults && (
                 <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">
-                  検索中...
+                  検索中…
                 </span>
+              )}
+              {!hasFilter && (hasNextArticlePage || hiddenResultCount > 0) && (
+                <span className="text-xs text-gray-600 dark:text-gray-400">続きがあります</span>
               )}
             </div>
             <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
               {results.length === 0 ? (
                 <p className="text-gray-500 dark:text-gray-400 text-center py-8 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 lg:col-span-2">
-                  {hasFilter ? "該当する記事が見つかりませんでした" : "まだ公開記事はありません"}
+                  {hasFilter
+                    ? "該当する記事が見つかりませんでした"
+                    : articlesLoading
+                      ? "記事を読み込んでいます…"
+                      : "まだ公開記事はありません"}
                 </p>
               ) : (
                 pagedResults.map((a) => <ArticleCard key={a.id} article={a} />)
               )}
             </div>
-            {results.length > visibleCount && (
+            {(hiddenResultCount > 0 || hasNextArticlePage) && (
               <div className="flex justify-center pt-6">
                 <button
                   type="button"
-                  onClick={() => setVisibleCount((prev) => prev + 12)}
-                  className="px-6 py-2.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-bold shadow-sm transition-colors cursor-pointer"
+                  onClick={showMore}
+                  disabled={isLoadingArticles}
+                  className="px-6 py-2.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-bold shadow-sm transition-colors cursor-pointer disabled:opacity-50"
                 >
-                  さらに表示する（残り {results.length - visibleCount} 件）
+                  {isLoadingArticles
+                    ? "読み込み中…"
+                    : hiddenResultCount > 0
+                      ? `さらに表示する（残り ${hiddenResultCount} 件）`
+                      : "さらに記事を読み込む"}
                 </button>
               </div>
             )}

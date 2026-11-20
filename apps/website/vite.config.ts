@@ -1,12 +1,17 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
+import { trackAppShell } from "./pwaShell";
+
+const appShellFiles = new Set<string>();
 
 export default defineConfig({
   plugins: [
     react(),
+    trackAppShell(appShellFiles),
     VitePWA({
       registerType: "prompt",
+      includeAssets: ["favicon.ico", "apple-touch-icon.png"],
       manifest: {
         name: "Quest Qlub",
         short_name: "Quest Qlub",
@@ -55,8 +60,12 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ["**/*.{js,css,html,ico,png,jpg,jpeg,webp}"],
-        globIgnores: ["**/pwa-*.png"],
+        globPatterns: ["index.html", "assets/**/*"],
+        manifestTransforms: [
+          (entries) => ({
+            manifest: entries.filter(({ url }) => url === "index.html" || appShellFiles.has(url)),
+          }),
+        ],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/.*\.supabase\.co\/storage\/v1\/object\/public\/.*/i,

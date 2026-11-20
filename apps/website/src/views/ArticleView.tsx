@@ -41,8 +41,31 @@ type PendingSudoAction =
   | { type: "status"; nextStatus: ArticleStatus }
   | { type: "comments"; nextEnabled: boolean };
 
+type ArticleRequestStatus = "loading" | "ready" | "not-found" | "error";
+
+function ArticleLoadError({ isBody, retry }: { isBody?: boolean; retry: () => void }) {
+  return (
+    <div className="p-4 text-center space-y-3">
+      <p role="alert" className="font-bold text-gray-700 dark:text-gray-200">
+        {isBody ? "記事の本文を読み込めませんでした" : "記事を読み込めませんでした"}
+      </p>
+      <button
+        type="button"
+        onClick={retry}
+        className="px-5 py-2.5 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-sm font-bold rounded-xl hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors cursor-pointer"
+      >
+        再読み込み
+      </button>
+    </div>
+  );
+}
+
 export const ArticleView = () => {
   const { id: articleId } = useParams<{ id: string }>();
+  return <ArticleDetails key={articleId} articleId={articleId} />;
+};
+
+function ArticleDetails({ articleId }: { articleId?: string }) {
   const navigate = useNavigate();
   const {
     articles,
@@ -62,11 +85,9 @@ export const ArticleView = () => {
 
   // キャッシュまたは個別フェッチした記事データ
   const cachedArticle = articles.find((a) => a.id === articleId);
-  const [detailedArticle, setDetailedArticle] = useState<Article | null>(
-    cachedArticle && cachedArticle.content ? cachedArticle : null,
-  );
-  const [loading, setLoading] = useState(!cachedArticle || !cachedArticle.content);
-  const [notFound, setNotFound] = useState(false);
+  const [detailedArticle, setDetailedArticle] = useState<Article | null>(null);
+  const [requestStatus, setRequestStatus] = useState<ArticleRequestStatus>("loading");
+  const [requestAttempt, setRequestAttempt] = useState(0);
   const [writerFallback, setWriterFallback] = useState<Profile | null>(null);
   const [collaboratorFallbacks, setCollaboratorFallbacks] = useState<Profile[]>([]);
   const [seriesFallback, setSeriesFallback] = useState<Series | null>(null);
@@ -74,29 +95,12 @@ export const ArticleView = () => {
 
   // Issue #23: 一覧から除外された本文(content)を詳細画面で個別取得
   useEffect(() => {
-    setNotFound(false);
-    setWriterFallback(null);
-    setCollaboratorFallbacks([]);
-    setSeriesFallback(null);
-    setPendingSudoAction(null);
-
     if (!articleId) {
-      setDetailedArticle(null);
-      setNotFound(true);
-      setLoading(false);
+      setRequestStatus("not-found");
       return;
     }
 
     let isMounted = true;
-
-    // すでに本文がある場合はそれを使用
-    if (cachedArticle?.content) {
-      setDetailedArticle(cachedArticle);
-      setLoading(false);
-    } else {
-      setDetailedArticle(null);
-      setLoading(true);
-    }
 
     const fetchFullArticle = async () => {
       try {
@@ -108,81 +112,66 @@ export const ArticleView = () => {
 
         if (!isMounted) return;
 
-        if (error || !data) {
-          if (!cachedArticle) setNotFound(true);
-        } else {
-          const mapped = mapDbArticleToArticle(data);
-          const localSched = getLocalScheduledAt(mapped.id);
-          const scheduledAt = mapped.scheduledAt ?? localSched ?? null;
-          const enriched: Article = {
-            ...mapped,
-            scheduledAt,
-            status: getEffectiveArticleStatus({ ...mapped, scheduledAt }),
-          };
-          setDetailedArticle(enriched);
-          setNotFound(false);
-
-          // ライター情報の単体フェッチ（writersキャッシュに無い場合のフォールバック）
-          if (enriched.writerId) {
-            const cachedW = writers.find((w) => w.id === enriched.writerId);
-            if (!cachedW) {
-              const wData = await fetchSingleProfileWithFallback({ id: enriched.writerId });
-              if (isMounted && wData) {
-                setWriterFallback(wData);
-              }
-            }
-          }
-
-          // 共同執筆者情報のフェッチ（writersキャッシュに無い場合のフォールバック）
-          if (Array.isArray(enriched.collaboratorIds) && enriched.collaboratorIds.length > 0) {
-            const missingCollabIds = enriched.collaboratorIds.filter(
-              (id) => !writers.some((w) => w.id === id),
-            );
-            if (missingCollabIds.length > 0) {
-              const collabData = await fetchProfilesListWithFallback({ inIds: missingCollabIds });
-              if (isMounted && Array.isArray(collabData)) {
-                setCollaboratorFallbacks((prev) => {
-                  const map = new Map(prev.map((p) => [p.id, p]));
-                  collabData.forEach((p) => map.set(p.id, p));
-                  return Array.from(map.values());
-                });
-              }
-            }
-          }
-
-          // 連載情報の単体フェッチ
-          if (enriched.seriesId) {
-            const cachedS = seriesList.find((s) => s.id === enriched.seriesId);
-            if (!cachedS) {
-              const { data: sData } = await supabase
-                .from("series")
-                .select("*")
-                .eq("id", enriched.seriesId)
-                .maybeSingle();
-              if (isMounted && sData) {
-                setSeriesFallback({
-                  id: sData.id,
-                  title: sData.title,
-                  description: sData.description ?? null,
-                  writerId: sData.writer_id,
-                });
-              }
-            }
-          }
-
-          // 閲覧数インクリメント（公開済み記事のみ）
-          if (enriched.status === "published") {
-            try {
-              await supabase.rpc("increment_views", { p_article_id: articleId });
-            } catch {
-              // 閲覧数インクリメントエラーは無視
-            }
-          }
+        if (error) {
+          setRequestStatus(error.code === "22P02" ? "not-found" : "error");
+          return;
         }
+        if (!data) {
+          setRequestStatus("not-found");
+          return;
+        }
+
+        const mapped = mapDbArticleToArticle(data);
+        const localSched = getLocalScheduledAt(mapped.id);
+        const scheduledAt = mapped.scheduledAt ?? localSched ?? null;
+        const enriched: Article = {
+          ...mapped,
+          scheduledAt,
+          status: getEffectiveArticleStatus({ ...mapped, scheduledAt }),
+        };
+        setDetailedArticle(enriched);
+        setRequestStatus("ready");
+
+        const missingWriter = enriched.writerId && !writers.some((w) => w.id === enriched.writerId);
+        const missingCollaborators = (enriched.collaboratorIds ?? []).filter(
+          (id) => !writers.some((w) => w.id === id),
+        );
+        const missingSeries =
+          enriched.seriesId && !seriesList.some((series) => series.id === enriched.seriesId);
+
+        // 名前や連載の補足情報は本文と独立して読み込む。
+        await Promise.allSettled([
+          missingWriter &&
+            fetchSingleProfileWithFallback({ id: enriched.writerId }).then((writer) => {
+              if (isMounted && writer) setWriterFallback(writer);
+            }),
+          missingCollaborators.length > 0 &&
+            fetchProfilesListWithFallback({ inIds: missingCollaborators }).then((collaborators) => {
+              if (isMounted && collaborators) setCollaboratorFallbacks(collaborators);
+            }),
+          missingSeries &&
+            supabase
+              .from("series")
+              .select("*")
+              .eq("id", enriched.seriesId)
+              .maybeSingle()
+              .then(({ data: series }) => {
+                if (isMounted && series) {
+                  setSeriesFallback({
+                    id: series.id,
+                    title: series.title,
+                    description: series.description ?? null,
+                    writerId: series.writer_id,
+                  });
+                }
+              }),
+          enriched.status === "published" &&
+            supabase.rpc("increment_views", { p_article_id: articleId }),
+        ]);
       } catch {
-        if (!cachedArticle && isMounted) setNotFound(true);
-      } finally {
-        if (isMounted) setLoading(false);
+        if (isMounted) {
+          setRequestStatus((status) => (status === "loading" ? "error" : status));
+        }
       }
     };
 
@@ -191,9 +180,14 @@ export const ArticleView = () => {
     return () => {
       isMounted = false;
     };
-  }, [articleId]);
+  }, [articleId, requestAttempt]);
 
-  const rawArticle = detailedArticle || cachedArticle;
+  const retryArticle = () => {
+    setRequestStatus("loading");
+    setRequestAttempt((attempt) => attempt + 1);
+  };
+
+  const rawArticle = requestStatus === "not-found" ? undefined : (detailedArticle ?? cachedArticle);
   const article = rawArticle
     ? (() => {
         const localSched = getLocalScheduledAt(rawArticle.id);
@@ -288,29 +282,30 @@ export const ArticleView = () => {
   }, [article, writers, writerFallback]);
 
   useEffect(() => {
-    if (notFound) {
-      updateMetaTags({
-        title: "記事が見つかりません",
-        noindex: true,
-      });
-      return () => {
-        resetMetaTags();
-      };
-    }
-  }, [notFound]);
+    if (article || requestStatus === "loading") return;
+    updateMetaTags({
+      title: requestStatus === "error" ? "記事を読み込めませんでした" : "記事が見つかりません",
+      noindex: true,
+    });
+    return () => resetMetaTags();
+  }, [article, requestStatus]);
 
-  if (loading) {
+  if (requestStatus === "loading" && !article) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
-        <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3" role="status">
+        <Loader2 className="w-8 h-8 text-blue-600 animate-spin" aria-hidden="true" />
         <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">
-          記事を読み込んでいます...
+          記事を読み込んでいます…
         </p>
       </div>
     );
   }
 
-  if (notFound || !article) {
+  if (requestStatus === "error" && !article) {
+    return <ArticleLoadError retry={retryArticle} />;
+  }
+
+  if (!article) {
     return (
       <div className="p-12 text-center space-y-4">
         <p className="text-gray-500 dark:text-gray-400 text-base font-bold">記事が見つかりません</p>
@@ -576,12 +571,17 @@ export const ArticleView = () => {
         <div
           className={`py-4 text-gray-800 dark:text-gray-200 leading-loose article-content ${getFontSizeClass()}`}
         >
-          {article.content ? (
+          {article.content && (
             <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(article.content) }} />
-          ) : (
-            <span className="text-gray-500 dark:text-gray-400 italic">
-              本文はまだ書かれていません
-            </span>
+          )}
+          {!article.content && requestStatus === "loading" && (
+            <p role="status" className="text-gray-500 dark:text-gray-400">
+              記事の本文を読み込んでいます…
+            </p>
+          )}
+          {requestStatus === "error" && <ArticleLoadError isBody retry={retryArticle} />}
+          {!article.content && requestStatus === "ready" && (
+            <p className="text-gray-500 dark:text-gray-400 italic">本文はまだ書かれていません</p>
           )}
         </div>
 
@@ -619,4 +619,4 @@ export const ArticleView = () => {
       )}
     </div>
   );
-};
+}

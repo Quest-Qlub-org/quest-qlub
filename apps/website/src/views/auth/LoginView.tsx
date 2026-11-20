@@ -102,7 +102,6 @@ export const LoginView = () => {
       // MFA不要の通常アカウント、またはすでにAAL2完了済みの場合はメイン画面へ遷移
       isMfaCompletedRef.current = true;
       setMfaChallengeRequired(false);
-      setInMemorySudoAuthorized(true);
       await refreshProfile();
       navigate("home");
     } catch (err) {
@@ -134,13 +133,7 @@ export const LoginView = () => {
       // AAL2検証完了: AuthContext の mfaChallengeRequired を確実に解除してからホームへ遷移
       isMfaCompletedRef.current = true;
       setMfaChallengeRequired(false);
-      setInMemorySudoAuthorized(true);
       await refreshProfile();
-      try {
-        sessionStorage.setItem("quest_qlub_sudo_at", Date.now().toString());
-      } catch {
-        // ignore
-      }
       navigate("home");
     } catch {
       setError("認証処理中にエラーが発生しました");
@@ -166,13 +159,7 @@ export const LoginView = () => {
 
       isMfaCompletedRef.current = true;
       setMfaChallengeRequired(false);
-      setInMemorySudoAuthorized(true);
       await refreshProfile();
-      try {
-        sessionStorage.setItem("quest_qlub_sudo_at", Date.now().toString());
-      } catch {
-        // ignore
-      }
       navigate("home");
     } catch {
       setError("認証処理中にエラーが発生しました");
@@ -213,13 +200,7 @@ export const LoginView = () => {
       } else if (data?.session) {
         isMfaCompletedRef.current = true;
         setMfaChallengeRequired(false);
-        setInMemorySudoAuthorized(true);
         await refreshProfile();
-        try {
-          sessionStorage.setItem("quest_qlub_sudo_at", Date.now().toString());
-        } catch {
-          // ignore
-        }
         navigate("home");
       }
     } catch (e: any) {
@@ -466,7 +447,7 @@ export const LoginView = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50 cursor-pointer"
+            className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50 cursor-pointer brand-focus"
           >
             {loading ? "ログイン中..." : "ログイン"}
           </button>

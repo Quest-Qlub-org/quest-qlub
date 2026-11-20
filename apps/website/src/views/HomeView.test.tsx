@@ -65,6 +65,9 @@ describe("HomeView", () => {
     expect(h1s.length).toBe(1);
     const heroImg = h1s[0]?.querySelector("img");
     expect(heroImg?.getAttribute("alt")).toContain("Quest Qlub");
+    expect(container.querySelector('a[href="/about"].brand-focus')?.textContent).toBe(
+      "Quest Qlubとは？",
+    );
 
     const h2Texts = Array.from(container.querySelectorAll("h2")).map((h) => h.textContent?.trim());
     expect(h2Texts).toContain("おすすめの記事");

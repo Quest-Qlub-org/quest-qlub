@@ -6,7 +6,7 @@ import { findVerifiedTotpFactor, verifyTotpCode, verifyBackupCode } from "../uti
 
 interface MfaChallengeModalProps {
   isOpen?: boolean;
-  onSuccess: () => void;
+  onSuccess: (method: "totp" | "recovery") => void | Promise<void>;
   onCancel?: () => void;
 }
 
@@ -95,7 +95,7 @@ export const MfaChallengeModal = ({
         return;
       }
 
-      onSuccess();
+      await onSuccess("totp");
     } catch {
       setError("認証処理中にエラーが発生しました");
     } finally {
@@ -119,7 +119,7 @@ export const MfaChallengeModal = ({
         return;
       }
 
-      onSuccess();
+      await onSuccess("recovery");
     } catch {
       setError("認証処理中にエラーが発生しました");
     } finally {

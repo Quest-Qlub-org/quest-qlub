@@ -51,8 +51,8 @@ pnpm run ready
 > **本番データベースへの直接変更の禁止**
 > 本番用 Supabase プロジェクト（`uksgnlfnxytqljrctiqg`）の接続情報をローカル環境で更新・削除等に利用してはなりません。
 
-- **ローカル開発**: `apps/website/.env.development.local` に開発用 Supabase の接続情報を設定して行います。本番DB接続が検出された場合は画面上部に警告バナー（`EnvironmentBanner`）が表示されます。
-- **ユニットテスト**: `apps/website/src/supabase.ts` の `isTest` により、自動テスト実行時は実DBへの通信が完全に遮断され、テスト用モックが適用されます。実DBへ通信するようなテストコードを書かないでください。
+- **ローカル開発**: `apps/website/.env.development.local` に開発用 Supabase の接続情報を設定して行います。開発・検証環境で本番ホストを検出した場合はアプリの起動を止め、設定方法を画面に表示します。
+- **ユニットテスト**: `apps/website/src/supabaseConfig.ts` の `isTest` により、自動テスト実行時は実DBへの通信が完全に遮断され、テスト用モックが適用されます。実DBへ通信するようなテストコードを書かないでください。
 - **マイグレーション**: データベースの変更は必ず `supabase/migrations/` に新規 SQL ファイルとして記録してください。既存のマイグレーション履歴やドリフト状況は必ず `docs/schema-drift.md` を参照してください。
 
 ### スキーマ耐障害性原則 (Graceful Degradation against Schema Drift)
@@ -240,7 +240,7 @@ docs/
 
 - **Sudo Mode（ステップアップ再認証 + MFA一気通貫）**:
   - ライターおよび編集長専用ダッシュボード（`/writer-dash/*`, `/editor-dash/*`）へのアクセスには、端末放置やセッション乗っ取りを防止するための Sudo Mode が必須です。
-  - **メモリ内プライベート認可 (`inMemorySudoAuthorized`)**: ブラウザの DevTools やストレージ改ざんによる権限バイパスを遮断するため、Sudo 認可フラグはメモリ内変数としてのみ保持されます。
+  - **セッションに紐付くサーバー認可**: DB は再認証のチャレンジ、認証要素、現在のロールとセッションを管理操作ごとに確認します。画面の認可期限はブラウザーのメモリで管理します。認証要素やセッションを確認する場合は [認証設定のリリース確認](docs/auth-release.md) を参照してください。
   - **Leave-to-Lock 原則と共通 Layout Route (`SudoAreaLayout`)**: 管理エリアから一般画面等へアンマウント離脱した際、Sudo 認可は即座に自動失効します。`App.tsx` では `/writer-dash/*` と `/editor-dash/*` を `<SudoAreaLayout />`（`<RoleRoute allowedRoles={["writer", "editor"]}><Outlet /></RoleRoute>`）で階層化しているため、管理エリア内のサブページ移動で Sudo 認可が意図せず失効することはありません。また、Sudo 再認証に伴う一時的な 2FA チャレンジ（`mfaChallengeRequired` または MFA ハンドシェイク猶予 `SUDO_MFA_HANDSHAKE_GRACE_MS`）によるアンマウント時も失効させず維持されます。
   - Sudo タイムアウトは 15 分（`SUDO_TIMEOUT_MS = 15 * 60 * 1000`）であり、タイムアウト到達時には自動ロックタイマーによって認可が失効します。
 - **XSS の防止**:

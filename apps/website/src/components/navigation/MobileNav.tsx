@@ -17,13 +17,13 @@ export function MobileNav() {
             key={item.id}
             to={item.path}
             aria-current={active ? "page" : undefined}
-            className="flex flex-col items-center justify-center gap-1 w-16"
+            className="flex flex-col items-center justify-center gap-1 w-16 rounded-md brand-focus"
           >
             <Icon active={active} />
             <span
               className={`text-[10px] ${
                 active
-                  ? "text-blue-600 dark:text-blue-400 font-bold"
+                  ? "text-blue-600 dark:text-blue-400 font-bold underline underline-offset-2"
                   : "text-gray-500 dark:text-gray-400"
               }`}
             >
