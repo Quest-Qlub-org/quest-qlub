@@ -240,7 +240,7 @@ docs/
 
 - **Sudo Mode（ステップアップ再認証 + MFA一気通貫）**:
   - ライターおよび編集長専用ダッシュボード（`/writer-dash/*`, `/editor-dash/*`）へのアクセスには、端末放置やセッション乗っ取りを防止するための Sudo Mode が必須です。
-  - **メモリ内プライベート認可 (`inMemorySudoAuthorized`)**: ブラウザの DevTools やストレージ改ざんによる権限バイパスを遮断するため、Sudo 認可フラグはメモリ内変数としてのみ保持されます。
+  - **セッションに紐付くサーバー認可**: DB は再認証のチャレンジ、認証要素、現在のロールとセッションを管理操作ごとに確認します。画面の認可期限はブラウザーのメモリで管理します。認証要素やセッションを確認する場合は [認証設定のリリース確認](docs/auth-release.md) を参照してください。
   - **Leave-to-Lock 原則と共通 Layout Route (`SudoAreaLayout`)**: 管理エリアから一般画面等へアンマウント離脱した際、Sudo 認可は即座に自動失効します。`App.tsx` では `/writer-dash/*` と `/editor-dash/*` を `<SudoAreaLayout />`（`<RoleRoute allowedRoles={["writer", "editor"]}><Outlet /></RoleRoute>`）で階層化しているため、管理エリア内のサブページ移動で Sudo 認可が意図せず失効することはありません。また、Sudo 再認証に伴う一時的な 2FA チャレンジ（`mfaChallengeRequired` または MFA ハンドシェイク猶予 `SUDO_MFA_HANDSHAKE_GRACE_MS`）によるアンマウント時も失効させず維持されます。
   - Sudo タイムアウトは 15 分（`SUDO_TIMEOUT_MS = 15 * 60 * 1000`）であり、タイムアウト到達時には自動ロックタイマーによって認可が失効します。
 - **XSS の防止**:

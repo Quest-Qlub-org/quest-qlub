@@ -125,6 +125,7 @@ GitHub Actions の依存はフルコミット SHA で固定しています。Dep
   - `vercel.json` は `apps/website/vercel.json` に配置されており、SPAリライトやCSP/HSTSなどのセキュリティヘッダーが定義されています。
   - Vercelダッシュボードの「Environment Variables」に `VITE_SUPABASE_URL` と `VITE_SUPABASE_ANON_KEY` を登録する必要があります。
 - Google ログインのコールバックを独自ドメインへ変更するときは、[Google OAuth のカスタムドメイン手順](docs/google-oauth-domain.md)を参照してください。
+- DB の認可を含むリリースでは、[DB 認可のリリース検証](docs/database-authorization-release.md)に従って適用履歴と実効権限を照合します。
 
 ---
 

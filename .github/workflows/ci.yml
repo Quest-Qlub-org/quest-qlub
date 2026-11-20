@@ -32,3 +32,38 @@ jobs:
 
       - name: Run ready checks (vp check, vp test, website build)
         run: pnpm run ready
+
+  database-authorization:
+    name: Database authorization
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: "54322"
+      PGUSER: postgres
+      PGDATABASE: postgres
+      PGPASSWORD: postgres # Local Supabase defaults for this disposable runner.
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1.7.3
+        with:
+          version: 2.122.0
+
+      - name: Replay migrations in an isolated database
+        run: |
+          supabase start
+          supabase db reset --local --no-seed
+
+      - name: Verify migration history and effective privileges
+        run: bash supabase/verify-authorization.sh
+
+      - name: Exercise authorization as API roles
+        run: |
+          for test in supabase/tests/*.sql; do
+            psql -X -w -v ON_ERROR_STOP=1 -f "$test" || exit
+          done
