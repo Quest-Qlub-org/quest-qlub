@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vite-plus/test";
 import { createRoot } from "react-dom/client";
 import { act } from "react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { SearchView } from "./SearchView";
 import * as AppContextModule from "../context/AppContext";
 import { createTestArticle, createTestProfile, setNativeValue } from "../test/test-utils";
@@ -48,15 +48,108 @@ describe("SearchView", () => {
     } as unknown as ReturnType<typeof AppContextModule.useApp>);
   }
 
-  function renderSearchView(initialRoute = "/search") {
+  function SearchLocation() {
+    const { pathname, search } = useLocation();
+    return <output data-testid="search-location">{pathname + search}</output>;
+  }
+
+  function ArticleRoute() {
+    const navigate = useNavigate();
+    return (
+      <button type="button" onClick={() => void navigate(-1)}>
+        検索へ戻る
+      </button>
+    );
+  }
+
+  function renderSearchView(initialRoute = "/search", routerKey = "search") {
     act(() => {
       root!.render(
-        <MemoryRouter initialEntries={[initialRoute]}>
-          <SearchView />
+        <MemoryRouter key={routerKey} initialEntries={[initialRoute]}>
+          <SearchLocation />
+          <Routes>
+            <Route path="/search" element={<SearchView />} />
+            <Route path="/articles/:id" element={<ArticleRoute />} />
+          </Routes>
         </MemoryRouter>,
       );
     });
   }
+
+  it.each(["q", "keyword"])("restores links that use the %s parameter", (parameter) => {
+    const article = createTestArticle({ title: "古いリンクからも読める記事" });
+    setupAppMock({ articles: [article] });
+
+    renderSearchView(`/search?${parameter}=${encodeURIComponent("読める")}`);
+
+    expect(container.querySelector("input")?.value).toBe("読める");
+    expect(container.textContent).toContain(article.title);
+    expect(container.textContent).toContain("検索結果 (1件)");
+  });
+
+  it("persists edited filters in a shareable URL through article navigation and remounting", () => {
+    const writers = [
+      createTestProfile({ id: "w-first", display_name: "天羽楽" }),
+      createTestProfile({ id: "w-second", display_name: "Quest Qlub編集部" }),
+    ];
+    const articles = [
+      createTestArticle({
+        id: "article-1",
+        title: "検索テスト",
+        tags: ["理科"],
+        writerId: "w-first",
+      }),
+      createTestArticle({
+        id: "article-2",
+        title: "別の記事",
+        tags: ["歴史"],
+        writerId: "w-second",
+      }),
+    ];
+    setupAppMock({ articles, writers });
+    renderSearchView("/search?keyword=old");
+
+    const clickButton = (label: string) => {
+      const button = Array.from(container.querySelectorAll("button")).find(
+        (candidate) => candidate.textContent?.trim() === label,
+      );
+      expect(button).toBeDefined();
+      act(() => button!.click());
+    };
+    const currentRoute = () =>
+      container.querySelector('[data-testid="search-location"]')?.textContent ?? "";
+    act(() => setNativeValue(container.querySelector("input")!, "検索"));
+    for (const label of ["#理科", "#歴史", "天羽楽", "Quest Qlub編集部"]) clickButton(label);
+
+    const sharedRoute = currentRoute();
+    const params = new URL(sharedRoute, "https://example.test").searchParams;
+    expect(params.get("q")).toBe("検索");
+    expect(params.has("keyword")).toBe(false);
+    expect(params.getAll("tag")).toEqual(["理科", "歴史"]);
+    expect(params.getAll("writer")).toEqual(["w-first", "w-second"]);
+
+    const expectRestored = () => {
+      expect(container.querySelector("input")?.value).toBe("検索");
+      expect(
+        Array.from(container.querySelectorAll('[aria-pressed="true"]'), (button) =>
+          button.textContent?.trim(),
+        ),
+      ).toEqual(expect.arrayContaining(["#理科", "#歴史", "天羽楽", "Quest Qlub編集部"]));
+      expect(container.textContent).toContain("検索結果 (1件)");
+    };
+    act(() => container.querySelector<HTMLAnchorElement>('a[href="/articles/article-1"]')!.click());
+    expect(currentRoute()).toBe("/articles/article-1");
+    clickButton("検索へ戻る");
+    expect(currentRoute()).toBe(sharedRoute);
+    expectRestored();
+
+    renderSearchView(sharedRoute, "reloaded");
+    expectRestored();
+    clickButton("フィルターをリセット");
+    expect(currentRoute()).toBe("/search");
+    expect(container.querySelector("input")?.value).toBe("");
+    expect(container.querySelector('[aria-pressed="true"]')).toBeNull();
+  });
 
   it("renders initial published articles and stable 2-column grid layout when unfiltered", () => {
     const writer = createTestProfile({ id: "w-1", display_name: "ライター1" });
