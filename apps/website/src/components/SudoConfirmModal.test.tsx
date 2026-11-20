@@ -6,6 +6,7 @@ import { SudoConfirmModal } from "./SudoConfirmModal";
 import { supabase } from "../supabase";
 import { setNativeValue } from "../test/test-utils";
 import * as AuthContextModule from "../context/AuthContext";
+import { checkIsSudoActive, setInMemorySudoAuthorized } from "../utils/sudoState";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -19,6 +20,8 @@ describe("SudoConfirmModal", () => {
     document.body.appendChild(container);
     root = createRoot(container);
     vi.clearAllMocks();
+    setInMemorySudoAuthorized(false);
+    vi.spyOn(supabase, "rpc").mockResolvedValue({ data: "challenge-1", error: null } as any);
 
     vi.spyOn(AuthContextModule, "useAuth").mockReturnValue({
       setMfaChallengeRequired: mockSetMfaChallengeRequired,
@@ -215,6 +218,55 @@ describe("SudoConfirmModal", () => {
     expect(container.querySelector('input[placeholder="123456"]')).toBeNull();
     expect(container.querySelector('[role="alert"]')?.textContent).toContain(
       "2段階認証の確認が必要です",
+    );
+  });
+
+  it("keeps management access locked when the server refuses the grant", async () => {
+    const onSuccess = vi.fn();
+    vi.spyOn(supabase.auth, "signInWithPassword").mockResolvedValue({
+      data: { user: { id: "u-1" }, session: {} },
+      error: null,
+    } as any);
+    vi.spyOn(supabase.auth.mfa, "getAuthenticatorAssuranceLevel").mockResolvedValue({
+      data: { currentLevel: "aal1", nextLevel: "aal1", currentAuthenticationMethods: [] },
+      error: null,
+    });
+    const rpc = vi
+      .spyOn(supabase, "rpc")
+      .mockImplementation(
+        (name) =>
+          Promise.resolve(
+            name === "confirm_sudo_session"
+              ? { data: null, error: { code: "42501" } }
+              : { data: "challenge-1", error: null },
+          ) as any,
+      );
+    act(() => {
+      root!.render(
+        <SudoConfirmModal
+          userEmail="editor@example.com"
+          onSuccess={onSuccess}
+          onCancel={vi.fn()}
+        />,
+      );
+    });
+    act(() => {
+      setNativeValue(
+        container.querySelector<HTMLInputElement>("#sudo-confirm-password-input")!,
+        "secret-pass",
+      );
+    });
+    await act(async () => {
+      container
+        .querySelector("form")!
+        .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+
+    expect(rpc).toHaveBeenCalledWith("confirm_sudo_session", { p_challenge_id: "challenge-1" });
+    expect(onSuccess).not.toHaveBeenCalled();
+    expect(checkIsSudoActive()).toBe(false);
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "再認証を確認できませんでした",
     );
   });
 });
