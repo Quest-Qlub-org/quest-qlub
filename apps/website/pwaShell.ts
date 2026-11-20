@@ -1,13 +1,22 @@
 import { fileURLToPath } from "node:url";
-import { normalizePath, type Plugin, type Rolldown } from "vite";
+import { normalizePath, type ChunkMetadata, type Plugin, type Rolldown } from "vite";
 
 // The bootstrap loads App only once the environment check has passed.
 const appModule = normalizePath(fileURLToPath(new URL("./src/App.tsx", import.meta.url)));
 
-export function collectAppShell(bundle: Rolldown.OutputBundle): Set<string> {
+export type AppShellChunk = Pick<
+  Rolldown.OutputChunk,
+  "type" | "fileName" | "isEntry" | "facadeModuleId" | "imports" | "dynamicImports"
+> & {
+  viteMetadata?: Pick<ChunkMetadata, "importedCss" | "importedAssets">;
+};
+
+export function collectAppShell(
+  bundle: Record<string, AppShellChunk | { type: "asset" }>,
+): Set<string> {
   const files = new Set<string>();
 
-  function addChunk(chunk: Rolldown.OutputChunk) {
+  function addChunk(chunk: AppShellChunk) {
     if (files.has(chunk.fileName)) return;
 
     files.add(chunk.fileName);
