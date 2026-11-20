@@ -1,5 +1,6 @@
 -- #166: 保存済みの表示名を検証し、投稿の受理とレート制限を同時に確定する。
 BEGIN;
+SET LOCAL lock_timeout = '3s';
 
 CREATE SCHEMA IF NOT EXISTS quest_qlub_private;
 REVOKE ALL ON SCHEMA quest_qlub_private FROM PUBLIC, anon;

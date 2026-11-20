@@ -1,4 +1,5 @@
 BEGIN;
+SET LOCAL lock_timeout = '3s';
 
 -- Older installations retained the original three-state constraint.
 ALTER TABLE public.articles
