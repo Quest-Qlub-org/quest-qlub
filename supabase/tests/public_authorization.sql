@@ -18,6 +18,18 @@ VALUES
   ('release-check-due', '86100000-0000-4000-8000-000000000001', 'Due', 'scheduled', now() - interval '1 hour'),
   ('release-check-future', '86100000-0000-4000-8000-000000000001', 'Future', 'scheduled', now() + interval '1 hour');
 
+DO $$
+BEGIN
+  BEGIN
+    INSERT INTO public.articles (writer_id, title, status)
+    VALUES ('86100000-0000-4000-8000-000000000001', 'Invalid status', 'invalid');
+    RAISE EXCEPTION 'An unsupported article status was accepted';
+  EXCEPTION WHEN check_violation THEN
+    NULL;
+  END;
+END;
+$$;
+
 SELECT set_config('request.jwt.claims', '{"role":"anon"}', true);
 SET LOCAL ROLE anon;
 

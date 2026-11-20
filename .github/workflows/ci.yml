@@ -67,3 +67,11 @@ jobs:
           for test in supabase/tests/*.sql; do
             psql -X -w -v ON_ERROR_STOP=1 -f "$test" || exit
           done
+
+      - name: Show local database logs on failure
+        if: failure()
+        run: |
+          docker ps -aq --filter 'name=supabase_db_' | while read -r container; do
+            docker inspect --format '{{json .State}}' "$container"
+            docker logs --tail 120 "$container"
+          done
