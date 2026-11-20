@@ -45,6 +45,8 @@ overrides:
   source-map-js@<1.2.2: ">=1.2.2"
   tinypool@<2.1.2: ">=2.1.2"
   vitest: "catalog:"
+  # Workbox 7.4.1 still requests glob 11. Its globSync API supports fixed glob 14.
+  "workbox-build@7.4.1>glob": "14.0.2"
   ws@<8.21.0: ">=8.21.0"
 peerDependencyRules:
   allowAny:
