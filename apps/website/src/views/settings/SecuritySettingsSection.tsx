@@ -17,6 +17,7 @@ import {
 import { MfaEnrollModal } from "../../components/MfaEnrollModal";
 import { useFocusTrap } from "../../hooks/useFocusTrap";
 import { validatePassword } from "../../utils/validation";
+import { getPasswordAuthErrorMessage } from "../../utils/passwordAuthErrors";
 
 type FactorItem = {
   id: string;
@@ -77,8 +78,9 @@ export function SecuritySettingsSection({ showToast }: { showToast: (msg: string
     try {
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) {
-        setPasswordError(error.message || "パスワードの変更に失敗しました");
-        showToast("パスワードの変更に失敗しました: " + (error.message || "エラーが発生しました"));
+        const message = getPasswordAuthErrorMessage(error, "パスワードの変更に失敗しました");
+        setPasswordError(message);
+        showToast(message);
       } else {
         showToast("パスワードを変更しました");
         setNewPassword("");

@@ -2,6 +2,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vite-plus/test";
 import { act } from "react";
+import { AuthWeakPasswordError } from "@supabase/supabase-js";
 import { RegisterView } from "./RegisterView";
 import { renderWithRouter, setNativeValue } from "../../test/test-utils";
 import { supabase } from "../../supabase";
@@ -136,6 +137,44 @@ describe("RegisterView", () => {
     });
     expect(mockNavigate).toHaveBeenCalledWith("login");
 
+    unmount();
+  });
+
+  it("keeps the registration form open when Auth rejects a leaked password", async () => {
+    const signUpSpy = vi.spyOn(supabase.auth, "signUp").mockResolvedValue({
+      data: { user: null, session: null },
+      error: new AuthWeakPasswordError("Weak password", 422, ["pwned"]),
+    });
+    const { container, unmount } = renderWithRouter(<RegisterView />, { route: "/register" });
+
+    act(() => {
+      setNativeValue(
+        container.querySelector<HTMLInputElement>("#register-display-name")!,
+        "山田太郎",
+      );
+      setNativeValue(
+        container.querySelector<HTMLInputElement>("#register-email")!,
+        "taro@example.com",
+      );
+      setNativeValue(
+        container.querySelector<HTMLInputElement>("#register-password")!,
+        "password123",
+      );
+      container.querySelector<HTMLInputElement>("#register-agree-terms")!.click();
+    });
+
+    await act(async () => {
+      container
+        .querySelector("form")!
+        .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+
+    expect(signUpSpy).toHaveBeenCalledOnce();
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "漏えいが確認されています",
+    );
+    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(mockShowToast).not.toHaveBeenCalled();
     unmount();
   });
 });
