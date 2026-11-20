@@ -83,13 +83,15 @@ describe("Header navigation", () => {
     expect(searchLink).toBeDefined();
     expect(searchLink?.getAttribute("href")).toBe("/search");
     expect(searchLink?.getAttribute("aria-current")).toBe("page");
-    expect(searchLink?.querySelector(".text-blue-600")).not.toBeNull();
+    expect(searchLink?.querySelector(".text-blue-600.underline")).not.toBeNull();
+    expect(searchLink?.classList.contains("brand-focus")).toBe(true);
 
     // 「トップ」リンクは active ではないこと
     const homeLink = links.find((a) => a.textContent?.includes("トップ"));
     expect(homeLink?.getAttribute("href")).toBe("/");
     expect(homeLink?.getAttribute("aria-current")).toBeNull();
     expect(homeLink?.querySelector(".text-blue-600")).toBeNull();
+    expect(homeLink?.querySelector(".underline")).toBeNull();
   });
 
   it("navigates to target route when a nav link is clicked", () => {

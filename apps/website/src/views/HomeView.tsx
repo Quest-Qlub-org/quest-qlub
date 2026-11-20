@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { Link } from "react-router-dom";
 import imgRecommend from "../assets/recommend_icon.png";
 import imgPopular from "../assets/popular_icon.png";
 import imgTitleDetail from "../assets/brand_title_detail.png";
@@ -12,14 +13,8 @@ import { isArticlePubliclyVisible } from "../utils/scheduledArticles";
 import { updateMetaTags, generateHomeJsonLd } from "../utils/seo";
 
 export const HomeView = () => {
-  const {
-    articles,
-    articlesLoading,
-    hasMoreArticles,
-    loadingMoreArticles,
-    loadMoreArticles,
-    navigate,
-  } = useApp();
+  const { articles, articlesLoading, hasMoreArticles, loadingMoreArticles, loadMoreArticles } =
+    useApp();
   const { followedIds } = useFollows();
 
   useEffect(() => {
@@ -51,13 +46,12 @@ export const HomeView = () => {
         <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
           実践的なナレッジや知見が集まるナレッジシェアプラットフォーム
         </p>
-        <button
-          type="button"
-          onClick={() => navigate("/about")}
-          className="text-xs text-blue-600 dark:text-blue-400 font-bold underline mt-3 hover:text-blue-800 dark:hover:text-blue-300 transition-colors inline-block"
+        <Link
+          to="/about"
+          className="text-xs text-blue-600 dark:text-blue-400 font-bold underline mt-3 hover:text-blue-800 dark:hover:text-blue-300 transition-colors inline-block brand-focus"
         >
           Quest Qlubとは？
-        </button>
+        </Link>
       </div>
 
       {/* おすすめ記事セクション */}

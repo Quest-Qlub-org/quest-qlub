@@ -447,7 +447,7 @@ export const LoginView = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50 cursor-pointer"
+            className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50 cursor-pointer brand-focus"
           >
             {loading ? "ログイン中..." : "ログイン"}
           </button>
