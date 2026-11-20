@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vite-plus/test";
+import { cleanup } from "@testing-library/react";
 import { act } from "react";
 import { EditorArticlesView } from "./EditorArticlesView";
 import * as AppContextModule from "../../context/AppContext";
@@ -17,6 +18,7 @@ describe("EditorArticlesView", () => {
   });
 
   afterEach(() => {
+    cleanup();
     vi.restoreAllMocks();
   });
 
