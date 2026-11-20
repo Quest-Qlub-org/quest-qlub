@@ -52,7 +52,11 @@ describe("WriterApplyView", () => {
 
   function setupAppMock() {
     vi.spyOn(AppContextModule, "useApp").mockReturnValue({
-      user: { id: "test-user-id", email: "apply@example.com" } as any,
+      user: {
+        id: "test-user-id",
+        email: "apply@example.com",
+        email_confirmed_at: "2026-11-21T00:00:00Z",
+      } as any,
       profile: { display_name: "応募者" } as any,
       showToast: mockShowToast,
       navigate: mockNavigate,
@@ -81,7 +85,7 @@ describe("WriterApplyView", () => {
       reason: "honeypot",
     });
 
-    const dbSpy = vi.spyOn(supabase, "from");
+    const dbSpy = vi.spyOn(supabase, "rpc");
     const fnSpy = vi.spyOn(supabase.functions, "invoke");
 
     await act(async () => {
@@ -93,14 +97,10 @@ describe("WriterApplyView", () => {
     });
 
     const nameInput = container.querySelector('input[placeholder="山田 太郎"]') as HTMLInputElement;
-    const emailInput = container.querySelector(
-      'input[placeholder="example@quest-qlub.com"]',
-    ) as HTMLInputElement;
     const motivationInput = container.querySelector("textarea") as HTMLTextAreaElement;
 
     act(() => {
       setNativeValue(nameInput, "ボット太郎");
-      setNativeValue(emailInput, "bot@example.com");
       setNativeValue(motivationInput, "スパムメッセージです");
     });
 
@@ -125,7 +125,7 @@ describe("WriterApplyView", () => {
       reason: "too_fast",
     });
 
-    const dbSpy = vi.spyOn(supabase, "from");
+    const dbSpy = vi.spyOn(supabase, "rpc");
 
     await act(async () => {
       root!.render(
@@ -136,14 +136,10 @@ describe("WriterApplyView", () => {
     });
 
     const nameInput = container.querySelector('input[placeholder="山田 太郎"]') as HTMLInputElement;
-    const emailInput = container.querySelector(
-      'input[placeholder="example@quest-qlub.com"]',
-    ) as HTMLInputElement;
     const motivationInput = container.querySelector("textarea") as HTMLTextAreaElement;
 
     act(() => {
       setNativeValue(nameInput, "早打ち太郎");
-      setNativeValue(emailInput, "fast@example.com");
       setNativeValue(motivationInput, "志望動機です");
     });
 
@@ -175,14 +171,10 @@ describe("WriterApplyView", () => {
     });
 
     const nameInput = container.querySelector('input[placeholder="山田 太郎"]') as HTMLInputElement;
-    const emailInput = container.querySelector(
-      'input[placeholder="example@quest-qlub.com"]',
-    ) as HTMLInputElement;
     const motivationInput = container.querySelector("textarea") as HTMLTextAreaElement;
 
     act(() => {
       setNativeValue(nameInput, "応募者 太郎");
-      setNativeValue(emailInput, "taro@example.com");
       setNativeValue(motivationInput, "熱心に記事を書きたいです！");
     });
 
@@ -220,14 +212,10 @@ describe("WriterApplyView", () => {
     });
 
     const nameInput = container.querySelector('input[placeholder="山田 太郎"]') as HTMLInputElement;
-    const emailInput = container.querySelector(
-      'input[placeholder="example@quest-qlub.com"]',
-    ) as HTMLInputElement;
     const motivationInput = container.querySelector("textarea") as HTMLTextAreaElement;
 
     act(() => {
       setNativeValue(nameInput, "応募者 太郎");
-      setNativeValue(emailInput, "taro@example.com");
       setNativeValue(motivationInput, "熱心に記事を書きたいです！");
     });
 
@@ -262,14 +250,10 @@ describe("WriterApplyView", () => {
     });
 
     const nameInput = container.querySelector('input[placeholder="山田 太郎"]') as HTMLInputElement;
-    const emailInput = container.querySelector(
-      'input[placeholder="example@quest-qlub.com"]',
-    ) as HTMLInputElement;
     const motivationInput = container.querySelector("textarea") as HTMLTextAreaElement;
 
     act(() => {
       setNativeValue(nameInput, "応募者 太郎");
-      setNativeValue(emailInput, "taro@example.com");
       setNativeValue(motivationInput, "熱心に記事を書きたいです！");
     });
 
@@ -285,10 +269,13 @@ describe("WriterApplyView", () => {
       { timeout: 10000, interval: 50 },
     );
     expect(mockShowToast).toHaveBeenCalledWith("ライター応募を受け付けました");
-    expect(receipt).toHaveBeenCalledWith(
-      "submit_contact_message",
-      expect.objectContaining({ message_subject: "【ライター応募】応募者 太郎様より" }),
-    );
+    expect(receipt).toHaveBeenCalledWith("submit_writer_application", {
+      sender_name: "応募者 太郎",
+      motivation: "熱心に記事を書きたいです！",
+      preferred_genres: [],
+      previous_work_url: "",
+      honeypot: "",
+    });
     expect(notification).not.toHaveBeenCalled();
   });
 
@@ -311,16 +298,23 @@ describe("WriterApplyView", () => {
     });
 
     const nameInput = container.querySelector('input[placeholder="山田 太郎"]') as HTMLInputElement;
-    const emailInput = container.querySelector(
-      'input[placeholder="example@quest-qlub.com"]',
-    ) as HTMLInputElement;
+    const emailInput = container.querySelector("#writer-apply-email") as HTMLInputElement;
 
     expect(nameInput.value).toBe("");
     expect(emailInput.value).toBe("");
+    expect(emailInput.readOnly).toBe(true);
+    expect(container.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(
+      true,
+    );
+    expect(container.querySelector('a[href="/login"]')).not.toBeNull();
 
     // Simulate session resolving asynchronously
     mockContext = {
-      user: { id: "resolved-user", email: "resolved@example.com" },
+      user: {
+        id: "resolved-user",
+        email: "resolved@example.com",
+        email_confirmed_at: "2026-11-21T00:00:00Z",
+      },
       profile: { display_name: "非同期表示名" },
       showToast: mockShowToast,
       navigate: mockNavigate,
@@ -337,6 +331,9 @@ describe("WriterApplyView", () => {
 
     expect(nameInput.value).toBe("非同期表示名");
     expect(emailInput.value).toBe("resolved@example.com");
+    expect(container.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(
+      false,
+    );
 
     spy.mockRestore();
   });

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { isContactRateLimitError, submitContactMessage } from "../utils/contactSubmissions";
+import { supabase } from "../supabase";
+import { isContactRateLimitError } from "../utils/contactSubmissions";
 import { useApp } from "../context/AppContext";
 import { PenTool, CheckCircle, Send, ArrowLeft, Sparkles, ListChecks } from "lucide-react";
 import { updateMetaTags } from "../utils/seo";
@@ -22,21 +23,15 @@ export const WriterApplyView = () => {
   }, []);
 
   const [name, setName] = useState(profile?.display_name || "");
-  const [email, setEmail] = useState(user?.email || "");
+  const email = user?.email ?? "";
+  const canApply = Boolean(user?.email_confirmed_at && email);
   const [hasEditedName, setHasEditedName] = useState(false);
-  const [hasEditedEmail, setHasEditedEmail] = useState(false);
 
   useEffect(() => {
     if (!hasEditedName && profile?.display_name) {
       setName(profile.display_name);
     }
   }, [profile?.display_name, hasEditedName]);
-
-  useEffect(() => {
-    if (!hasEditedEmail && user?.email) {
-      setEmail(user.email);
-    }
-  }, [user?.email, hasEditedEmail]);
 
   const [genres, setGenres] = useState<string[]>([]);
   const [portfolio, setPortfolio] = useState("");
@@ -75,18 +70,20 @@ export const WriterApplyView = () => {
       return;
     }
 
-    if (!name.trim() || !email.trim() || !motivation.trim()) {
-      setError("お名前、メールアドレス、志望動機・メッセージは必須です。");
+    if (!canApply) {
+      setError("確認済みのメールアドレスを持つアカウントでログインしてください。");
+      return;
+    }
+
+    if (!name.trim() || !motivation.trim()) {
+      setError("お名前と志望動機・メッセージは必須です。");
       return;
     }
 
     const subject = `【ライター応募】${name.trim()}様より`;
     const body = [
-      `【応募者名】: ${name.trim()}`,
-      `【メールアドレス】: ${email.trim()}`,
       `【希望執筆ジャンル】: ${genres.length > 0 ? genres.join(", ") : "未選択"}`,
       `【ポートフォリオ / 過去記事URL】: ${portfolio.trim() || "なし"}`,
-      `【ユーザーID】: ${user?.id || "未ログイン"}`,
       `【志望動機・自己PR】:\n${motivation.trim()}`,
     ].join("\n");
 
@@ -105,13 +102,25 @@ export const WriterApplyView = () => {
     setError("");
 
     try {
-      const dbError = await submitContactMessage({ name, email, subject, body }, honeypot);
+      const { error: dbError } = await supabase.rpc("submit_writer_application", {
+        sender_name: name.trim(),
+        motivation: motivation.trim(),
+        preferred_genres: genres,
+        previous_work_url: portfolio.trim(),
+        honeypot,
+      });
       if (dbError) {
-        setError(
-          isContactRateLimitError(dbError)
-            ? "短時間に多数の送信が行われました。10分ほど時間をおいてから再度お試しください。"
-            : "送信に失敗しました。通信環境をご確認のうえ、しばらく経ってから再度お試しください。",
-        );
+        if (isContactRateLimitError(dbError)) {
+          setError("短時間に多数の送信が行われました。時間をおいてから再度お試しください。");
+        } else if (dbError.code === "42501") {
+          setError("確認済みのメールアドレスを持つアカウントでログインしてください。");
+        } else if (dbError.code === "PGRST202" || dbError.code === "42883") {
+          setError("現在応募を送信できません。しばらく経ってから再度お試しください。");
+        } else {
+          setError(
+            "送信に失敗しました。通信環境をご確認のうえ、しばらく経ってから再度お試しください。",
+          );
+        }
         return;
       }
 
@@ -240,6 +249,22 @@ export const WriterApplyView = () => {
             onSubmit={handleSubmit}
             className="md:col-span-7 bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-700 space-y-5"
           >
+            {!canApply && (
+              <div className="space-y-2 text-sm text-gray-700 dark:text-gray-200">
+                <p>ライター応募には、メールアドレスを確認済みのアカウントが必要です。</p>
+                {!user && (
+                  <div className="flex flex-wrap gap-3">
+                    <Link to="/login" className="text-blue-700 underline dark:text-blue-300">
+                      ログイン
+                    </Link>
+                    <Link to="/register" className="text-blue-700 underline dark:text-blue-300">
+                      アカウント登録
+                    </Link>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Honeypot field (hidden from real users, attractive to bots) */}
             <HoneypotField value={honeypot} onChange={setHoneypot} />
 
@@ -284,22 +309,13 @@ export const WriterApplyView = () => {
                   htmlFor="writer-apply-email"
                   className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5"
                 >
-                  メールアドレス <span className="text-red-600 dark:text-red-400">*</span>
+                  アカウントのメールアドレス
                 </label>
                 <input
                   id="writer-apply-email"
                   type="email"
-                  autoComplete="email"
-                  required
-                  aria-required="true"
-                  aria-invalid={Boolean(error)}
-                  aria-describedby={errorId}
-                  placeholder="example@quest-qlub.com"
+                  readOnly
                   value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    setHasEditedEmail(true);
-                  }}
                   className="w-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -380,7 +396,7 @@ export const WriterApplyView = () => {
 
             <button
               type="submit"
-              disabled={submitting || cooldown > 0}
+              disabled={!canApply || submitting || cooldown > 0}
               className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl transition-colors shadow-sm disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
             >
               <Send className="w-4 h-4" aria-hidden="true" />
