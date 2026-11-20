@@ -88,7 +88,13 @@ export function AppLayout() {
         <MfaChallengeModal
           isOpen={true}
           onSuccess={async (method) => {
-            if (method === "totp" && isSudoMfaHandshakeActive()) {
+            if (method === "recovery") {
+              lockSudoSession();
+              showToast(
+                "アカウントを復旧しました。セキュリティ設定で認証アプリを再登録してください。",
+              );
+              void navigate("/settings");
+            } else if (isSudoMfaHandshakeActive()) {
               const authorized = await confirmServerSudoSession().catch(() => false);
               if (!authorized) {
                 lockSudoSession();

@@ -19,3 +19,30 @@ Free プランを継続する場合、現在のホスト構成で登録と変更
 Sudo Mode は認証済みセッションで発行したチャレンジと、その後に同じアカウントでパスワードまたはパスキーを使って発行した新規セッションを紐付ける。検証済み MFA がある場合は、新規セッション上での MFA 完了も必要になる。チャレンジの有効時間は3分、管理操作はパスワードまたはパスキーの確認から15分間有効。トークンの更新で期限は延長されない。
 
 先に検証環境でマイグレーションとクライアントを揃えて適用する。`supabase/tests/sudo_authorization.sql` を `psql -v ON_ERROR_STOP=1 -f` で実行し、ライター・編集長それぞれで管理画面に入り、操作成功、離脱後の再認証、タイムアウト、ログアウト後の拒否を確認する。最後に MFA を登録した編集長でも同じ操作を確認する。
+
+## MFA 復旧と本人通知（#163）
+
+既発行の8文字コードは、最初の復旧・認証要素の解除・コードの再生成まで利用できる。新規発行は AAL2 の認証済みセッションのみ許可し、1コードあたり128ビットの乱数を用いる。復旧の誤入力はアカウントごとに15分間で5回まで受け付ける。
+
+復旧を確定すると古いバックアップコードと認証要素が無効になる。ほかのセッションはトークンの更新と Sudo 操作ができなくなる。発行済みのアクセストークンを使う通常の Data API 操作にはトークンの有効期限が適用される。ライター・編集長は認証アプリを再登録し、新しいバックアップコードを発行すると管理操作を再開できる。メール確認済みのアカウントには、復旧時点の確認済みアドレスに通知する。
+
+承認済み環境でマイグレーションを適用し、`notify-mfa-recovery` Edge Function をデプロイする。既存の `RESEND_API_KEY` に加え、Resend で認証済みの差出人を `MFA_RECOVERY_SENDER_EMAIL` に登録する。通知ワーカー専用に生成した32文字以上のランダム値を Edge Function の `MFA_RECOVERY_WORKER_TOKEN` と、Cron から読む Vault の `mfa_recovery_worker_token` に設定する。対象プロジェクトの API URL を Vault の `mfa_recovery_project_url` に登録する。 [Supabase Edge Function の定期実行](https://supabase.com/docs/guides/functions/schedule-functions)
+
+Supabase Cron で以下を1分おきに実行する。
+
+```sql
+SELECT net.http_post(
+  url := (SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'mfa_recovery_project_url')
+    || '/functions/v1/notify-mfa-recovery',
+  headers := jsonb_build_object(
+    'Authorization', 'Bearer ' || (
+      SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'mfa_recovery_worker_token'
+    ),
+    'Content-Type', 'application/json'
+  ),
+  body := '{}'::jsonb,
+  timeout_milliseconds := 30000
+);
+```
+
+隔離環境で `supabase/tests/mfa_recovery.sql` を `psql -v ON_ERROR_STOP=1 -f` で実行する。テスト用アカウントで復旧、旧コードの無効化、認証アプリの再登録、新しいコードの発行を確認する。通知は `quest_qlub_private.mfa_recovery_notifications` の `status` と Edge Function ログの通知IDで照合する。送信済み・失敗の確定時に宛先を消去する。送信処理の重複は通知IDを使った冪等性キーで抑止し、再試行は5回か23時間の先に達した時点で終了する。 [Resend の冪等性キー](https://resend.com/docs/dashboard/emails/idempotency-keys)

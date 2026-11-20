@@ -34,6 +34,12 @@ type PasskeyItem = {
   last_used_at?: string;
 };
 
+type BackupCodesStatus = {
+  total: number;
+  remaining: number;
+  re_enroll_required?: boolean;
+};
+
 export function SecuritySettingsSection({ showToast }: { showToast: (msg: string) => void }) {
   const [totpFactors, setTotpFactors] = useState<FactorItem[]>([]);
   const [passkeys, setPasskeys] = useState<PasskeyItem[]>([]);
@@ -44,10 +50,7 @@ export function SecuritySettingsSection({ showToast }: { showToast: (msg: string
   const [deletingPasskeyId, setDeletingPasskeyId] = useState<string | null>(null);
 
   // バックアップコード状態
-  const [backupCodesStatus, setBackupCodesStatus] = useState<{
-    total: number;
-    remaining: number;
-  } | null>(null);
+  const [backupCodesStatus, setBackupCodesStatus] = useState<BackupCodesStatus | null>(null);
   const [regeneratingCodes, setRegeneratingCodes] = useState(false);
   const [showBackupModal, setShowBackupModal] = useState(false);
   const [newBackupCodes, setNewBackupCodes] = useState<string[]>([]);
@@ -128,7 +131,7 @@ export function SecuritySettingsSection({ showToast }: { showToast: (msg: string
       // Fetch Backup Codes Status
       const { data: bcStatus } = await supabase.rpc("get_mfa_backup_codes_status");
       if (bcStatus) {
-        setBackupCodesStatus(bcStatus as { total: number; remaining: number });
+        setBackupCodesStatus(bcStatus as BackupCodesStatus);
       }
     } catch (e) {
       console.error("Failed to load security settings", e);
@@ -221,7 +224,7 @@ export function SecuritySettingsSection({ showToast }: { showToast: (msg: string
           return;
         }
       }
-      showToast("2段階認証を解除しました");
+      showToast("2段階認証を解除し、バックアップコードを無効にしました");
       await fetchSecurityData();
     } catch {
       showToast("2段階認証の解除中にエラーが発生しました");
@@ -279,6 +282,14 @@ export function SecuritySettingsSection({ showToast }: { showToast: (msg: string
       </div>
 
       <div className="p-4 space-y-6">
+        {backupCodesStatus?.re_enroll_required && (
+          <p
+            role="status"
+            className="rounded-xl bg-amber-50 dark:bg-amber-950/40 p-3 text-sm text-amber-900 dark:text-amber-200"
+          >
+            アカウントを復旧しました。認証アプリを再登録し、新しいバックアップコードを保存してください。
+          </p>
+        )}
         {/* パスワード変更 */}
         <div
           data-testid="password-change-card"
@@ -561,7 +572,7 @@ export function SecuritySettingsSection({ showToast }: { showToast: (msg: string
             role="dialog"
             aria-modal="true"
             aria-labelledby="backup-codes-title"
-            className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 w-full max-w-md overflow-hidden relative"
+            className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 relative w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto"
           >
             <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">
               <div className="flex items-center gap-2">
@@ -594,16 +605,16 @@ export function SecuritySettingsSection({ showToast }: { showToast: (msg: string
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 bg-gray-50 dark:bg-gray-900/50 p-3 rounded-xl border border-gray-200 dark:border-gray-700">
+              <div className="grid gap-2 bg-gray-50 dark:bg-gray-900/50 p-3 rounded-xl border border-gray-200 dark:border-gray-700">
                 {newBackupCodes.map((code, idx) => (
                   <div
-                    key={idx}
-                    className="flex items-center justify-between px-3 py-1.5 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 text-xs font-mono font-bold text-gray-700 dark:text-gray-200 shadow-sm"
+                    key={code}
+                    className="flex min-w-0 items-center gap-2 px-2 py-1.5 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 text-xs font-mono font-bold text-gray-700 dark:text-gray-200 shadow-sm"
                   >
                     <span className="text-gray-500 dark:text-gray-400 text-[10px] select-none">
                       {idx + 1}.
                     </span>
-                    <span>{code}</span>
+                    <span className="min-w-0 break-all">{code}</span>
                   </div>
                 ))}
               </div>

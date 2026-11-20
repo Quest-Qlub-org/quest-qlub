@@ -18,7 +18,7 @@ export const LoginView = () => {
   const [factorId, setFactorId] = useState<string | null>(null);
   const [fetchingFactor, setFetchingFactor] = useState(false);
   const [isPasskeySupported, setIsPasskeySupported] = useState(false);
-  const { navigate, setMfaChallengeRequired, refreshProfile } = useApp();
+  const { navigate, setMfaChallengeRequired, refreshProfile, showToast } = useApp();
 
   useEffect(() => {
     updateMetaTags({
@@ -160,7 +160,8 @@ export const LoginView = () => {
       isMfaCompletedRef.current = true;
       setMfaChallengeRequired(false);
       await refreshProfile();
-      navigate("home");
+      navigate("settings");
+      showToast("アカウントを復旧しました。セキュリティ設定で認証アプリを再登録してください。");
     } catch {
       setError("認証処理中にエラーが発生しました");
     } finally {
@@ -248,7 +249,7 @@ export const LoginView = () => {
           </h1>
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-5 leading-relaxed">
             {step === "mfa_backup"
-              ? "保管しておいた8桁のバックアップコードを入力してください。ログイン完了後、2段階認証は自動で解除されます。"
+              ? "保管しておいたバックアップコードを入力してください。復旧後は古いコードが無効になり、認証アプリの再登録が必要です。"
               : "アカウントのセキュリティ保護のため、認証アプリに表示されている6桁のコードを入力してください。"}
           </p>
 
@@ -277,7 +278,7 @@ export const LoginView = () => {
                   aria-invalid={Boolean(error)}
                   aria-describedby={error ? "login-mfa-error" : undefined}
                   autoComplete="off"
-                  placeholder="例: abcd-1234"
+                  placeholder="保存したバックアップコード"
                   autoFocus
                   value={backupCode}
                   onChange={(e) => setBackupCode(e.target.value)}

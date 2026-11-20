@@ -79,7 +79,7 @@ describe("MfaChallengeModal", () => {
     });
 
     const backupInput = container.querySelector(
-      'input[placeholder="例: abcd-1234"]',
+      'input[placeholder="保存したバックアップコード"]',
     ) as HTMLInputElement;
     expect(backupInput.className).toContain("placeholder-gray-500");
     expect(backupInput.className).toContain("dark:placeholder-gray-400");

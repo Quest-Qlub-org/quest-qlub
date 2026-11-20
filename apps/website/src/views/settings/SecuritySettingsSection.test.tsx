@@ -165,6 +165,20 @@ describe("SecuritySettingsSection - Password Change", () => {
     expect(newPassword.value).toBe("password123");
   });
 
+  it("shows the re-enrollment step when recovery invalidates the previous factors", async () => {
+    vi.spyOn(supabase, "rpc").mockResolvedValue({
+      data: { total: 0, remaining: 0, re_enroll_required: true },
+      error: null,
+    } as any);
+
+    await act(async () => {
+      root!.render(<SecuritySettingsSection showToast={mockShowToast} />);
+    });
+
+    expect(container.querySelector('[role="status"]')?.textContent).toContain("認証アプリを再登録");
+    expect(container.textContent).toContain("有効にする");
+  });
+
   it("unenrolls all verified TOTP factors and resets loading state on error", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
     vi.spyOn(supabase.auth.mfa, "listFactors").mockResolvedValue({

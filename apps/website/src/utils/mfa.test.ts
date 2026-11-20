@@ -136,6 +136,20 @@ describe("mfa utils", () => {
       expect(refreshSpy).toHaveBeenCalled();
     });
 
+    it("explains a server-enforced recovery cooldown", async () => {
+      vi.spyOn(supabase, "rpc").mockResolvedValue({
+        data: null,
+        error: { code: "PT429" },
+      } as never);
+      const refreshSpy = vi.spyOn(supabase.auth, "refreshSession");
+
+      const result = await verifyBackupCode("ABCD-1234");
+
+      expect(result.success).toBe(false);
+      expect(result.errorMessage).toContain("試行上限");
+      expect(refreshSpy).not.toHaveBeenCalled();
+    });
+
     it("returns failure when RPC returns false", async () => {
       vi.spyOn(supabase, "rpc").mockResolvedValue({ data: false, error: null } as never);
       const refreshSpy = vi.spyOn(supabase.auth, "refreshSession");
