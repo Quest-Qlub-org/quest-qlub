@@ -56,6 +56,8 @@ jobs:
 
       - name: Replay migrations in an isolated database
         run: |
+          # Use the production PostgreSQL minor release for this isolated stack.
+          printf '%s' '17.11.0.019' > supabase/.temp/postgres-version
           supabase start
           supabase db reset --local --no-seed
 
