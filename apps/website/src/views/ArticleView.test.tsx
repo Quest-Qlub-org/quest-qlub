@@ -39,6 +39,102 @@ describe("ArticleView", () => {
     vi.restoreAllMocks();
   });
 
+  const detailFixture = {
+    id: "art-detail",
+    title: "詳細を読み込む記事",
+    summary: "一覧から取得できる概要",
+    content: "<p>再試行で取得した本文</p>",
+    status: "published",
+    writer_id: "writer-1",
+    created_at: "2026-11-01T08:00:00Z",
+    tags: [],
+  };
+
+  function mockArticleDetail(includeListRow = false) {
+    const maybeSingle = vi.fn();
+    vi.spyOn(supabase, "from").mockImplementation((table: string) => {
+      const query = Object.assign(Promise.resolve({ data: [], error: null }), {
+        select: vi.fn(() => query),
+        eq: vi.fn(() => query),
+        in: vi.fn(() => query),
+        order: vi.fn(() => query),
+        range: vi.fn().mockResolvedValue({
+          data:
+            table === "articles" && includeListRow
+              ? [{ ...detailFixture, content: undefined }]
+              : [],
+          error: null,
+        }),
+        maybeSingle: table === "articles" ? maybeSingle : vi.fn().mockResolvedValue({ data: null }),
+      });
+      return query as unknown as ReturnType<typeof supabase.from>;
+    });
+    return maybeSingle;
+  }
+
+  async function renderArticleDetail() {
+    await act(async () => {
+      root!.render(
+        <MemoryRouter initialEntries={["/articles/art-detail"]}>
+          <AppProviders>
+            <Routes>
+              <Route path="/articles/:id" element={<ArticleView />} />
+            </Routes>
+          </AppProviders>
+        </MemoryRouter>,
+      );
+    });
+  }
+
+  it.each([false, true])("can retry a temporary detail error (list row: %s)", async (cached) => {
+    const maybeSingle = mockArticleDetail(cached)
+      .mockResolvedValueOnce({ data: null, error: { message: "Bad Gateway" }, status: 502 })
+      .mockResolvedValueOnce({ data: detailFixture, error: null });
+
+    await renderArticleDetail();
+
+    const alert = container.querySelector('[role="alert"]');
+    expect(alert?.textContent).toContain("読み込めませんでした");
+    expect(container.textContent).not.toContain("記事が見つかりません");
+    expect(container.textContent).not.toContain("本文はまだ書かれていません");
+    if (cached) {
+      expect(container.textContent).toContain(detailFixture.title);
+      expect(container.textContent).toContain(detailFixture.summary);
+    }
+
+    const retry = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "再読み込み",
+    );
+    expect(retry).toBeDefined();
+    await act(async () => retry!.click());
+
+    expect(maybeSingle).toHaveBeenCalledTimes(2);
+    expect(container.textContent).toContain("再試行で取得した本文");
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it("shows the empty body state after a successful detail response", async () => {
+    mockArticleDetail().mockResolvedValue({
+      data: { ...detailFixture, content: "" },
+      error: null,
+    });
+
+    await renderArticleDetail();
+
+    expect(container.textContent).toContain("本文はまだ書かれていません");
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it("shows an unavailable article after an empty detail response even with a cached list row", async () => {
+    mockArticleDetail(true).mockResolvedValue({ data: null, error: null });
+
+    await renderArticleDetail();
+
+    expect(container.textContent).toContain("記事が見つかりません");
+    expect(container.textContent).not.toContain(detailFixture.title);
+    expect(container.textContent).not.toContain("再読み込み");
+  });
+
   it("calls increment_views RPC with correct parameter p_article_id", async () => {
     const testArticle = createTestArticle({
       id: "art-test-123",
