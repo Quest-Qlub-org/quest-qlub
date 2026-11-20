@@ -51,8 +51,8 @@ pnpm run ready
 > **本番データベースへの直接変更の禁止**
 > 本番用 Supabase プロジェクト（`uksgnlfnxytqljrctiqg`）の接続情報をローカル環境で更新・削除等に利用してはなりません。
 
-- **ローカル開発**: `apps/website/.env.development.local` に開発用 Supabase の接続情報を設定して行います。本番DB接続が検出された場合は画面上部に警告バナー（`EnvironmentBanner`）が表示されます。
-- **ユニットテスト**: `apps/website/src/supabase.ts` の `isTest` により、自動テスト実行時は実DBへの通信が完全に遮断され、テスト用モックが適用されます。実DBへ通信するようなテストコードを書かないでください。
+- **ローカル開発**: `apps/website/.env.development.local` に開発用 Supabase の接続情報を設定して行います。開発・検証環境で本番ホストを検出した場合はアプリの起動を止め、設定方法を画面に表示します。
+- **ユニットテスト**: `apps/website/src/supabaseConfig.ts` の `isTest` により、自動テスト実行時は実DBへの通信が完全に遮断され、テスト用モックが適用されます。実DBへ通信するようなテストコードを書かないでください。
 - **マイグレーション**: データベースの変更は必ず `supabase/migrations/` に新規 SQL ファイルとして記録してください。既存のマイグレーション履歴やドリフト状況は必ず `docs/schema-drift.md` を参照してください。
 
 ### スキーマ耐障害性原則 (Graceful Degradation against Schema Drift)
