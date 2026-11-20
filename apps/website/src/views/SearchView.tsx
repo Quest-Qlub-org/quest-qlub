@@ -13,7 +13,7 @@ import { updateMetaTags } from "../utils/seo";
 import { supabase } from "../supabase";
 import type { Profile } from "../supabase";
 import { fetchProfilesListWithFallback } from "../utils/profileQueries";
-import { ARTICLE_LIST_FIELDS } from "../context/DataContext";
+import { ARTICLE_LIST_FIELDS, ARTICLE_PAGE_SIZE } from "../context/DataContext";
 import { isArticleOptionalColumnSchemaError } from "../utils/supabaseErrors";
 
 const SEARCH_ARTICLE_FIELDS =
@@ -21,7 +21,14 @@ const SEARCH_ARTICLE_FIELDS =
 const WRITER_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const SearchView = () => {
-  const { articles, writers } = useApp();
+  const {
+    articles,
+    articlesLoading,
+    hasMoreArticles,
+    loadingMoreArticles,
+    loadMoreArticles,
+    writers,
+  } = useApp();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const keyword = searchParams.get("q") || searchParams.get("keyword") || "";
@@ -41,7 +48,7 @@ export const SearchView = () => {
     articles: Article[];
   } | null>(null);
   const [isLoadingServerResults, setIsLoadingServerResults] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(12);
+  const [visibleCount, setVisibleCount] = useState(ARTICLE_PAGE_SIZE);
 
   useEffect(() => {
     updateMetaTags({
@@ -109,7 +116,7 @@ export const SearchView = () => {
   const hasFilter = Boolean(keyword || selectedTags.length > 0 || selectedWriterIds.length > 0);
 
   useEffect(() => {
-    setVisibleCount(12);
+    setVisibleCount(ARTICLE_PAGE_SIZE);
   }, [searchParams]);
 
   useEffect(() => {
@@ -250,6 +257,15 @@ export const SearchView = () => {
   const pagedResults = useMemo(() => {
     return results.slice(0, visibleCount);
   }, [results, visibleCount]);
+
+  const hiddenResultCount = results.length - pagedResults.length;
+  const hasNextArticlePage = !hasFilter && !articlesLoading && hasMoreArticles;
+  const isLoadingArticles = !hasFilter && (articlesLoading || loadingMoreArticles);
+
+  const showMore = () => {
+    setVisibleCount(pagedResults.length + ARTICLE_PAGE_SIZE);
+    if (hiddenResultCount === 0 && hasNextArticlePage) void loadMoreArticles();
+  };
 
   const toggleFilter = (key: "tag" | "writer", value: string) => {
     const nextParams = new URLSearchParams(searchParams);
@@ -396,7 +412,7 @@ export const SearchView = () => {
           )}
         </div>
         <div className="min-w-0">
-          <div aria-busy={isLoadingServerResults}>
+          <div aria-busy={isLoadingServerResults || isLoadingArticles}>
             <div
               className="mb-3 flex items-center justify-between"
               role="status"
@@ -406,31 +422,43 @@ export const SearchView = () => {
               <h2 className="font-bold text-gray-700 dark:text-gray-200">
                 {hasFilter
                   ? `検索結果 (${results.length}件)`
-                  : `公開中の記事 (${results.length}件)`}
+                  : `公開中の記事 (${pagedResults.length}件)`}
               </h2>
               {isLoadingServerResults && (
                 <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">
-                  検索中...
+                  検索中…
                 </span>
+              )}
+              {!hasFilter && (hasNextArticlePage || hiddenResultCount > 0) && (
+                <span className="text-xs text-gray-600 dark:text-gray-400">続きがあります</span>
               )}
             </div>
             <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
               {results.length === 0 ? (
                 <p className="text-gray-500 dark:text-gray-400 text-center py-8 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 lg:col-span-2">
-                  {hasFilter ? "該当する記事が見つかりませんでした" : "まだ公開記事はありません"}
+                  {hasFilter
+                    ? "該当する記事が見つかりませんでした"
+                    : articlesLoading
+                      ? "記事を読み込んでいます…"
+                      : "まだ公開記事はありません"}
                 </p>
               ) : (
                 pagedResults.map((a) => <ArticleCard key={a.id} article={a} />)
               )}
             </div>
-            {results.length > visibleCount && (
+            {(hiddenResultCount > 0 || hasNextArticlePage) && (
               <div className="flex justify-center pt-6">
                 <button
                   type="button"
-                  onClick={() => setVisibleCount((prev) => prev + 12)}
-                  className="px-6 py-2.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-bold shadow-sm transition-colors cursor-pointer"
+                  onClick={showMore}
+                  disabled={isLoadingArticles}
+                  className="px-6 py-2.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-bold shadow-sm transition-colors cursor-pointer disabled:opacity-50"
                 >
-                  さらに表示する（残り {results.length - visibleCount} 件）
+                  {isLoadingArticles
+                    ? "読み込み中…"
+                    : hiddenResultCount > 0
+                      ? `さらに表示する（残り ${hiddenResultCount} 件）`
+                      : "さらに記事を読み込む"}
                 </button>
               </div>
             )}

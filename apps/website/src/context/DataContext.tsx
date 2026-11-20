@@ -17,7 +17,7 @@ import { mapDbArticleWithSchedule, isArticlePubliclyVisible } from "../utils/sch
 import { useAuth } from "./AuthContext";
 import { useUI } from "./UIContext";
 
-const ARTICLE_PAGE_SIZE = 12;
+export const ARTICLE_PAGE_SIZE = 12;
 const WRITER_PAGE_SIZE = 12;
 
 // 安全な記事一覧取得フィールド（巨大な本文 content を除外し、実DBで確実に存在するカラムのみ）
@@ -26,6 +26,17 @@ export const ARTICLE_LIST_FIELDS =
 
 // 共同執筆者を含むオプショナル記事一覧取得フィールド（ダッシュボード等での利用向け。未適用環境では ARTICLE_LIST_FIELDS へのフォールバック必須）
 export const WRITER_ARTICLE_LIST_FIELDS = `${ARTICLE_LIST_FIELDS}, collaborator_ids`;
+
+function fetchPublicArticlePage(offset: number) {
+  // 1件多く取得し、次のページがあることを一覧の取得と同時に確かめる。
+  return supabase
+    .from("articles")
+    .select(ARTICLE_LIST_FIELDS)
+    .eq("status", "published")
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .range(offset, offset + ARTICLE_PAGE_SIZE);
+}
 
 export interface DataContextType {
   // Articles
@@ -97,6 +108,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [dataLoaded, setDataLoaded] = useState(false);
 
   const articlesOffsetRef = useRef(0);
+  const articleRefreshVersionRef = useRef(0);
   const writersOffsetRef = useRef(0);
   const loadingMoreArticlesRef = useRef(false);
   const loadingMoreWritersRef = useRef(false);
@@ -107,8 +119,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const favoritesRef = useRef<string[]>(favorites);
   favoritesRef.current = favorites;
 
-  // Issue #23 & Issue #24: 本文(content)を除外し、range(0, ARTICLE_PAGE_SIZE - 1) でページ単位取得
+  // Issue #23 & Issue #24: 本文(content)を除外し、ページ単位で取得
   const fetchArticles = useCallback(async () => {
+    const refreshVersion = ++articleRefreshVersionRef.current;
     setArticlesLoading(true);
     try {
       // 予約日時が到来した記事の自動公開RPC（未適用環境やエラー時はサイレントに無視）
@@ -126,75 +139,64 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         // ignore in mock/legacy environments
       }
 
-      let res = await supabase
-        .from("articles")
-        .select(ARTICLE_LIST_FIELDS)
-        .eq("status", "published")
-        .order("created_at", { ascending: false })
-        .range(0, ARTICLE_PAGE_SIZE - 1);
+      let res = await fetchPublicArticlePage(0);
 
       // 初回失敗時の安全な再試行（セッション初期化タイミングのラグ対策）
       if (res.error) {
         console.warn("fetchArticles first attempt failed, retrying...", res.error);
         await new Promise((r) => setTimeout(r, 200));
-        res = await supabase
-          .from("articles")
-          .select(ARTICLE_LIST_FIELDS)
-          .eq("status", "published")
-          .order("created_at", { ascending: false })
-          .range(0, ARTICLE_PAGE_SIZE - 1);
+        res = await fetchPublicArticlePage(0);
       }
 
-      if (!res.error && res.data) {
-        articlesOffsetRef.current = res.data.length;
-        const mapped = res.data
+      if (refreshVersion === articleRefreshVersionRef.current && !res.error && res.data) {
+        const page = res.data.slice(0, ARTICLE_PAGE_SIZE);
+        articlesOffsetRef.current = page.length;
+        const mapped = page
           .map((item) => mapDbArticleWithSchedule(item))
           .filter((article) => isArticlePubliclyVisible(article));
         setArticles(mapped);
-        setHasMoreArticles(res.data.length === ARTICLE_PAGE_SIZE);
+        setHasMoreArticles(res.data.length > ARTICLE_PAGE_SIZE);
       }
     } catch (e) {
       console.error("Failed to fetch articles", e);
     } finally {
-      setArticlesLoading(false);
+      if (refreshVersion === articleRefreshVersionRef.current) setArticlesLoading(false);
     }
   }, []);
 
   const loadMoreArticles = useCallback(async () => {
-    if (loadingMoreArticlesRef.current || !hasMoreArticles) return;
+    if (loadingMoreArticlesRef.current || articlesLoading || !hasMoreArticles) return;
     loadingMoreArticlesRef.current = true;
     setLoadingMoreArticles(true);
+    const refreshVersion = articleRefreshVersionRef.current;
     try {
       const start = articlesOffsetRef.current;
-      const end = start + ARTICLE_PAGE_SIZE - 1;
-      const { data, error } = await supabase
-        .from("articles")
-        .select(ARTICLE_LIST_FIELDS)
-        .eq("status", "published")
-        .order("created_at", { ascending: false })
-        .range(start, end);
+      const { data, error } = await fetchPublicArticlePage(start);
+      if (refreshVersion !== articleRefreshVersionRef.current) return;
+      if (error) throw error;
+      if (!data) return;
 
-      if (!error && data) {
-        articlesOffsetRef.current += data.length;
-        if (data.length > 0) {
-          const newArticles = data
-            .map((item) => mapDbArticleWithSchedule(item))
-            .filter((article) => isArticlePubliclyVisible(article));
-          setArticles((prev) => {
-            const existingIds = new Set(prev.map((a) => a.id));
-            const uniqueNew = newArticles.filter((a) => !existingIds.has(a.id));
-            return uniqueNew.length > 0 ? [...prev, ...uniqueNew] : prev;
-          });
-        }
-        setHasMoreArticles(data.length === ARTICLE_PAGE_SIZE);
+      const page = data.slice(0, ARTICLE_PAGE_SIZE);
+      articlesOffsetRef.current += page.length;
+      if (page.length > 0) {
+        const newArticles = page
+          .map((item) => mapDbArticleWithSchedule(item))
+          .filter((article) => isArticlePubliclyVisible(article));
+        setArticles((prev) => {
+          const existingIds = new Set(prev.map((a) => a.id));
+          const uniqueNew = newArticles.filter((a) => !existingIds.has(a.id));
+          return uniqueNew.length > 0 ? [...prev, ...uniqueNew] : prev;
+        });
       }
+      setHasMoreArticles(data.length > ARTICLE_PAGE_SIZE);
     } catch (e) {
       console.error("Failed to load more articles", e);
+      showToast("記事の追加読み込みに失敗しました。もう一度お試しください。");
     } finally {
       loadingMoreArticlesRef.current = false;
       setLoadingMoreArticles(false);
     }
-  }, [hasMoreArticles]);
+  }, [articlesLoading, hasMoreArticles, showToast]);
 
   const fetchWriters = useCallback(async () => {
     setWritersLoading(true);
