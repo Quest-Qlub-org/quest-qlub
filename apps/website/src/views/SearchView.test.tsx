@@ -37,11 +37,22 @@ describe("SearchView", () => {
     options: {
       articles?: ReturnType<typeof createTestArticle>[];
       writers?: ReturnType<typeof createTestProfile>[];
+      hasMoreArticles?: boolean;
+      loadMoreArticles?: () => Promise<void>;
     } = {},
   ) {
-    const { articles = [], writers = [] } = options;
+    const {
+      articles = [],
+      writers = [],
+      hasMoreArticles = false,
+      loadMoreArticles = vi.fn(),
+    } = options;
     vi.spyOn(AppContextModule, "useApp").mockReturnValue({
       articles,
+      articlesLoading: false,
+      hasMoreArticles,
+      loadMoreArticles,
+      loadingMoreArticles: false,
       writers,
       favorites: [],
       navigate: vi.fn(),
@@ -179,6 +190,47 @@ describe("SearchView", () => {
     // #91: 初期状態から2カラムグリッドを維持しCLSを防止すること
     const gridWrapper = container.querySelector(".md\\:grid-cols-\\[300px_1fr\\]");
     expect(gridWrapper).not.toBeNull();
+  });
+
+  it.each([7, 12])("shows all %i articles without a next page when unfiltered", (count) => {
+    const articles = Array.from({ length: count }, (_, i) =>
+      createTestArticle({ id: `art-${i + 1}`, title: `記事 ${i + 1}` }),
+    );
+    setupAppMock({ articles });
+
+    renderSearchView();
+
+    expect(container.textContent).toContain(`公開中の記事 (${count}件)`);
+    expect(container.querySelectorAll('a[href^="/articles/"]')).toHaveLength(count);
+    expect(container.textContent).not.toContain("続きがあります");
+    expect(container.textContent).not.toContain("さらに記事を読み込む");
+  });
+
+  it("fetches the next public page when opening search directly", () => {
+    const articles = Array.from({ length: 13 }, (_, i) =>
+      createTestArticle({ id: `art-${i + 1}`, title: `記事 ${i + 1}` }),
+    );
+    const loadMoreArticles = vi.fn().mockResolvedValue(undefined);
+    setupAppMock({ articles: articles.slice(0, 12), hasMoreArticles: true, loadMoreArticles });
+
+    renderSearchView();
+
+    expect(container.textContent).toContain("公開中の記事 (12件)");
+    expect(container.textContent).toContain("続きがあります");
+    expect(container.querySelectorAll('a[href^="/articles/"]')).toHaveLength(12);
+    const next = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "さらに記事を読み込む",
+    );
+    expect(next).toBeDefined();
+    act(() => next!.click());
+    expect(loadMoreArticles).toHaveBeenCalledOnce();
+
+    setupAppMock({ articles });
+    renderSearchView();
+
+    expect(container.querySelectorAll('a[href^="/articles/"]')).toHaveLength(13);
+    expect(container.textContent).toContain("公開中の記事 (13件)");
+    expect(container.textContent).not.toContain("続きがあります");
   });
 
   it("filters articles by keyword input in title, content, or writer name", () => {
@@ -397,7 +449,8 @@ describe("SearchView", () => {
       }),
     );
 
-    setupAppMock({ articles, writers: [] });
+    const loadMoreArticles = vi.fn();
+    setupAppMock({ articles, hasMoreArticles: true, loadMoreArticles });
 
     renderSearchView("/search?tag=%E9%80%A3%E8%BC%89");
 
@@ -419,6 +472,8 @@ describe("SearchView", () => {
     expect(container.textContent).toContain("テスト記事第13話");
     expect(container.textContent).toContain("テスト記事第15話");
     expect(container.textContent).not.toContain("さらに表示する");
+    expect(container.textContent).not.toContain("さらに記事を読み込む");
+    expect(loadMoreArticles).not.toHaveBeenCalled();
   });
 
   it("fetches server tags and displays them in tag list", async () => {
