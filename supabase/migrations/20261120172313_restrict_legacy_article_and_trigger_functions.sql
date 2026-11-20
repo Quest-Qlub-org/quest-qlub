@@ -1,4 +1,5 @@
 BEGIN;
+SET LOCAL lock_timeout = '3s';
 
 -- These names can still exist in environments where the older migration was
 -- only partially applied. Favorites now maintains likes via its trigger.
