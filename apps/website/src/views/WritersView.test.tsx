@@ -221,6 +221,33 @@ describe("WritersView (Follow actions and self-row protection)", () => {
     expect(img?.getAttribute("decoding")).toBe("async");
   });
 
+  it("wraps a long writer name and keeps each role label on one line", () => {
+    const displayName = "QuestQlub編集部の長い表示名LongUnbrokenWriterName";
+    mockWriters = [
+      createTestProfile({
+        display_name: displayName,
+        role: "editor",
+        roles: ["editor", "writer", "engineer"],
+        username: "long-name",
+      }),
+    ];
+
+    const { container, unmount } = renderWithRouter(<WritersView />);
+    unmountFn = unmount;
+
+    const profileLink = container.querySelector('a[href="/writers/long-name"]');
+    const name = profileLink?.querySelector("p");
+    expect(name?.textContent).toBe(displayName);
+    expect(name?.classList.contains("[overflow-wrap:anywhere]")).toBe(true);
+    for (const label of ["編集長", "ライター", "エンジニア"]) {
+      const role = Array.from(profileLink?.querySelectorAll("span") ?? []).find(
+        (span) => span.textContent === label,
+      );
+      expect(role?.classList.contains("whitespace-nowrap")).toBe(true);
+    }
+    expect(profileLink?.parentElement?.querySelector("button")?.textContent).toBe("フォロー");
+  });
+
   it("uses WCAG AA contrast classes for empty writers message", async () => {
     mockWriters = [];
 
